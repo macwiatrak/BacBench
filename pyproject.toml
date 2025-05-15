@@ -3,7 +3,7 @@ build-backend = "hatchling.build"
 requires = [ "hatchling" ]
 
 [project]
-name = "bacformer"
+name = "bacbench"
 version = "0.0.1"
 description = "Modeling bacterial genomes."
 readme = "README.md"
@@ -29,10 +29,12 @@ dependencies = [
   "dataclasses-json>=0.6.1",
   # "captum~=0.7.0",
   "datasets~=2.18.0",
+  "hf-xet~=1.0.5",
   "igraph~=0.11.8",
   "leidenalg~=0.10.2",
   "pandas>=2.2.3",
   "pyarrow>=19.0.1",
+  "pytorch-lightning~=2.5.1",
   "scanpy>=1.11.1",
   # for debug logging (referenced from the issue template)
   "session-info",
@@ -68,9 +70,9 @@ optional-dependencies.test = [
   "pytest",
 ]
 # https://docs.pypi.org/project_metadata/#project-urls
-urls.Documentation = "https://bacformer.readthedocs.io/"
-urls.Homepage = "https://github.com/macwiatrak/Bacformer"
-urls.Source = "https://github.com/macwiatrak/Bacformer"
+urls.Documentation = "https://bacbench.readthedocs.io/"
+urls.Homepage = "https://github.com/macwiatrak/bacbench"
+urls.Source = "https://github.com/macwiatrak/bacbench"
 
 faesm = [
   "flash-attn>=0.2.0",        # If you need the direct flash-attn package
@@ -78,7 +80,7 @@ faesm = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = [ "bacformer" ]
+packages = [ "bacbench" ]
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -95,8 +97,11 @@ features = [ "test" ]
 
 [tool.ruff]
 line-length = 120
-src = [ "bacformer" ]
-extend-exclude = [ "*.ipynb" ]
+src = [ "bacbench" ]
+extend-exclude = [
+  "*.ipynb",
+  "bacbench/modeling/evo",
+]
 
 format.docstring-code-format = true
 
@@ -141,7 +146,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = [ "bacformer" ]
+source = [ "bacbench" ]
 omit = [
   "**/test_*.py",
   "tutorials/*",
