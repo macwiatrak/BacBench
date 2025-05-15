@@ -215,26 +215,30 @@ python bacbench/modeling/run_embed_dna.py \
 # embed and save the genomes using the ESM-2 model
 python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \  # name of the dataset
-    --output-filepath <output-dir>/operon_identification_esm2_embeddings.parquet \
-    --model-path rost-lab/protbert  \
-    --model-type protbert \
+    --output-filepath <output-dir>/strain_clustering_esm2_embeddings.parquet \
+    --model-path facebook/esm2_t12_35M_UR50D \
+    --model-type esm2 \
     --batch-size 64 \
+    --genome-pooling-method mean \
     --streaming
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
-    --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
+    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \  # name of the dataset
+    --output-filepath <output-dir>/strain_clustering_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
     --batch-size 64 \
+    --batch-size 64 \
+    --genome-pooling-method mean \
+    --streaming \
     --max-n-proteins 6000  # max nr of proteins in a genome, default value
 
 
-# embed and save the genomes using the Mistral-DNA model
+# embed and save the genomes using the DNABERT-2 model
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-dna \  # name of the dataset
-    --output-filepath <output-dir>/operon_identification_mistral_embeddings.parquet \
+    --dataset-name macwiatrak/bacbench-strain-clustering-dna \  # name of the dataset
+    --output-filepath <output-dir>/strain_clustering_mistral_embeddings.parquet \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
     --model-type mistral_dna \
     --batch-size 256 \

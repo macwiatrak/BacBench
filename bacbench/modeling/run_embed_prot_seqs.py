@@ -112,7 +112,7 @@ def run(
     dfs = []
     for split_name, split_ds in dataset.items():
         prot_seq_col = get_prot_seq_col_name(split_ds.column_names)
-        split_ds = dataset.map(
+        dataset = dataset.map(
             lambda row: add_protein_embeddings(
                 row=row,
                 prot_seq_col=prot_seq_col,  # noqa
@@ -129,7 +129,7 @@ def run(
             remove_columns=[prot_seq_col],
         )
         if bacformer_model is not None:
-            split_ds = dataset.map(
+            dataset = dataset.map(
                 lambda row: add_bacformer_embeddings(
                     row=row,
                     input_col=output_col,
@@ -143,10 +143,10 @@ def run(
                 keep_in_memory=False,
             )
         # remove the protein sequence col as it takes up a lot of space and convert to pandas
-        split_ds = split_ds.to_pandas()
+        df = dataset.to_pandas()
         # add the split name
-        split_ds["split"] = split_name
-        dfs.append(split_ds)
+        df["split"] = split_name
+        dfs.append(df)
 
     # concatenate splits
     dfs = pd.concat(dfs).reset_index(drop=True)
