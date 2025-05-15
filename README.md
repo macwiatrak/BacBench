@@ -148,10 +148,100 @@ Dataset details including nr of genomes and more are available in the datasets c
 We provide extendable scripts to embed genomes at the gene and whole-genome level using various models.
 
 Embedding genomes is the first step to evaluating the models on the tasks.
-Below, we show examples on how to embed genomes using the supported models.
+Below, we show examples on how to embed genomes using the supported models on a few tasks.
 
-```python
+#### Essential genes prediction task
+```bash
+# embed and save the genomes using the ESM-C model
+python bacbench/modeling/run_embed_prot_seqs.py \
+    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \  # name of the dataset
+    --output-filepath <output-dir>/essential_genes_esmc_embeddings.parquet \
+    --model-path esmc_300m \
+    --model-type esmc \
+    --batch-size 64
+
+# embed and save the genomes using the Bacformer model
+python bacbench/modeling/run_embed_prot_seqs.py \
+    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \  # name of the dataset
+    --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
+    --model-path macwiatrak/bacformer-masked-complete-genomes \
+    --model-type bacformer \
+    --batch-size 64 \
+    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+
+# embed and save the genomes using the Nucleotide Transformer model
+python bacbench/modeling/run_embed_dna.py \
+    --dataset-name macwiatrak/bacbench-essential-genes-dna \  # name of the dataset
+    --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
+    --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
+    --model-type nucleotide_transformer \
+    --batch-size 128 \
+    --max-seq-len 2048 \  # max seq len, default value
+    --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
 ```
+#### Operon identification task
+```bash
+# embed and save the genomes using the ProtBert model
+python bacbench/modeling/run_embed_prot_seqs.py \
+    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
+    --output-filepath <output-dir>/operon_identification_protbert_embeddings.parquet \
+    --model-path rost-lab/protbert  \
+    --model-type protbert \
+    --batch-size 64
+
+# embed and save the genomes using the Bacformer model
+python bacbench/modeling/run_embed_prot_seqs.py \
+    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
+    --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
+    --model-path macwiatrak/bacformer-masked-complete-genomes \
+    --model-type bacformer \
+    --batch-size 64 \
+    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+
+
+# embed and save the genomes using the Mistral-DNA model
+python bacbench/modeling/run_embed_dna.py \
+    --dataset-name macwiatrak/bacbench-operon-identification-dna \  # name of the dataset
+    --output-filepath <output-dir>/operon_identification_mistral_embeddings.parquet \
+    --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
+    --model-type mistral_dna \
+    --batch-size 256 \
+    --max-seq-len 512 \  # max seq len, default value
+    --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+```
+
+#### Strain clustering task
+```bash
+# embed and save the genomes using the ESM-2 model
+python bacbench/modeling/run_embed_prot_seqs.py \
+    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \  # name of the dataset
+    --output-filepath <output-dir>/operon_identification_esm2_embeddings.parquet \
+    --model-path rost-lab/protbert  \
+    --model-type protbert \
+    --batch-size 64 \
+    --streaming
+
+# embed and save the genomes using the Bacformer model
+python bacbench/modeling/run_embed_prot_seqs.py \
+    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
+    --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
+    --model-path macwiatrak/bacformer-masked-complete-genomes \
+    --model-type bacformer \
+    --batch-size 64 \
+    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+
+
+# embed and save the genomes using the Mistral-DNA model
+python bacbench/modeling/run_embed_dna.py \
+    --dataset-name macwiatrak/bacbench-operon-identification-dna \  # name of the dataset
+    --output-filepath <output-dir>/operon_identification_mistral_embeddings.parquet \
+    --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
+    --model-type mistral_dna \
+    --batch-size 256 \
+    --max-seq-len 512 \  # max seq len, default value
+    --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+```
+
 
 *Note*: DNABERT-2 requires specific requirements, to install them please see the [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
 

@@ -138,7 +138,7 @@ def generate_protein_embeddings(
     return mean_protein_embeddings
 
 
-def embed_genome_protein_sequences(
+def compute_genome_protein_embeddings(
     model: Callable,
     tokenizer: Callable,
     protein_sequences: list[str] | list[list[str]],
@@ -244,53 +244,6 @@ def load_plm(
         tokenizer = AutoTokenizer.from_pretrained(model_path, do_lower_case=False)
 
     return model, tokenizer
-
-
-def genome_protein_sequences_to_embeddings(
-    df: pd.DataFrame,
-    model_path: str = "facebook/esm2_t12_35M_UR50D",
-    model_type: Literal["esm2", "esmc", "protbert"] = "esm2",
-    protein_sequences_col: str = "protein_sequence",
-    contig_ids_col: str = "protein_sequence",
-    batch_size: int = 64,
-    max_seq_len: int = 1024,
-    genome_pooling_method: Literal["mean", "max"] = None,
-    protein_embedding_col: str = "protein_embeddings",
-) -> pd.DataFrame:
-    """Convert genome protein sequences to embeddings.
-
-    Args:
-        df (pd.DataFrame): Pandas dataframe with data containing protein sequences and if available, contig_ids
-            specifying the contig to which the protein belongs.
-        model_path: str
-        model_type (str): Type of the model, either "esm2" or "esmc".
-        protein_sequences_col (str): Column name for protein sequences.
-        contig_ids_col (str): Column name for contig IDs.
-        batch_size (int): Batch size for processing sequences.
-        max_seq_len (int): Maximum sequence length for the model.
-        protein_pooling_method (str): Pooling method to use on protein level, either "mean" or "cls".
-        genome_pooling_method (str): Pooling method to use on genome level, either "mean" or "max".
-    :return: List[np.ndarray]: List of protein embeddings.
-    """
-    if not torch.cuda.is_available():
-        logging.warning("GPU not available, using CPU for model inference. This will result in a significant slowdown.")
-
-    model, tokenizer = load_plm(model_path, model_type)
-
-    df[protein_embedding_col] = df.apply(
-        lambda row: embed_genome_protein_sequences(
-            model=model,
-            tokenizer=tokenizer,
-            model_type=model_type,
-            protein_sequences=row[protein_sequences_col],
-            contig_ids=row.get(contig_ids_col, None),
-            batch_size=batch_size,
-            max_prot_seq_len=max_seq_len,
-            genome_pooling_method=genome_pooling_method,
-        ),
-        axis=1,
-    )
-    return df
 
 
 def compute_bacformer_embeddings(

@@ -8,7 +8,7 @@ from datasets import Dataset, load_dataset
 from tap import Tap
 from transformers import AutoModel
 
-from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, embed_genome_protein_sequences, load_plm
+from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, compute_genome_protein_embeddings, load_plm
 from bacbench.modeling.utils import get_prot_seq_col_name
 
 
@@ -25,7 +25,7 @@ def add_protein_embeddings(
 ):
     """Helper function to add protein embeddings to a row."""
     return {
-        output_col: embed_genome_protein_sequences(
+        output_col: compute_genome_protein_embeddings(
             model=model,
             tokenizer=tokenizer,
             protein_sequences=row[prot_seq_col],
@@ -125,6 +125,8 @@ def run(
                 genome_pooling_method=genome_pooling_method if model_type != "bacformer" else None,
             ),
             batched=False,
+            keep_in_memory=False,
+            remove_columns=[prot_seq_col],
         )
         if bacformer_model is not None:
             split_ds = dataset.map(
@@ -138,9 +140,10 @@ def run(
                     genome_pooling_method=genome_pooling_method,
                 ),
                 batched=False,
+                keep_in_memory=False,
             )
         # remove the protein sequence col as it takes up a lot of space and convert to pandas
-        split_ds = split_ds.remove_columns([prot_seq_col]).to_pandas()
+        split_ds = split_ds.to_pandas()
         # add the split name
         split_ds["split"] = split_name
         dfs.append(split_ds)
