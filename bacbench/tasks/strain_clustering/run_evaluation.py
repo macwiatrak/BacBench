@@ -9,16 +9,6 @@ from sklearn.preprocessing import LabelEncoder
 from tap import Tap
 from tqdm import tqdm
 
-FILENAMES = [
-    ("Bacformer", "bacformer_genome_embeddings.parquet"),
-    ("ESM-2", "esm2_genome_embeddings.parquet"),
-    ("ESMC", "esmc_genome_embeddings.parquet"),
-    ("Nucleotide Transformer", "nucleotide_transformer_genome_embeddings.parquet"),
-    ("Mistral-DNA", "mistral_genome_embeddings.parquet"),
-    ("ProtBert", "protbert_genome_embeddings.parquet"),
-    ("DNABERT-2", "dnabert_genome_embeddings.parquet"),
-]
-
 
 def leiden_clustering(
     embeddings: np.ndarray,
@@ -127,11 +117,12 @@ def compute_leiden_clustering_metrics(
 
 
 def run(
-    input_dir: str,
+    input_df_file_path: str,
     output_dir: str,
-    filenames: list[tuple[str, str]] = FILENAMES,
+    model_name: str = "Unknown_model",
     leiden_resolutions: list[float] = None,
     k_neighbors: list[int] = None,
+    input_col: str = "embeddings",
 ):
     """Run the script."""
     if k_neighbors is None:
@@ -139,72 +130,72 @@ def run(
     if leiden_resolutions is None:
         leiden_resolutions = [0.1, 0.25, 0.5, 1.0]
     output = []
-    for model_name, f in tqdm(filenames):
-        df = pd.read_parquet(os.path.join(input_dir, f))
-        embeds = np.stack(df["genome_embedding"].tolist())
-        for resolution in tqdm(leiden_resolutions):
-            for k in k_neighbors:
-                print(f"Running {model_name} with leiden resolution {resolution} and k neighbors {k}")
 
-                _, ari, nmi, sil = compute_leiden_clustering_metrics(
-                    embeddings=embeds,
-                    metadata=df,
-                    n_neighbors=k,
-                    resolution=resolution,
-                    label_key="species",
-                )
-                output.append(
-                    {
-                        "ARI": ari,
-                        "NMI": nmi,
-                        "ASW": sil,
-                        "Model": model_name,
-                        "resolution": resolution,
-                        "k_neighbors": k,
-                        "taxa_level": "species",
-                    }
-                )
+    df = pd.read_parquet(input_df_file_path)
+    embeds = np.stack(df[input_col].tolist())
+    for resolution in tqdm(leiden_resolutions):
+        for k in k_neighbors:
+            print(f"Running {model_name} with leiden resolution {resolution} and k neighbors {k}")
 
-                _, ari, nmi, sil = compute_leiden_clustering_metrics(
-                    embeddings=embeds,
-                    metadata=df,
-                    n_neighbors=k,
-                    resolution=resolution,
-                    label_key="genus",
-                )
-                output.append(
-                    {
-                        "ARI": ari,
-                        "NMI": nmi,
-                        "ASW": sil,
-                        "Model": model_name,
-                        "resolution": resolution,
-                        "k_neighbors": k,
-                        "taxa_level": "genus",
-                    }
-                )
+            _, ari, nmi, sil = compute_leiden_clustering_metrics(
+                embeddings=embeds,
+                metadata=df,
+                n_neighbors=k,
+                resolution=resolution,
+                label_key="species",
+            )
+            output.append(
+                {
+                    "ARI": ari,
+                    "NMI": nmi,
+                    "ASW": sil,
+                    "Model": model_name,
+                    "resolution": resolution,
+                    "k_neighbors": k,
+                    "taxa_level": "species",
+                }
+            )
 
-                _, ari, nmi, sil = compute_leiden_clustering_metrics(
-                    embeddings=embeds,
-                    metadata=df,
-                    n_neighbors=k,
-                    resolution=resolution,
-                    label_key="family",
-                )
-                output.append(
-                    {
-                        "ARI": ari,
-                        "NMI": nmi,
-                        "ASW": sil,
-                        "Model": model_name,
-                        "resolution": resolution,
-                        "k_neighbors": k,
-                        "taxa_level": "family",
-                    }
-                )
+            _, ari, nmi, sil = compute_leiden_clustering_metrics(
+                embeddings=embeds,
+                metadata=df,
+                n_neighbors=k,
+                resolution=resolution,
+                label_key="genus",
+            )
+            output.append(
+                {
+                    "ARI": ari,
+                    "NMI": nmi,
+                    "ASW": sil,
+                    "Model": model_name,
+                    "resolution": resolution,
+                    "k_neighbors": k,
+                    "taxa_level": "genus",
+                }
+            )
 
-            output_df = pd.DataFrame(output)
-            output_df.to_parquet(os.path.join(output_dir, "strain_clustering_eval_results.parquet"))
+            _, ari, nmi, sil = compute_leiden_clustering_metrics(
+                embeddings=embeds,
+                metadata=df,
+                n_neighbors=k,
+                resolution=resolution,
+                label_key="family",
+            )
+            output.append(
+                {
+                    "ARI": ari,
+                    "NMI": nmi,
+                    "ASW": sil,
+                    "Model": model_name,
+                    "resolution": resolution,
+                    "k_neighbors": k,
+                    "taxa_level": "family",
+                }
+            )
+
+        output_df = pd.DataFrame(output)
+        output_df.to_parquet(os.path.join(output_dir, f"results_{model_name}.parquet"))
 
 
 class ArgumentParser(Tap):
@@ -214,19 +205,21 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_dir: str
+    input_df_file_path: str
     output_dir: str
-    filenames: list[tuple[str, str]] = FILENAMES
+    model_name: str = "Unknown_model"
     leiden_resolutions: list[float] = [0.1, 0.25, 0.5, 1.0]
     k_neighbors: list[int] = [5, 10, 15]
+    input_col: str = "embeddings"
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     run(
-        input_dir=args.input_dir,
+        input_df_file_path=args.input_df_file_path,
         output_dir=args.output_dir,
-        filenames=args.filenames,
+        model_name=args.model_name,
         leiden_resolutions=args.leiden_resolutions,
         k_neighbors=args.k_neighbors,
+        input_col=args.input_col,
     )

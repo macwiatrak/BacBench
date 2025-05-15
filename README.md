@@ -176,7 +176,7 @@ python bacbench/modeling/run_embed_dna.py \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
     --model-type nucleotide_transformer \
     --batch-size 128 \
-    --max-seq-len 2048 \  # max seq len, default value
+    --max-seq-len 2048 \  # max seq len, default value for the model
     --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
 ```
 #### Operon identification task
@@ -206,7 +206,7 @@ python bacbench/modeling/run_embed_dna.py \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
     --model-type mistral_dna \
     --batch-size 256 \
-    --max-seq-len 512 \  # max seq len, default value
+    --max-seq-len 512 \  # max seq len, default value for the model
     --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
 ```
 
@@ -238,16 +238,16 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 # embed and save the genomes using the DNABERT-2 model
 python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-dna \  # name of the dataset
-    --output-filepath <output-dir>/strain_clustering_mistral_embeddings.parquet \
-    --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
-    --model-type mistral_dna \
+    --output-filepath <output-dir>/strain_clustering_dnabert2_embeddings.parquet \
+    --model-path zhihan1996/DNABERT-2-117M \
+    --model-type dnabert2 \
     --batch-size 256 \
-    --max-seq-len 512 \  # max seq len, default value
+    --max-seq-len 512 \  # max seq len, default value for the model
     --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
 ```
 
 
-*Note*: DNABERT-2 requires specific requirements, to install them please see the [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
+**Note**: DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
 
 See [Benchmark models](#benchmarked-models) section for the list of currently supported models.
 
@@ -255,8 +255,35 @@ See [Benchmark models](#benchmarked-models) section for the list of currently su
 We provide scripts to evaluate the embeddings models for each task in the `bacbench/tasks/` directory.
 Below, we show examples on how to evaluate the models using embedded data.
 
-```python
+**Note**: to run evaluation scripts, you need to have the embeddings saved in a parquet file (see above examples for how to embed the genomes).
+
+#### Essential genes prediction task
+```bash
+python bacbench/tasks/essential_genes/run_train_cls.py \
+    --input-df-filepath <input-dir>/essential_genes_esmc_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --output-dir <output-dir> \
+    --lr 0.005 \
+    --max-epochs 100 \
+    --model-name esmc
 ```
+
+#### Operon identification task
+```bash
+python bacbench/tasks/operon/run_evaluation.py \
+    --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --output-dir <output-dir> \
+    --model-name bacformer
+````
+
+#### Strain clustering task
+```bash
+python bacbench/tasks/strain_clustering/run_evaluation.py \
+    --input-df-filepath <input-dir>/strain_clustering_dnabert2_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --output-dir <output-dir> \
+    --model-name bacformer
+````
+
+For more details on how to run the evaluation scripts, please refer to the scripts in the `bacbench/tasks/` directory.
 
 ### Download and preprocess genomes
 

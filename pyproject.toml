@@ -65,6 +65,11 @@ optional-dependencies.doc = [
   "sphinxcontrib-bibtex>=1",
   "sphinxext-opengraph",
 ]
+
+optional-dependencies.faesm = [
+  "faesm[flash-attn]>=0.1.1",
+  "flash-attn>=0.2",          # If you need the direct flash-attn package
+]
 optional-dependencies.test = [
   "coverage",
   "pytest",
@@ -73,11 +78,6 @@ optional-dependencies.test = [
 urls.Documentation = "https://bacbench.readthedocs.io/"
 urls.Homepage = "https://github.com/macwiatrak/bacbench"
 urls.Source = "https://github.com/macwiatrak/bacbench"
-
-faesm = [
-  "flash-attn>=0.2.0",        # If you need the direct flash-attn package
-  "faesm[flash-attn]>=0.1.1",
-]
 
 [tool.hatch.build.targets.wheel]
 packages = [ "bacbench" ]

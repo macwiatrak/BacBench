@@ -318,12 +318,11 @@ class ArgumentParser(Tap):
     # file paths for loading data
     input_df_file_path: str
     output_dir: str
-    lr: float = 0.001
+    lr: float = 0.005
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 128
     num_workers: int = 4
-    random_state: int = 1
     test: bool = True
     model_name: str = "Unknown"
 
