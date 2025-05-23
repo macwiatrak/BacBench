@@ -76,6 +76,11 @@ git clone https://github.com/macwiatrak/BacBench.git
 cd BacBench
 # 1) install BacBench **with its core dependencies**
 pip install .
+```
+We also recommend to install the [faesm](https://github.com/pengzhangzhi/faplm) package which provides fast inference for ESM-2 and ESM-C models.
+
+**Note**: Only install `faesm` on a machine with a GPU an CUDA installed.
+```bash
 # 2) (optional but recommended) add the fast‐attention extra (“faesm”)
 pip install ".[faesm]"
 ```

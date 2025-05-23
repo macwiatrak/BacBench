@@ -41,18 +41,6 @@ def mean_pairwise_cosine(arrays: list[np.ndarray]) -> float:
     return score
 
 
-def fix_protein_embeddings_for_evo(protein_embeddings: list[np.ndarray]) -> list[np.ndarray]:
-    """Fix protein embeddings for evo model"""
-    out = []
-    for p in protein_embeddings:
-        if len(p) != 4096:
-            # pad the protein embedding to 8192 with the mean value
-            item = np.ones(4096 - len(p)) * np.mean(p)
-            p = np.concatenate((p, item))
-        out.append(p)
-    return out
-
-
 def run(input_filepath: str, output_dir: str, model_name: str = "bacformer", n_negatives: int = 10):
     """Run zero-shot operon identification evaluation"""
     os.makedirs(output_dir, exist_ok=True)

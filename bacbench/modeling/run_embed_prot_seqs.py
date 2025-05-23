@@ -110,26 +110,30 @@ def run(
 
     # embed protein sequences across splits
     dfs = []
-    for split_name, split_ds in dataset.items():
-        prot_seq_col = get_prot_seq_col_name(split_ds.column_names)
-        dataset = dataset.map(
+    for split_name, split_ds in dataset.items():  # split_ds is a `Dataset`
+        # get the protein sequence column name
+        prot_col = get_prot_seq_col_name(split_ds.column_names)
+
+        # 1) embed every protein sequence in this split
+        split_ds = split_ds.map(
             lambda row: add_protein_embeddings(
                 row=row,
-                prot_seq_col=prot_seq_col,  # noqa
+                prot_seq_col=prot_col,  # noqa
                 output_col=output_col,
                 model=model,
                 tokenizer=tokenizer,
                 model_type=model_type,
                 batch_size=batch_size,
                 max_prot_seq_len=max_prot_seq_len,
-                genome_pooling_method=genome_pooling_method if model_type != "bacformer" else None,
+                genome_pooling_method=genome_pooling_method if bacformer_model is None else None,
             ),
             batched=False,
-            keep_in_memory=False,
-            remove_columns=[prot_seq_col],
+            remove_columns=[prot_col],
         )
+
+        # 2) (optional) pass through Bacformer
         if bacformer_model is not None:
-            dataset = dataset.map(
+            split_ds = split_ds.map(
                 lambda row: add_bacformer_embeddings(
                     row=row,
                     input_col=output_col,
@@ -140,17 +144,16 @@ def run(
                     genome_pooling_method=genome_pooling_method,
                 ),
                 batched=False,
-                keep_in_memory=False,
             )
-        # remove the protein sequence col as it takes up a lot of space and convert to pandas
-        df = dataset.to_pandas()
-        # add the split name
+
+        # 3) convert THIS split to pandas
+        df = split_ds.to_pandas()
         df["split"] = split_name
         dfs.append(df)
 
-    # concatenate splits
-    dfs = pd.concat(dfs).reset_index(drop=True)
-    return dfs
+    # concatenate all splits
+    df = pd.concat(dfs, ignore_index=True)
+    return df
 
 
 class ArgumentParser(Tap):
