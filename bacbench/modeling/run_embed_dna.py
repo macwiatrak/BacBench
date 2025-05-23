@@ -52,12 +52,12 @@ def add_dna_embeddings(
         )
     else:
         embeddings = []
-        for start, end in zip(row["start"], row["end"], strict=False):
+        for start, end, strand in zip(row["start"], row["end"], row["end"], strict=False):
             dna_seq = get_dna_seq(
                 dna_seq=row[dna_col],
                 start=int(start),
                 end=int(end),
-                strand=row.get("strand", None),
+                strand=strand,
                 promoter_len=promoter_len,
             )
             # row)[dna_col][int(start) : int(end)]
