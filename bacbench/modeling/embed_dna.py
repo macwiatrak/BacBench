@@ -36,6 +36,40 @@ def load_dna_lm(
     return model, tokenizer
 
 
+def get_dna_seq(
+    dna_seq: str,
+    start: int,
+    end: int,
+    strand: float | None,
+    promoter_len: int = 128,
+) -> str:
+    """Get the DNA sequence from a genome.
+
+    Args:
+        dna_seq (str): The DNA sequence to extract from.
+        start (int): The start position of the sequence.
+        end (int): The end position of the sequence.
+        strand (float | None): The strand of the sequence. If None, the sequence is not reversed.
+        promoter_len (int): The length of the promoter region to include.
+
+    Returns
+    -------
+        str: The extracted DNA sequence.
+    """
+    if strand is None:
+        # If strand is None, we add the promoter region to both sides
+        start = int(min(1, start - promoter_len)) - 1
+        end = int(max(len(dna_seq), end + promoter_len)) + 1
+    elif strand > 0:
+        start = int(min(1, start - promoter_len)) - 1
+        end = int(max(len(dna_seq), end)) + 1
+    else:
+        start = int(min(1, start)) - 1
+        end = int(max(len(dna_seq), end + promoter_len)) + 1
+
+    return dna_seq[start:end].upper()
+
+
 def chunk_dna_sequence(dna_seq: str, max_seq_len: int = 1024, overlap: int = 128) -> list[str]:
     """
     Chunks a DNA sequence into overlapping pieces of length `max_seq_len`.
