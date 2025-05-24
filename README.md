@@ -177,7 +177,7 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 # embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-essential-genes-dna \  # name of the dataset
-    --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
+    --output-filepath <output-dir>/essential_genes_nt_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
     --model-type nucleotide_transformer \
     --batch-size 128 \
@@ -190,7 +190,7 @@ python bacbench/modeling/run_embed_dna.py \
 python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
     --output-filepath <output-dir>/operon_identification_protbert_embeddings.parquet \
-    --model-path rost-lab/protbert  \
+    --model-path Rostlab/prot_bert  \
     --model-type protbert \
     --batch-size 64
 

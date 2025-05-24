@@ -152,7 +152,9 @@ def run(
         dfs.append(df)
 
     # concatenate all splits and drop the index col we do not need
-    df = pd.concat(dfs, ignore_index=True).drop(columns=["__index_level_0__"])
+    df = pd.concat(dfs, ignore_index=True)
+    if "__index_level_0__" in df.columns:
+        df = df.drop(columns=["__index_level_0__"])
     return df
 
 
