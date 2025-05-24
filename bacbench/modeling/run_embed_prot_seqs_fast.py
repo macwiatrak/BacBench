@@ -217,6 +217,9 @@ def run(
 class ArgumentParser(Tap):
     """Argument parser for embedding protein sequences."""
 
+    def __init__(self):
+        super().__init__(underscores_to_dashes=True)
+
     dataset_name: str
     streaming: bool = False
     output_filepath: str
