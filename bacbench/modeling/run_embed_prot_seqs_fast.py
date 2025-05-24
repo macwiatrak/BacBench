@@ -157,7 +157,16 @@ def run(
                 initializer=_init_worker,
                 initargs=(model, tokenizer, bacformer_model),
             ) as pool:
-                shards = [split_ds.shard(num_shards=n_workers, index=i) for i in range(n_workers)]
+                try:  # fast path
+                    shards = [split_ds.shard(num_shards=n_workers, index=i) for i in range(n_workers)]
+                except (AttributeError, NotImplementedError):  # any flavour of “no shard”
+                    logging.warning(
+                        "IterableDataset does not support .shard() – falling back to modulo-filter sharding (slower)."
+                    )
+                    shards = [
+                        split_ds.filter(lambda _, idx, i=i: idx % n_workers == i, with_indices=True)
+                        for i in range(n_workers)
+                    ]
                 args_list = [
                     (
                         shard,
