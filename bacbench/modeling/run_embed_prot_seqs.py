@@ -146,13 +146,13 @@ def run(
                 batched=False,
             )
 
-        # 3) convert THIS split to pandas
+        # 3) convert this split to pandas
         df = split_ds.to_pandas()
         df["split"] = split_name
         dfs.append(df)
 
-    # concatenate all splits
-    df = pd.concat(dfs, ignore_index=True)
+    # concatenate all splits and drop the index col we do not need
+    df = pd.concat(dfs, ignore_index=True).drop(columns=["__index_level_0__"])
     return df
 
 
@@ -173,7 +173,7 @@ class ArgumentParser(Tap):
     device: str = None
     output_col: str = "embeddings"
     genome_pooling_method: Literal["mean", "max"] = None
-    max_n_proteins: int = 6000  # for Bacformer
+    max_n_proteins: int = 8000  # for Bacformer
     max_n_contigs: int = 1000  # for Bacformer
 
 
