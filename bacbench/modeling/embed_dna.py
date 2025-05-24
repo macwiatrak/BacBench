@@ -163,8 +163,6 @@ def chunk_genes_dna_seqs(
         }
     )
     gene_df["dna_seq_len"] = gene_df["dna_sequence"].apply(len)
-    print("Mean gene dna seq len:", gene_df["dna_seq_len"].mean())
-    print("Median gene dna seq len:", gene_df["dna_seq_len"].median())
     gene_df["gene_idx"] = range(len(gene_df))
     # chunk each gene into max_seq_len chunks
     gene_df["dna_sequence"] = gene_df["dna_sequence"].apply(
@@ -173,8 +171,6 @@ def chunk_genes_dna_seqs(
     # explode the list of chunks into separate rows
     gene_df = gene_df.explode("dna_sequence")
     gene_df["dna_seq_len"] = gene_df["dna_sequence"].apply(len)
-    print("Mean gene dna seq len:", gene_df["dna_seq_len"].mean())
-    print("Median gene dna seq len:", gene_df["dna_seq_len"].median())
     # filter out chunks that are too short
     gene_df = gene_df[gene_df["dna_seq_len"] >= 32].reset_index(drop=True)
     # sort by sequence length for speed up
@@ -306,7 +302,6 @@ def embed_genome_dna_sequences(
             max_seq_len=max_seq_len,
             dna_seq_overlap=dna_seq_overlap,
         )
-        print(f"Embedding {len(dna)} gene sequences with {len(set(gene_indices))} unique genes.")
 
     # embed protein sequences
     dna_embeddings = generate_dna_embeddings(
