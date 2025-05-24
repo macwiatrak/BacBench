@@ -301,7 +301,7 @@ def embed_genome_dna_sequences(
     dna_embeddings = generate_dna_embeddings(
         model=model,
         tokenizer=tokenizer,
-        dna_sequence=dna.upper(),
+        dna_sequence=dna,
         model_type=model_type,
         batch_size=batch_size,
         max_seq_len=max_seq_len,
