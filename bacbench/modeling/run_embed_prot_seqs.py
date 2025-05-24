@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 from datasets import Dataset, IterableDataset, load_dataset
 from tap import Tap
+from tqdm import tqdm
 from transformers import AutoModel
 
 from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, compute_genome_protein_embeddings, load_plm
@@ -28,7 +29,7 @@ def _iterable_to_dataframe(iter_ds: IterableDataset, max_rows: int | None = None
     pd.DataFrame
     """
     rows: list[dict] = []
-    for idx, row in enumerate(iter_ds):
+    for idx, row in enumerate(tqdm(iter_ds)):
         if max_rows is not None and idx >= max_rows:
             break
         rows.append(row)
