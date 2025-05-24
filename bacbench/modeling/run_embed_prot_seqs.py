@@ -89,7 +89,7 @@ def run(
     """
     # if dataset is a str, load dataset from HuggingFace
     if isinstance(dataset, str):
-        dataset = load_dataset(dataset, streaming=streaming)
+        dataset = load_dataset(dataset, streaming=streaming, cache_dir=None)
 
     # set device
     if device is None:
@@ -180,7 +180,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     # load the dataset
-    dataset = load_dataset(args.dataset_name, streaming=args.streaming)
+    dataset = load_dataset(args.dataset_name, streaming=args.streaming, cache_dir=None)
     # run the embedding
     df = run(
         dataset=dataset,
