@@ -6,7 +6,7 @@ import pandas as pd
 from datasets import Dataset, load_dataset
 from tap import Tap
 
-from bacbench.modeling.embed_dna import embed_genome_dna_sequences, get_dna_seq, load_dna_lm
+from bacbench.modeling.embed_dna import embed_genome_dna_sequences, load_dna_lm
 from bacbench.modeling.utils import get_dna_seq_col_name
 
 
@@ -38,42 +38,19 @@ def add_dna_embeddings(
         genome_pooling_method (str): The pooling method to use for the genome level embedding.
             If None, list of DNA embedding chunks is returned.
     """
-    if agg_whole_genome:
-        # embed the dna sequence
-        embeddings = embed_genome_dna_sequences(
-            model=model,
-            tokenizer=tokenizer,
-            dna_sequence=row[dna_col],
-            model_type=model_type,
-            batch_size=batch_size,
-            max_seq_len=max_seq_len,
-            dna_seq_overlap=dna_seq_overlap,
-            genome_pooling_method=genome_pooling_method,
-        )
-    else:
-        embeddings = []
-        for start, end, strand in zip(row["start"], row["end"], row["end"], strict=False):
-            dna_seq = get_dna_seq(
-                dna_seq=row[dna_col],
-                start=int(start),
-                end=int(end),
-                strand=strand,
-                promoter_len=promoter_len,
-            )
-            # row)[dna_col][int(start) : int(end)]
-            # embed the dna sequence
-            gene_embed = embed_genome_dna_sequences(
-                model=model,
-                tokenizer=tokenizer,
-                dna_sequence=dna_seq,
-                model_type=model_type,
-                batch_size=batch_size,
-                max_seq_len=max_seq_len,
-                dna_seq_overlap=dna_seq_overlap,
-                genome_pooling_method=genome_pooling_method,
-            )
-            embeddings.append(gene_embed)
-
+    # TODO: account for multiple contigs
+    # embed the dna sequence
+    embeddings = embed_genome_dna_sequences(
+        model=model,
+        tokenizer=tokenizer,
+        dna=row[dna_col],
+        model_type=model_type,
+        batch_size=batch_size,
+        max_seq_len=max_seq_len,
+        dna_seq_overlap=dna_seq_overlap,
+        promoter_len=promoter_len,
+        genome_pooling_method=genome_pooling_method,
+    )
     return {output_col: embeddings}
 
 
