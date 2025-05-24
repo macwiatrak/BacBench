@@ -58,18 +58,22 @@ def get_dna_seq(
     -------
         str: The extracted DNA sequence.
     """
-    if strand is None:
-        # If strand is None, we add the promoter region to both sides
-        start = int(min(1, start - promoter_len)) - 1
-        end = int(max(len(dna_seq), end + promoter_len)) + 1
-    elif strand > 0:
-        start = int(min(1, start - promoter_len)) - 1
-        end = int(max(len(dna_seq), end)) + 1
-    else:
-        start = int(min(1, start)) - 1
-        end = int(max(len(dna_seq), end + promoter_len)) + 1
+    seq_len = len(dna_seq)
 
-    return dna_seq[start:end].upper()
+    if strand is None:  # promoter on both sides
+        seq_start = max(1, start - promoter_len)
+        seq_end = min(seq_len, end + promoter_len)
+    elif strand > 0:  # + strand
+        seq_start = max(1, start - promoter_len)
+        seq_end = min(seq_len, end)
+    else:  # - strand
+        seq_start = max(1, start)
+        seq_end = min(seq_len, end + promoter_len)
+
+    # Python slice: 0-based, end exclusive
+    subseq = dna_seq[seq_start - 1 : seq_end]
+
+    return subseq.upper()
 
 
 def chunk_dna_sequence(dna_seq: str, max_seq_len: int, overlap: int) -> list[str]:
