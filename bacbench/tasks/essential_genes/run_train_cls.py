@@ -7,13 +7,13 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightning import seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from tap import Tap
 from torch.optim import AdamW
 from torch.utils.data import TensorDataset
 from torchmetrics.functional import auroc, average_precision, f1_score
 from tqdm import tqdm
+from transformers import set_seed
 
 
 def calculate_metrics_per_genome(df: pd.DataFrame):
@@ -205,7 +205,7 @@ def main(
 ):
     """Run the training of the Linear model."""
     # set the random seed
-    seed_everything(random_state)
+    set_seed(random_state)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
