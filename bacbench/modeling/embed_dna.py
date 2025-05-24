@@ -5,6 +5,7 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 import torch
+from tqdm import tqdm
 from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
 
 
@@ -179,8 +180,8 @@ def generate_dna_embeddings(
     tokenizer: Callable,
     dna_sequence: list[str],
     model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"],
-    batch_size: int = 64,
-    max_seq_len: int = 1024,
+    batch_size: int = 128,
+    max_seq_len: int = 2048,
 ) -> list[np.ndarray]:
     """Generate DNA embeddings using pretrained models.
 
@@ -204,7 +205,7 @@ def generate_dna_embeddings(
     device = model.device
 
     # Process the DNA sequences in batches
-    for i in range(0, len(dna_sequence), batch_size):
+    for i in tqdm(range(0, len(dna_sequence), batch_size)):
         batch_sequences = dna_sequence[i : i + batch_size]
 
         # tokenize the input
@@ -296,6 +297,7 @@ def embed_genome_dna_sequences(
             max_seq_len=max_seq_len,
             dna_seq_overlap=dna_seq_overlap,
         )
+        print(f"Embedding {len(dna)} gene sequences with {len(set(gene_indices))} unique genes.")
 
     # embed protein sequences
     dna_embeddings = generate_dna_embeddings(
