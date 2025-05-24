@@ -4,12 +4,35 @@ from typing import Any, Literal
 
 import pandas as pd
 import torch
-from datasets import Dataset, load_dataset
+from datasets import Dataset, IterableDataset, load_dataset
 from tap import Tap
 from transformers import AutoModel
 
 from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, compute_genome_protein_embeddings, load_plm
 from bacbench.modeling.utils import get_prot_seq_col_name
+
+
+def _iterable_to_dataframe(iter_ds: IterableDataset, max_rows: int | None = None) -> pd.DataFrame:
+    """
+    Consume an IterableDataset and materialise it as a pandas DataFrame.
+
+    Parameters
+    ----------
+    iter_ds : IterableDataset
+        The dataset to materialise.
+    max_rows : int | None
+        Optional hard-stop to avoid filling the machine’s memory by mistake.
+
+    Returns
+    -------
+    pd.DataFrame
+    """
+    rows: list[dict] = []
+    for idx, row in enumerate(iter_ds):
+        if max_rows is not None and idx >= max_rows:
+            break
+        rows.append(row)
+    return pd.DataFrame.from_records(rows)
 
 
 def add_protein_embeddings(
@@ -146,8 +169,12 @@ def run(
                 batched=False,
             )
 
-        # 3) convert this split to pandas
-        df = split_ds.to_pandas()
+        if isinstance(split_ds, IterableDataset):
+            # Materialise – be cautious with very large datasets!
+            df = _iterable_to_dataframe(split_ds)
+        else:  # regular in-memory Dataset
+            df = split_ds.to_pandas()
+
         df["split"] = split_name
         dfs.append(df)
 
