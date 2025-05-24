@@ -5,7 +5,6 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 import torch
-from tqdm import tqdm
 from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
 
 
@@ -138,6 +137,7 @@ def chunk_genes_dna_seqs(
     max_seq_len: int = 512,
     promoter_len: int = 128,
     dna_seq_overlap: int = 32,
+    min_seq_len: int = 32,
 ):
     """Chunk genes DNA sequences from a genome.
 
@@ -172,7 +172,7 @@ def chunk_genes_dna_seqs(
     gene_df = gene_df.explode("dna_sequence")
     gene_df["dna_seq_len"] = gene_df["dna_sequence"].apply(len)
     # filter out chunks that are too short
-    gene_df = gene_df[gene_df["dna_seq_len"] >= 32].reset_index(drop=True)
+    gene_df = gene_df[gene_df["dna_seq_len"] >= min_seq_len]
     # sort by sequence length for speed up
     gene_df = gene_df.sort_values(by="dna_seq_len", ascending=False).reset_index(drop=True)
     gene_indices = gene_df["gene_idx"].tolist()
@@ -210,7 +210,7 @@ def generate_dna_embeddings(
     device = model.device
 
     # Process the DNA sequences in batches
-    for i in tqdm(range(0, len(dna_sequence), batch_size)):
+    for i in range(0, len(dna_sequence), batch_size):
         batch_sequences = dna_sequence[i : i + batch_size]
 
         # tokenize the input
