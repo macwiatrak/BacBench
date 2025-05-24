@@ -40,17 +40,33 @@ def add_dna_embeddings(
     """
     # TODO: account for multiple contigs
     # embed the dna sequence
-    embeddings = embed_genome_dna_sequences(
-        model=model,
-        tokenizer=tokenizer,
-        dna=row[dna_col],
-        model_type=model_type,
-        batch_size=batch_size,
-        max_seq_len=max_seq_len,
-        dna_seq_overlap=dna_seq_overlap,
-        promoter_len=promoter_len,
-        genome_pooling_method=genome_pooling_method,
-    )
+    if agg_whole_genome:
+        embeddings = embed_genome_dna_sequences(
+            model=model,
+            tokenizer=tokenizer,
+            dna=row[dna_col],
+            model_type=model_type,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            dna_seq_overlap=dna_seq_overlap,
+            promoter_len=promoter_len,
+            genome_pooling_method=genome_pooling_method,
+        )
+    else:
+        embeddings = embed_genome_dna_sequences(
+            model=model,
+            tokenizer=tokenizer,
+            dna=row[dna_col],
+            model_type=model_type,
+            start=row["start"],
+            end=row["end"],
+            strand=row["strand"],
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            dna_seq_overlap=dna_seq_overlap,
+            promoter_len=promoter_len,
+            genome_pooling_method=genome_pooling_method,
+        )
     return {output_col: embeddings}
 
 
