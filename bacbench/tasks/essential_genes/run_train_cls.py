@@ -222,7 +222,7 @@ def main(
 
     # split the data
     train_df = df[df["split"] == "train"]
-    val_df = df[df["split"] == "val"]
+    val_df = df[df["split"] == "validation"]
     test_df = df[df["split"] == "test"]
 
     # create datasets
