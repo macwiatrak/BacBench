@@ -172,7 +172,7 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
     --batch-size 64 \
-    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000  # max nr of proteins in a genome
 
 # embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
@@ -201,7 +201,7 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
     --batch-size 64 \
-    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000  # max nr of proteins in a genome, default value
 
 
 # embed and save the genomes using the Mistral-DNA model
@@ -212,7 +212,7 @@ python bacbench/modeling/run_embed_dna.py \
     --model-type mistral_dna \
     --batch-size 256 \
     --max-seq-len 512 \  # max seq len, default value for the model
-    --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+    --dna-seq-overlap 16  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
 ```
 
 #### Strain clustering task
@@ -248,7 +248,7 @@ python bacbench/modeling/run_embed_dna.py \
     --model-type dnabert2 \
     --batch-size 256 \
     --max-seq-len 512 \  # max seq len, default value for the model
-    --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+    --dna-seq-overlap 16  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
 ```
 
 

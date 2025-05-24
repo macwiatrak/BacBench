@@ -175,7 +175,7 @@ class ArgumentParser(Tap):
     device: str = None
     output_col: str = "embeddings"
     genome_pooling_method: Literal["mean", "max"] = None
-    max_n_proteins: int = 8000  # for Bacformer
+    max_n_proteins: int = 9000  # for Bacformer
     max_n_contigs: int = 1000  # for Bacformer
 
 
