@@ -96,7 +96,7 @@ def run(
     for split_name, split_ds in dataset.items():
         dna_col = get_dna_seq_col_name(split_ds.column_names)
 
-        split_ds = dataset.map(
+        split_ds = split_ds.map(
             lambda row: add_dna_embeddings(
                 row=row,
                 model=model,
@@ -120,8 +120,8 @@ def run(
         df["split"] = split_name
         dfs.append(df)
 
-    # concatenate all splits
-    df = pd.concat(dfs, ignore_index=True)
+    # concatenate all splits and drop the index col we do not need
+    df = pd.concat(dfs, ignore_index=True).drop(columns=["__index_level_0__"])
     return df
 
 
