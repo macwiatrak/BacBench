@@ -72,7 +72,7 @@ def get_dna_seq(
     return dna_seq[start:end].upper()
 
 
-def chunk_dna_sequence(dna_seq: str, max_seq_len: int = 1024, overlap: int = 128) -> list[str]:
+def chunk_dna_sequence(dna_seq: str, max_seq_len: int, overlap: int) -> list[str]:
     """
     Chunks a DNA sequence into overlapping pieces of length `max_seq_len`.
 
@@ -154,10 +154,13 @@ def chunk_genes_dna_seqs(
         {
             "dna_sequence": [
                 get_dna_seq(dna_seq=dna, start=int(s), end=int(e), strand=strand_val, promoter_len=promoter_len)
-                for s, e, strand_val in zip(start, end, strand, strict=False)
+                for s, e, strand_val in zip(start, end, strand, strict=True)
             ]
         }
     )
+    gene_df["dna_seq_len"] = gene_df["dna_sequence"].apply(len)
+    print("Mean gene dna seq len:", gene_df["dna_seq_len"].mean())
+    print("Median gene dna seq len:", gene_df["dna_seq_len"].median())
     gene_df["gene_idx"] = range(len(gene_df))
     # chunk each gene into max_seq_len chunks
     gene_df["dna_sequence"] = gene_df["dna_sequence"].apply(
@@ -166,6 +169,8 @@ def chunk_genes_dna_seqs(
     # explode the list of chunks into separate rows
     gene_df = gene_df.explode("dna_sequence")
     gene_df["dna_seq_len"] = gene_df["dna_sequence"].apply(len)
+    print("Mean gene dna seq len:", gene_df["dna_seq_len"].mean())
+    print("Median gene dna seq len:", gene_df["dna_seq_len"].median())
     # filter out chunks that are too short
     gene_df = gene_df[gene_df["dna_seq_len"] >= 32].reset_index(drop=True)
     # sort by sequence length for speed up
