@@ -41,14 +41,14 @@ def mean_pairwise_cosine(arrays: list[np.ndarray]) -> float:
     return score
 
 
-def run(input_filepath: str, output_dir: str, model_name: str = "bacformer", n_negatives: int = 10):
+def run(input_df_filepath: str, output_dir: str, model_name: str = "bacformer", n_negatives: int = 10):
     """Run zero-shot operon identification evaluation"""
     os.makedirs(output_dir, exist_ok=True)
     # define a set of seeds for reproducibility when computing evaluation metrics
     random_seeds = [1, 12, 123, 1234, 12345]
 
     # read the data
-    df = pd.read_parquet(input_filepath)
+    df = pd.read_parquet(input_df_filepath)
     # account for DNA LMs and protein LMs column names
     if "gene_embedding" in df.columns:
         df = df.rename(columns={"gene_embedding": "protein_embeddings"})
@@ -124,7 +124,7 @@ class ArgParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_filepath: str
+    input_df_filepath: str
     output_dir: str
     model_name: str
     n_negatives: int = 10
@@ -133,7 +133,7 @@ class ArgParser(Tap):
 if __name__ == "__main__":
     args = ArgParser().parse_args()
     run(
-        input_filepath=args.input_filepath,
+        input_df_filepath=args.input_df_filepath,
         output_dir=args.output_dir,
         model_name=args.model_name,
         n_negatives=args.n_negatives,
