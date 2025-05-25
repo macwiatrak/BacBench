@@ -125,6 +125,7 @@ def run(
     input_col: str = "embeddings",
 ):
     """Run the script."""
+    os.makedirs(output_dir, exist_ok=True)
     if k_neighbors is None:
         k_neighbors = [5, 10, 15]
     if leiden_resolutions is None:
