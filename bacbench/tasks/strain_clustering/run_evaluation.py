@@ -205,7 +205,7 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str
+    input_df_filepath: str
     output_dir: str
     model_name: str = "Unknown_model"
     leiden_resolutions: list[float] = [0.1, 0.25, 0.5, 1.0]

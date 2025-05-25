@@ -248,6 +248,7 @@ python bacbench/modeling/run_embed_dna.py \
     --batch-size 128 \
     --max-seq-len 2048 \  # max seq len, default value for the model
     --dna-seq-overlap 32 \  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+    --agg-whole-genome \  # aggregate the embeddings for the whole genome
     --streaming
 ```
 
@@ -283,7 +284,7 @@ python bacbench/tasks/operon/run_evaluation.py \
 #### Strain clustering task
 ```bash
 python bacbench/tasks/strain_clustering/run_evaluation.py \
-    --input-df-filepath <input-dir>/strain_clustering_dnabert2_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --input-df-filepath <input-dir>/strain_clustering_esm2_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
     --output-dir <output-dir> \
     --model-name bacformer
 ````
