@@ -1,5 +1,8 @@
 import numpy as np
+import pandas as pd
 import torch
+from datasets import Dataset, IterableDataset
+from tqdm import tqdm
 
 BACFORMER_SPECIAL_TOKENS_DICT = {
     "PAD": 0,
@@ -47,6 +50,64 @@ def get_dna_seq_col_name(cols: list[str]) -> str:
     if "dna_sequence" in cols:
         return "dna_sequence"
     raise ValueError("No DNA sequence column found in the dataframe.")
+
+
+def _iterable_to_dataframe(iter_ds: IterableDataset, max_rows: int | None = None) -> pd.DataFrame:
+    """
+    Consume an IterableDataset and materialise it as a pandas DataFrame.
+
+    Parameters
+    ----------
+    iter_ds : IterableDataset
+        The dataset to materialise.
+    max_rows : int | None
+        Optional hard-stop to avoid filling the machine’s memory by mistake.
+
+    Returns
+    -------
+    pd.DataFrame
+    """
+    rows: list[dict] = []
+    for idx, row in enumerate(tqdm(iter_ds)):
+        if max_rows is not None and idx >= max_rows:
+            break
+        rows.append(row)
+    return pd.DataFrame.from_records(rows)
+
+
+def _slice_split(
+    split_ds: Dataset | IterableDataset,
+    start_idx: int | None,
+    end_idx: int | None,
+) -> Dataset | IterableDataset:
+    """Return a view of *split_ds* restricted to [start_idx, end_idx).
+
+    Supports both in‑memory :class:`~datasets.Dataset` and streaming
+    :class:`~datasets.IterableDataset` instances.  If both indices are
+    *None* the input is returned unchanged.
+    """
+    if start_idx is None and end_idx is None:
+        return split_ds
+
+    # ─ streaming ───────────────────────────────────────────
+    if isinstance(split_ds, IterableDataset):
+        if start_idx is not None:
+            split_ds = split_ds.skip(start_idx)
+        if end_idx is not None:
+            take_n = end_idx - (start_idx or 0)
+            if take_n <= 0:
+                raise ValueError("start_idx must be < end_idx for IterableDataset")
+            split_ds = split_ds.take(take_n)
+        return split_ds
+
+    # ─ in‑memory Dataset ───────────────────────────────────
+    ds_len = len(split_ds)
+    begin = start_idx or 0
+    end = end_idx if end_idx is not None else ds_len
+    end = min(end, ds_len)
+    if begin >= end:
+        raise ValueError("start_idx must be < end_idx and < len(dataset)")
+    return split_ds.select(range(begin, end))
 
 
 def protein_embeddings_to_inputs(

@@ -5,33 +5,9 @@ import numpy as np
 import pandas as pd
 from datasets import Dataset, IterableDataset, load_dataset
 from tap import Tap
-from tqdm import tqdm
 
 from bacbench.modeling.embed_dna import embed_genome_dna_sequences, load_dna_lm
-from bacbench.modeling.utils import get_dna_seq_col_name
-
-
-def _iterable_to_dataframe(iter_ds: IterableDataset, max_rows: int | None = None) -> pd.DataFrame:
-    """
-    Consume an IterableDataset and materialise it as a pandas DataFrame.
-
-    Parameters
-    ----------
-    iter_ds : IterableDataset
-        The dataset to materialise.
-    max_rows : int | None
-        Optional hard-stop to avoid filling the machine’s memory by mistake.
-
-    Returns
-    -------
-    pd.DataFrame
-    """
-    rows: list[dict] = []
-    for idx, row in enumerate(tqdm(iter_ds)):
-        if max_rows is not None and idx >= max_rows:
-            break
-        rows.append(row)
-    return pd.DataFrame.from_records(rows)
+from bacbench.modeling.utils import _iterable_to_dataframe, _slice_split, get_dna_seq_col_name
 
 
 def add_dna_embeddings(
@@ -131,6 +107,8 @@ def run(
     output_col: str = "embeddings",
     genome_pooling_method: Literal["mean", "max"] = None,
     agg_whole_genome: bool = False,
+    start_idx: int | None = None,  # for slicing the dataset
+    end_idx: int | None = None,  # for slicing the dataset
     streaming: bool = False,
 ):
     """Run script to embed DNA sequences with various models.
@@ -141,13 +119,16 @@ def run(
     :param batch_size: Batch size for embedding.
     :param max_seq_len: Maximum sequence length for the model.
     :param dna_seq_overlap: Overlap between chunks of the DNA sequence.
-    :param device: Device to use for embedding.
+    :param promoter_len: Length of the promoter region to include.
     :param output_col: Column name for the output embeddings.
     :param genome_pooling_method: Pooling method for the genome level embedding.
         If None, list of DNA embedding chunks is returned.
     :param agg_whole_genome: If True, the whole genome is embedded and aggregated.
         If False, the genome is at gene level. The former is used for genome-level tasks.
         The latter is used for gene-level tasks.
+    :param start_idx: Start index for slicing the dataset.
+    :param end_idx: End index for slicing the dataset.
+    :param streaming: If True, the dataset is loaded in streaming mode.
     :return: A pandas dataframe with the DNA embeddings.
     """
     # if dataset is a str, load dataset from HuggingFace
@@ -160,6 +141,9 @@ def run(
     # embed DNA sequences across splits
     dfs = []
     for split_name, split_ds in dataset.items():
+        # slice the split
+        split_ds = _slice_split(split_ds, start_idx, end_idx)
+        # get the DNA sequence column name
         dna_col = get_dna_seq_col_name(split_ds.column_names)
 
         split_ds = split_ds.map(
@@ -216,6 +200,8 @@ class ArgumentParser(Tap):
     output_col: str = "embeddings"
     genome_pooling_method: Literal["mean", "max"] = None
     agg_whole_genome: bool = False
+    start_idx: int | None = None
+    end_idx: int | None = None
 
 
 if __name__ == "__main__":
@@ -235,6 +221,8 @@ if __name__ == "__main__":
         genome_pooling_method=args.genome_pooling_method,
         agg_whole_genome=args.agg_whole_genome,
         streaming=args.streaming,
+        start_idx=args.start_idx,
+        end_idx=args.end_idx,
     )
     # save the dataframe to parquet
     df.to_parquet(args.output_filepath)

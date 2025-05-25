@@ -6,34 +6,10 @@ import pandas as pd
 import torch
 from datasets import Dataset, IterableDataset, load_dataset
 from tap import Tap
-from tqdm import tqdm
 from transformers import AutoModel
 
 from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, compute_genome_protein_embeddings, load_plm
-from bacbench.modeling.utils import get_prot_seq_col_name
-
-
-def _iterable_to_dataframe(iter_ds: IterableDataset, max_rows: int | None = None) -> pd.DataFrame:
-    """
-    Consume an IterableDataset and materialise it as a pandas DataFrame.
-
-    Parameters
-    ----------
-    iter_ds : IterableDataset
-        The dataset to materialise.
-    max_rows : int | None
-        Optional hard-stop to avoid filling the machine’s memory by mistake.
-
-    Returns
-    -------
-    pd.DataFrame
-    """
-    rows: list[dict] = []
-    for idx, row in enumerate(tqdm(iter_ds)):
-        if max_rows is not None and idx >= max_rows:
-            break
-        rows.append(row)
-    return pd.DataFrame.from_records(rows)
+from bacbench.modeling.utils import _iterable_to_dataframe, _slice_split, get_prot_seq_col_name
 
 
 def add_protein_embeddings(
@@ -95,6 +71,8 @@ def run(
     genome_pooling_method: Literal["mean", "max"] = None,
     max_n_proteins: int = 6000,  # for Bacformer
     max_n_contigs: int = 1000,  # for Bacformer
+    start_idx: int | None = None,  # for slicing the dataset
+    end_idx: int | None = None,  # for slicing the dataset
     streaming: bool = False,
 ):
     """Run script to embed protein sequences with various models.
@@ -109,6 +87,8 @@ def run(
     :param genome_pooling_method: pooling method for the genome level embedding, one of ["mean", "max"]
     :param max_n_proteins: maximum number of proteins to use for each genome, only used for Bacformer
     :param max_n_contigs: maximum number of contigs to use for each genome, only used for Bacformer
+    :param start_idx: start index for slicing the dataset, if None, will use the whole dataset
+    :param end_idx: end index for slicing the dataset, if None, will use the whole dataset
     :return: a pandas dataframe with the protein embeddings
     """
     # if dataset is a str, load dataset from HuggingFace
@@ -135,6 +115,8 @@ def run(
     # embed protein sequences across splits
     dfs = []
     for split_name, split_ds in dataset.items():  # split_ds is a `Dataset`
+        # slice the split
+        split_ds = _slice_split(split_ds, start_idx, end_idx)
         # get the protein sequence column name
         prot_col = get_prot_seq_col_name(split_ds.column_names)
 
@@ -205,6 +187,8 @@ class ArgumentParser(Tap):
     genome_pooling_method: Literal["mean", "max"] = None
     max_n_proteins: int = 9000  # for Bacformer
     max_n_contigs: int = 1000  # for Bacformer
+    start_idx: int | None = None  # for slicing the dataset
+    end_idx: int | None = None  # for slicing the dataset
 
 
 if __name__ == "__main__":
@@ -224,6 +208,8 @@ if __name__ == "__main__":
         max_n_proteins=args.max_n_proteins,
         max_n_contigs=args.max_n_contigs,
         streaming=args.streaming,
+        start_idx=args.start_idx,
+        end_idx=args.end_idx,
     )
     # save the dataframe to parquet
     df.to_parquet(args.output_filepath)
