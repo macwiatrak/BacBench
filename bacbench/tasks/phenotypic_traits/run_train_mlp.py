@@ -219,6 +219,7 @@ class ArgumentParser(Tap):
     labels_df_filepath: str
     output_dir: str
     n_seeds: int = 5
+    embeddings_col: str = "embeddings"
     model_name: str = "unknown_model"
 
 
@@ -227,17 +228,20 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
 
     df = pd.read_parquet(args.input_genome_df_filepath)
-    assert df.columns[:2].tolist() == ["genome_name", args.model_name], (
-        "genome_name and model_name should be the first two columns"
-    )
     labels_df = pd.read_csv(args.labels_df_filepath)
-    merged_df = pd.merge(df, labels_df, on="genome_name", how="inner")
+    df = pd.merge(df, labels_df, on="genome_name", how="inner")
 
-    embeddings = np.concatenate(df[args.model_name].tolist(), axis=1)
+    # filter out genomes without labels
+    df = df[df[labels_df.columns[2:]].notna().any(axis=1)]
+    # filter out phenotypic traits with no labels
+    phenotypic_traits = [k for k, v in df.iloc[:, 2:].notna().sum(axis=0).items() if v > 0]
+    df = df[["genome_name", args.embeddings_col] + phenotypic_traits]
 
-    # Run classification
-    phenotypes = merged_df.iloc[:, len(df) :].columns
+    # Convert embeddings column to numpy array
+    embeddings = np.concatenate(df[args.embeddings_col].tolist(), axis=1)
+
+    # Run training and evaluation
     results_df = calculate_classification_performances(
-        df, phenotypes, embeddings, n_seeds=args.n_seeds, model_name=args.model_name
+        df, phenotypic_traits, embeddings, n_seeds=args.n_seeds, model_name=args.model_name
     )
     results_df.to_csv(os.path.join(args.output_dir, f"results_{args.model_name}.csv"), index=False)
