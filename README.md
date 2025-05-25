@@ -234,21 +234,21 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
     --batch-size 64 \
-    --batch-size 64 \
     --genome-pooling-method mean \
     --streaming \
-    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000  # max nr of proteins in a genome, default value
 
 
-# embed and save the genomes using the DNABERT-2 model
+# embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-dna \  # name of the dataset
-    --output-filepath <output-dir>/strain_clustering_dnabert2_embeddings.parquet \
-    --model-path zhihan1996/DNABERT-2-117M \
-    --model-type dnabert2 \
-    --batch-size 256 \
-    --max-seq-len 512 \  # max seq len, default value for the model
-    --dna-seq-overlap 16  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+    --output-filepath <output-dir>/strain_clustering_nucleotide_transformer_embeddings.parquet \
+    --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
+    --model-type nucleotide_transformer \
+    --batch-size 128 \
+    --max-seq-len 2048 \  # max seq len, default value for the model
+    --dna-seq-overlap 32 \  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+    --streaming
 ```
 
 
@@ -334,19 +334,21 @@ We currently support the following models:
 | Model                  | Input                 | Variant / Checkpoint                                                                                                            | Objective      | Params | dim  | Max context |
 |------------------------|-----------------------|---------------------------------------------------------------------------------------------------------------------------------|----------------|--------|------|-------------|
 | Mistral-DNA            | DNA                   | [Mistral-DNA-v1-138M-bacteria](https://huggingface.co/RaphaelMourad/Mistral-DNA-v1-138M-bacteria)                               | Autoregressive | 138 M | 768  | 512         |
-| DNABERT-2              | DNA                   | [DNABERT-2-117M](https://huggingface.co/zhihan1996/DNABERT-2-117M)                                                              | Masked         | 117 M | 768  | 512         |
+| DNABERT-2*             | DNA                   | [DNABERT-2-117M](https://huggingface.co/zhihan1996/DNABERT-2-117M)                                                              | Masked         | 117 M | 768  | 512         |
 | Nucleotide Transformer | DNA                   | [nucleotide-transformer-v2-250m-multi-species](https://huggingface.co/InstaDeepAI/nucleotide-transformer-v2-250m-multi-species) | Masked         | 250 M | 768  | 2 048       |
-| Evo*                   | DNA                   | [evo-1-8k-base (1.1_fix)](https://huggingface.co/togethercomputer/evo-1-8k-base)                                                | Autoregressive | 6.5 B | 4 096| 8 192       |
+| Evo**                  | DNA                   | [evo-1-8k-base (1.1_fix)](https://huggingface.co/togethercomputer/evo-1-8k-base)                                                | Autoregressive | 6.5 B | 4 096| 8 192       |
 | ESM-2                  | Single protein seq.   | [esm2_t12_35M_UR50D](https://huggingface.co/facebook/esm2_t12_35M_UR50D)                                                        | Masked         | 35 M  | 480  | 1 024       |
 | ESM-C                  | Single protein seq.   | [esmc_300m](https://huggingface.co/EvolutionaryScale/esmc-300m-2024-12)                                                         | Masked         | 300 M | 960  | 1 024       |
 | ProtBert               | Single protein seq.   | [prot_bert](https://huggingface.co/Rostlab/prot_bert)                                                                           | Masked         | 420 M | 1 024| 1 024       |
-| Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)**                      | Masked         | 27 M  | 480  | 6 000       |
+| Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)***                     | Masked         | 27 M  | 480  | 6 000       |
 
-`*` We adapt Evo to extract sequence embeddings from the last layer of the model. The implementation is available in [bacbench/modeling/evo/](bacbench/modeling/evo).
+`*` DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
+
+`**` We adapt Evo to extract sequence embeddings from the last layer of the model. The implementation is available in [bacbench/modeling/evo/](bacbench/modeling/evo).
 We benchmarked Evo on only two tasks, `essential genes prediction` and `operon identification`, the smallest in `BacBench` due to the
 large computational cost of the model.
 
-`**` For strain clustering we used [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-MAG) as the input are
+`***` For strain clustering we used [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-MAG) as the input are
 metagenome-assembled genomes (MAGs), rather than complete genomes.
 
 

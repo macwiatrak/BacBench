@@ -57,7 +57,8 @@ def add_dna_embeddings(
             genome_pooling_method=genome_pooling_method,
         )
     else:
-        if isinstance(dna_seq, list):
+        if isinstance(row["start"][0], list):
+            dna_seq = dna_seq if isinstance(dna_seq, list) else dna_seq.split()
             embeddings = []
             for contig_dna_seq, start, end, strand in zip(
                 dna_seq, row["start"], row["end"], row.get("strand", [None] * len(dna_seq)), strict=False
