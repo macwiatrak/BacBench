@@ -215,8 +215,8 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_filepath: str
-    labels_filepath: str
+    input_genome_df_filepath: str
+    labels_df_filepath: str
     output_dir: str
     n_seeds: int = 5
     model_name: str = "unknown_model"
@@ -226,11 +226,11 @@ if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
-    df = pd.read_parquet(args.input_filepath)
+    df = pd.read_parquet(args.input_genome_df_filepath)
     assert df.columns[:2].tolist() == ["genome_name", args.model_name], (
         "genome_name and model_name should be the first two columns"
     )
-    labels_df = pd.read_parquet(args.labels_filepath)
+    labels_df = pd.read_csv(args.labels_df_filepath)
     merged_df = pd.merge(df, labels_df, on="genome_name", how="inner")
 
     embeddings = np.concatenate(df[args.model_name].tolist(), axis=1)

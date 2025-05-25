@@ -386,7 +386,7 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
 
     df = pd.read_parquet(args.input_genomes_df_filepath)[["genome_name", args.embeddings_col]]
-    labels_df = pd.read_parquet(args.labels_df_filepath)
+    labels_df = pd.read_csv(args.labels_df_filepath)
     # merge labels with genome embeddings
     df = df.merge(labels_df, on="genome_name", how="left")
 
