@@ -227,9 +227,9 @@ if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
-    df = pd.read_parquet(args.input_genomes_df_filepath)
+    df = pd.read_parquet(args.input_genomes_df_filepath)[["genome_name", args.embeddings_col]]
     labels_df = pd.read_csv(args.labels_df_filepath)
-    df = pd.merge(df, labels_df, on="genome_name", how="inner")
+    df = pd.merge(df, labels_df, on="genome_name", how="left")
 
     # filter out genomes without labels
     df = df[df[labels_df.columns[2:]].notna().any(axis=1)]
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     df = df[["genome_name", args.embeddings_col] + phenotypic_traits]
 
     # Convert embeddings column to numpy array
-    embeddings = np.concatenate(df[args.embeddings_col].tolist(), axis=1)
+    embeddings = np.stack(df[args.embeddings_col].tolist())
 
     # Run training and evaluation
     results_df = calculate_classification_performances(
