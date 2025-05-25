@@ -216,7 +216,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     run(
-        input_df_file_path=args.input_df_file_path,
+        input_df_file_path=args.input_df_filepath,
         output_dir=args.output_dir,
         model_name=args.model_name,
         leiden_resolutions=args.leiden_resolutions,
