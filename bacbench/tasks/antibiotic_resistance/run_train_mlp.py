@@ -366,7 +366,8 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_filepath: str
+    input_genomes_df_filepath: str
+    labels_df_filepath: str
     output_dir: str
     k_folds: int = 5
     lr: float = 0.005
@@ -377,16 +378,19 @@ class ArgumentParser(Tap):
     batch_size: int = 128
     num_workers: int = 0
     model_name: str = "bacformer"
+    embeddings_col: str = "embeddings"
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    df = pd.read_parquet(args.input_filepath)
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    assert df.columns[:2].tolist() == ["genome_name", args.model_name], (
-        "First two columns must be genome_name and model_name"
-    )
-    antibiotics = df.columns[2:]
+    df = pd.read_parquet(args.input_genomes_df_filepath)[["genome_name", args.embeddings_col]]
+    labels_df = pd.read_parquet(args.labels_df_filepath)
+    # merge labels with genome embeddings
+    df = df.merge(labels_df, on="genome_name", how="left")
+
+    antibiotics = [i for i in labels_df.columns if i != "genome_name"]  # exclude 'genome_name'
     output = []
 
     monitor_metric = "val_r2" if args.regression else "val_auprc"

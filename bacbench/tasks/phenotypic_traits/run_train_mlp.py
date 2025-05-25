@@ -219,11 +219,13 @@ class ArgumentParser(Tap):
     labels_filepath: str
     output_dir: str
     n_seeds: int = 5
-    model_name: str = "bacformer"
+    model_name: str = "unknown_model"
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
+    os.makedirs(args.output_dir, exist_ok=True)
+
     df = pd.read_parquet(args.input_filepath)
     assert df.columns[:2].tolist() == ["genome_name", args.model_name], (
         "genome_name and model_name should be the first two columns"

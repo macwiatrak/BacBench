@@ -252,8 +252,11 @@ python bacbench/modeling/run_embed_dna.py \
     --streaming
 ```
 
-
 **Note**: DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
+
+**Embedding slices of the dataset**: We also provide functionality to embed only a slice of the dataset, which is useful for testing and debugging.
+To use it just use the `--start-idx` and `--end-idx` arguments to specify the slice of the dataset you want to embed.
+Both `run_embed_dna.py` and `run_embed_prot_seqs.py` scripts support this functionality.
 
 See [Benchmark models](#benchmarked-models) section for the list of currently supported models.
 
