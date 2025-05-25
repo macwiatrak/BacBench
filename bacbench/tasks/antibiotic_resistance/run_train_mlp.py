@@ -390,6 +390,9 @@ if __name__ == "__main__":
     # merge labels with genome embeddings
     df = df.merge(labels_df, on="genome_name", how="left")
 
+    # filter out genomes without labels
+    df = df[df[labels_df.columns[2:]].notna().any(axis=1)]
+
     antibiotics = [i for i in labels_df.columns if i != "genome_name"]  # exclude 'genome_name'
     output = []
 
