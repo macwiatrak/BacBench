@@ -392,10 +392,11 @@ if __name__ == "__main__":
 
     # filter out genomes without labels
     df = df[df[labels_df.columns[2:]].notna().any(axis=1)]
+    # filter out antibiotics with no labels
+    antibiotics = [k for k, v in df.iloc[:, 2:].notna().sum(axis=0).items() if v > 0]
+    df = df[["genome_name", args.embeddings_col] + antibiotics]
 
-    antibiotics = [i for i in labels_df.columns if i != "genome_name"]  # exclude 'genome_name'
     output = []
-
     monitor_metric = "val_r2" if args.regression else "val_auprc"
     for ant in tqdm(antibiotics):
         for seed in [1, 2, 3]:
