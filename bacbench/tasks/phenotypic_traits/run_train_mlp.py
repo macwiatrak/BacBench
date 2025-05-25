@@ -215,7 +215,7 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_genome_df_filepath: str
+    input_genomes_df_filepath: str
     labels_df_filepath: str
     output_dir: str
     n_seeds: int = 5
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
-    df = pd.read_parquet(args.input_genome_df_filepath)
+    df = pd.read_parquet(args.input_genomes_df_filepath)
     labels_df = pd.read_csv(args.labels_df_filepath)
     df = pd.merge(df, labels_df, on="genome_name", how="inner")
 
