@@ -137,9 +137,9 @@ class ArgumentParser(Tap):
 
     # data arguments
 
-    max_n_proteins: int = 6000
+    max_n_proteins: int = 9000
     n_nodes: int = 1
-    max_n_ppi_pairs: float = 2e6
+    max_n_ppi_pairs: float = 3e6
     score_threshold: float = 0.6
     embeddings_col: str = "embeddings"
 

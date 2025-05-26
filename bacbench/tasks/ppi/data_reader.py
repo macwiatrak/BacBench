@@ -1,3 +1,4 @@
+import itertools
 import os
 import random
 from functools import partial
@@ -44,6 +45,9 @@ def transform_sample(
     item: dict[str, Any],
 ) -> dict[str, Any]:
     """Transform the sample including the labels."""
+    if isinstance(item[embeddings_col][0], list):
+        # if the embeddings are a list of lists, flatten them
+        item[embeddings_col] = list(itertools.chain(*item[embeddings_col]))
     item["ppi_labels"] = process_triples(
         triples=item["triples_combined_score"],
         score_threshold=score_threshold,
