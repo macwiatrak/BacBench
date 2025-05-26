@@ -72,9 +72,9 @@ def _iterable_to_dataframe(
     """
     rows: list[dict] = []
     chunk_idx = 1
-    for idx, row in enumerate(tqdm(iter_ds)):
+    for _idx, row in enumerate(tqdm(iter_ds)):
         rows.append(row)
-        if idx == save_every_n_rows:
+        if len(rows) == save_every_n_rows:
             df = pd.DataFrame.from_records(rows)
             df.to_parquet(f"{output_dir}/{prefix}chunk_{chunk_idx}.parquet")
             rows = []
