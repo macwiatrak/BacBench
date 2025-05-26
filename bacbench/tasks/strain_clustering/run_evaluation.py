@@ -125,6 +125,7 @@ def run(
     input_col: str = "embeddings",
 ):
     """Run the script."""
+    os.makedirs(output_dir, exist_ok=True)
     if k_neighbors is None:
         k_neighbors = [5, 10, 15]
     if leiden_resolutions is None:
@@ -205,7 +206,7 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str
+    input_df_filepath: str
     output_dir: str
     model_name: str = "Unknown_model"
     leiden_resolutions: list[float] = [0.1, 0.25, 0.5, 1.0]
@@ -216,7 +217,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     run(
-        input_df_file_path=args.input_df_file_path,
+        input_df_file_path=args.input_df_filepath,
         output_dir=args.output_dir,
         model_name=args.model_name,
         leiden_resolutions=args.leiden_resolutions,

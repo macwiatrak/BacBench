@@ -20,6 +20,7 @@ def run(
     max_n_proteins: int = 6000,
     max_n_ppi_pairs: float = 2 * 1e6,
     dataloader_num_workers: int = 6,
+    embeddings_col: str = "embeddings",
 ):
     """Evaluate the model on the PPI dataset in an unsupervised manner."""
     # Prepare datasets
@@ -29,6 +30,7 @@ def run(
         test=True,
         score_threshold=score_threshold,
         max_n_ppi_pairs=max_n_ppi_pairs,
+        embeddings_col=embeddings_col,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -83,7 +85,7 @@ class ArgumentParser(Tap):
     model_name: str = "esmc"
     score_threshold: float = 0.6
     max_n_proteins: int = 6000
-    max_n_ppi_pairs: float = 2 * 1e6
+    max_n_ppi_pairs: float = 3e6
 
 
 if __name__ == "__main__":

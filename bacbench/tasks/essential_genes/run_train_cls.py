@@ -7,13 +7,13 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightning import seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from tap import Tap
 from torch.optim import AdamW
 from torch.utils.data import TensorDataset
 from torchmetrics.functional import auroc, average_precision, f1_score
 from tqdm import tqdm
+from transformers import set_seed
 
 
 def calculate_metrics_per_genome(df: pd.DataFrame):
@@ -182,6 +182,16 @@ class LinearModel(pl.LightningModule):
         return optimizer
 
 
+def prepare_essential_genes_df(df: pd.DataFrame, embeddings_col: str) -> pd.DataFrame:
+    """Prepare the essential genes DataFrame."""
+    # currently the embeddings is List[List[np.ndarray]], we need to make it List[np.ndarray]
+    if isinstance(df[embeddings_col].iloc[0], list):
+        df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
+    # explode the DF
+    df = df.explode([embeddings_col, "essential", "protein_id", "product", "start", "end"])
+    return df
+
+
 def main(
     input_df_dile_path: str,
     lr: float = 1e-3,
@@ -191,40 +201,44 @@ def main(
     num_workers: int = 4,
     output_dir: str = "/tmp/evo-output/",
     random_state: int = 1,
+    embeddings_col: str = "embeddings",
     test: bool = False,
 ):
     """Run the training of the Linear model."""
     # set the random seed
-    seed_everything(random_state)
+    set_seed(random_state)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     # read input file
-    df = pd.read_parquet(input_df_dile_path).rename(columns={"Genome Name": "genome_name"})
+    df = pd.read_parquet(input_df_dile_path)
+    # explode the embeddings column as after embedding it is a list of lists
+    df = prepare_essential_genes_df(df, embeddings_col=embeddings_col)
+    # process the DF
     genome2idx = {g: i for i, g in enumerate(df["genome_name"].unique())}
     df["genome_idx"] = df["genome_name"].map(genome2idx)
     df["label"] = df.essential.map({"Yes": 1, "No": 0})
-    dim = df.gene_embedding.iloc[0].shape[0]
+    dim = df[embeddings_col].iloc[0].shape[0]
 
     # split the data
     train_df = df[df["split"] == "train"]
-    val_df = df[df["split"] == "val"]
+    val_df = df[df["split"] == "validation"]
     test_df = df[df["split"] == "test"]
 
     # create datasets
     train_dataset = TensorDataset(
-        torch.tensor(np.stack(train_df.gene_embedding.tolist()), dtype=torch.float32),
+        torch.tensor(np.stack(train_df[embeddings_col].tolist()), dtype=torch.float32),
         torch.tensor(train_df.label.tolist(), dtype=torch.long),
         torch.tensor(train_df.genome_idx.tolist(), dtype=torch.long),
     )
     val_dataset = TensorDataset(
-        torch.tensor(np.stack(val_df.gene_embedding.tolist()), dtype=torch.float32),
+        torch.tensor(np.stack(val_df[embeddings_col].tolist()), dtype=torch.float32),
         torch.tensor(val_df.label.tolist(), dtype=torch.long),
         torch.tensor(val_df.genome_idx.tolist(), dtype=torch.long),
     )
     test_dataset = TensorDataset(
-        torch.tensor(np.stack(test_df.gene_embedding.tolist()), dtype=torch.float32),
+        torch.tensor(np.stack(test_df[embeddings_col].tolist()), dtype=torch.float32),
         torch.tensor(test_df.label.tolist(), dtype=torch.long),
         torch.tensor(test_df.genome_idx.tolist(), dtype=torch.long),
     )
@@ -251,7 +265,6 @@ def main(
         num_workers=num_workers,
         persistent_workers=True,
     )
-    print("Data loaded")
 
     # create the model
     model = LinearModel(lr=lr, dropout=dropout, dim=dim)
@@ -259,7 +272,7 @@ def main(
     # create the trainer
     early_stop_callback = EarlyStopping(
         monitor="val_auroc",
-        patience=15,
+        patience=10,
         verbose=True,
         mode="max",
     )
@@ -305,7 +318,7 @@ def main(
             output.append(model(batch[0]))
     test_df["logits"] = torch.cat(output).cpu().numpy()
     test_df = calculate_metrics_per_genome(test_df)
-    test_df = test_df.drop(columns=["gene_embedding"])
+    test_df = test_df.drop(columns=[embeddings_col])
     return test_df
 
 
@@ -324,6 +337,7 @@ class ArgumentParser(Tap):
     batch_size: int = 128
     num_workers: int = 4
     test: bool = True
+    embeddings_col: str = "embeddings"
     model_name: str = "Unknown"
 
 
@@ -340,6 +354,7 @@ if __name__ == "__main__":
             num_workers=args.num_workers,
             output_dir=args.output_dir,
             random_state=random_state,
+            embeddings_col=args.embeddings_col,
             test=args.test,
         )
         test_df["random_state"] = random_state

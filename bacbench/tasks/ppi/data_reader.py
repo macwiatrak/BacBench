@@ -1,3 +1,4 @@
+import itertools
 import os
 import random
 from functools import partial
@@ -40,24 +41,28 @@ def transform_sample(
     max_n_proteins: int,
     max_n_ppi_pairs: int,
     score_threshold: float | None,  # if score threshold is None, then do not set threshold
+    embeddings_col: str,
     item: dict[str, Any],
 ) -> dict[str, Any]:
     """Transform the sample including the labels."""
+    if isinstance(item[embeddings_col][0], list):
+        # if the embeddings are a list of lists, flatten them
+        item[embeddings_col] = list(itertools.chain(*item[embeddings_col]))
     item["ppi_labels"] = process_triples(
         triples=item["triples_combined_score"],
         score_threshold=score_threshold,
-        max_n_proteins=min(len(item["protein_embeddings"]), max_n_proteins),  # account for CLS, SEP, and END tokens
+        max_n_proteins=min(len(item[embeddings_col]), max_n_proteins),  # account for CLS, SEP, and END tokens
         max_n_ppi_pairs=max_n_ppi_pairs,
     )
     del item["triples_combined_score"]
-    item["protein_embeddings"] = torch.stack([torch.tensor(i) for i in item["protein_embeddings"]])
+    item["embeddings"] = torch.stack([torch.tensor(i) for i in item[embeddings_col]])
     return item
 
 
 def collate_ppi(batch: list[dict[str, Any]]) -> dict[str, Any]:
     """Collate the batch."""
     # collate the protein embeddings
-    protein_embeddings = torch.stack([item["protein_embeddings"] for item in batch])
+    protein_embeddings = torch.stack([item["embeddings"] for item in batch])
     # collate the labels
     ppi_labels = torch.stack([item["ppi_labels"] for item in batch])
     return {
@@ -75,28 +80,17 @@ def get_datasets_ppi(
     # for finetuning use only one column, for unsupervised evaluation potentially use multiple
     score_threshold: float | None,
     test: bool = False,
+    embeddings_col: str = "embeddings",
 ) -> tuple[Dataset, Dataset, Dataset | None]:
     """Get the datasets."""
     # get the files for train, val and test
-    train_files = [
-        os.path.join(input_dir, "train", f)
-        for f in os.listdir(os.path.join(input_dir, "train"))
-        if f.endswith("parquet")
-    ]
-    val_files = [
-        os.path.join(input_dir, "train", f)
-        for f in os.listdir(os.path.join(input_dir, "validation"))
-        if f.endswith("parquet")
-    ]
-    test_files = [
-        os.path.join(input_dir, "train", f)
-        for f in os.listdir(os.path.join(input_dir, "test"))
-        if f.endswith("parquet")
-    ]
+    train_files = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.startswith("train")]
+    val_files = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.startswith("val")]
+    test_files = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.startswith("test")]
     data_files = {"train": train_files, "validation": val_files, "test": test_files}
-    cols_to_use = ["genome_name", "protein_embeddings", "triples_combined_score"]
+    cols_to_use = ["genome_name", embeddings_col, "triples_combined_score"]
 
-    transform_fn = partial(transform_sample, max_n_proteins, max_n_ppi_pairs, score_threshold)
+    transform_fn = partial(transform_sample, max_n_proteins, max_n_ppi_pairs, score_threshold, embeddings_col)
     train_dataset = (
         load_dataset("parquet", data_files=data_files, split="train", streaming=True)
         .select_columns(cols_to_use)

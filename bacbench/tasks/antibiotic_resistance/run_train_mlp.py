@@ -313,7 +313,7 @@ def train_kfold_mlp(
 
 def train_eval_antibiotic(
     df: pd.DataFrame,
-    model_name: str,
+    embeddings_col: str,
     antibiotic: str,
     k: int,
     *,
@@ -330,7 +330,7 @@ def train_eval_antibiotic(
 ) -> pd.DataFrame:
     """Run the full k‑fold protocol for a given antibiotic label column."""
     df = df[df[antibiotic].notna()]
-    X = np.stack(df[model_name].tolist()).astype(np.float32)
+    X = np.stack(df[embeddings_col].tolist()).astype(np.float32)
     y = df[antibiotic].values if regression else df[antibiotic].astype(int).values
 
     out = os.path.join(output_dir, antibiotic)
@@ -366,7 +366,8 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_filepath: str
+    input_genomes_df_filepath: str
+    labels_df_filepath: str
     output_dir: str
     k_folds: int = 5
     lr: float = 0.005
@@ -376,26 +377,32 @@ class ArgumentParser(Tap):
     epochs: int = 100
     batch_size: int = 128
     num_workers: int = 0
-    model_name: str = "bacformer"
+    embeddings_col: str = "embeddings"
+    model_name: str = "unknown_model"  # used for output file naming
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    df = pd.read_parquet(args.input_filepath)
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    assert df.columns[:2].tolist() == ["genome_name", args.model_name], (
-        "First two columns must be genome_name and model_name"
-    )
-    antibiotics = df.columns[2:]
+    df = pd.read_parquet(args.input_genomes_df_filepath)[["genome_name", args.embeddings_col]]
+    labels_df = pd.read_csv(args.labels_df_filepath)
+    # merge labels with genome embeddings
+    df = df.merge(labels_df, on="genome_name", how="left")
+
+    # filter out genomes without labels
+    df = df[df[labels_df.columns[2:]].notna().any(axis=1)]
+    # filter out antibiotics with no labels
+    antibiotics = [k for k, v in df.iloc[:, 2:].notna().sum(axis=0).items() if v > 0]
+    df = df[["genome_name", args.embeddings_col] + antibiotics]
+
     output = []
-
     monitor_metric = "val_r2" if args.regression else "val_auprc"
     for ant in tqdm(antibiotics):
-        print(f"\nRunning {args.model_name} on {ant}...\n")
         for seed in [1, 2, 3]:
             metrics = train_eval_antibiotic(
                 df,
-                model_name=args.model_name,
+                embeddings_col=args.embeddings_col,
                 antibiotic=ant,
                 k=args.k_folds,
                 output_dir=args.output_dir,
@@ -410,7 +417,6 @@ if __name__ == "__main__":
                 regression=args.regression,
             )
             metrics["antibiotic"] = ant
-            metrics["method"] = args.model_name
             output.append(metrics)
 
             if torch.cuda.is_available():

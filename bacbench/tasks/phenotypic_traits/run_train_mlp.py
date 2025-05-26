@@ -215,27 +215,33 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_filepath: str
-    labels_filepath: str
+    input_genomes_df_filepath: str
+    labels_df_filepath: str
     output_dir: str
     n_seeds: int = 5
-    model_name: str = "bacformer"
+    embeddings_col: str = "embeddings"
+    model_name: str = "unknown_model"
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    df = pd.read_parquet(args.input_filepath)
-    assert df.columns[:2].tolist() == ["genome_name", args.model_name], (
-        "genome_name and model_name should be the first two columns"
-    )
-    labels_df = pd.read_parquet(args.labels_filepath)
-    merged_df = pd.merge(df, labels_df, on="genome_name", how="inner")
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    embeddings = np.concatenate(df[args.model_name].tolist(), axis=1)
+    df = pd.read_parquet(args.input_genomes_df_filepath)[["genome_name", args.embeddings_col]]
+    labels_df = pd.read_csv(args.labels_df_filepath)
+    df = pd.merge(df, labels_df, on="genome_name", how="left")
 
-    # Run classification
-    phenotypes = merged_df.iloc[:, len(df) :].columns
+    # filter out genomes without labels
+    df = df[df[labels_df.columns[2:]].notna().any(axis=1)]
+    # filter out phenotypic traits with no labels
+    phenotypic_traits = [k for k, v in df.iloc[:, 2:].notna().sum(axis=0).items() if v > 0]
+    df = df[["genome_name", args.embeddings_col] + phenotypic_traits]
+
+    # Convert embeddings column to numpy array
+    embeddings = np.stack(df[args.embeddings_col].tolist())
+
+    # Run training and evaluation
     results_df = calculate_classification_performances(
-        df, phenotypes, embeddings, n_seeds=args.n_seeds, model_name=args.model_name
+        df, phenotypic_traits, embeddings, n_seeds=args.n_seeds, model_name=args.model_name
     )
     results_df.to_csv(os.path.join(args.output_dir, f"results_{args.model_name}.csv"), index=False)

@@ -76,6 +76,11 @@ git clone https://github.com/macwiatrak/BacBench.git
 cd BacBench
 # 1) install BacBench **with its core dependencies**
 pip install .
+```
+We also recommend to install the [faesm](https://github.com/pengzhangzhi/faplm) package which provides fast inference for ESM-2 and ESM-C models.
+
+**Note**: Only install `faesm` on a machine with a GPU an CUDA installed.
+```bash
 # 2) (optional but recommended) add the fast‐attention extra (“faesm”)
 pip install ".[faesm]"
 ```
@@ -147,14 +152,16 @@ Dataset details including nr of genomes and more are available in the datasets c
 
 We provide extendable scripts to embed genomes at the gene and whole-genome level using various models.
 
-Embedding genomes is the first step to evaluating the models on the tasks.
+Embedding genomes is the first step to evaluating the models on the tasks. We include details on how to embed
+genomes for each task in the task-specific README files in the `bacbench/tasks/` directory.
+
 Below, we show examples on how to embed genomes using the supported models on a few tasks.
 
 #### Essential genes prediction task
 ```bash
 # embed and save the genomes using the ESM-C model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_esmc_embeddings.parquet \
     --model-path esmc_300m \
     --model-type esmc \
@@ -162,41 +169,42 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
     --batch-size 64 \
-    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000  # max nr of proteins in a genome
 
 # embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-essential-genes-dna \  # name of the dataset
-    --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
+    --dataset-name macwiatrak/bacbench-essential-genes-dna \
+    --output-filepath <output-dir>/essential_genes_nt_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
     --model-type nucleotide_transformer \
     --batch-size 128 \
-    --max-seq-len 2048 \  # max seq len, default value for the model
+    --max-seq-len 2048 \
     --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
 ```
+
 #### Operon identification task
 ```bash
 # embed and save the genomes using the ProtBert model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_protbert_embeddings.parquet \
-    --model-path rost-lab/protbert  \
+    --model-path Rostlab/prot_bert  \
     --model-type protbert \
     --batch-size 64
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
     --batch-size 64 \
-    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000  # max nr of proteins in a genome, default value
 
 
 # embed and save the genomes using the Mistral-DNA model
@@ -206,15 +214,15 @@ python bacbench/modeling/run_embed_dna.py \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
     --model-type mistral_dna \
     --batch-size 256 \
-    --max-seq-len 512 \  # max seq len, default value for the model
-    --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+    --max-seq-len 512 \
+    --dna-seq-overlap 16
 ```
 
 #### Strain clustering task
 ```bash
 # embed and save the genomes using the ESM-2 model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
     --output-filepath <output-dir>/strain_clustering_esm2_embeddings.parquet \
     --model-path facebook/esm2_t12_35M_UR50D \
     --model-type esm2 \
@@ -224,35 +232,41 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
     --output-filepath <output-dir>/strain_clustering_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
     --batch-size 64 \
-    --batch-size 64 \
     --genome-pooling-method mean \
     --streaming \
-    --max-n-proteins 6000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000  # max nr of proteins in a genome, default value
 
 
-# embed and save the genomes using the DNABERT-2 model
+# embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-dna \  # name of the dataset
-    --output-filepath <output-dir>/strain_clustering_dnabert2_embeddings.parquet \
-    --model-path zhihan1996/DNABERT-2-117M \
-    --model-type dnabert2 \
-    --batch-size 256 \
-    --max-seq-len 512 \  # max seq len, default value for the model
-    --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+    --dataset-name macwiatrak/bacbench-strain-clustering-dna \
+    --output-filepath <output-dir>/strain_clustering_nucleotide_transformer_embeddings.parquet \
+    --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
+    --model-type nucleotide_transformer \
+    --batch-size 128 \
+    --max-seq-len 2048 \
+    --dna-seq-overlap 32 \
+    --agg-whole-genome \
+    --streaming
 ```
 
-
 **Note**: DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
+
+**Embedding slices of the dataset**: We also provide functionality to embed only a slice of the dataset, which is useful for testing and debugging.
+To use it just use the `--start-idx` and `--end-idx` arguments to specify the slice of the dataset you want to embed.
+Both `run_embed_dna.py` and `run_embed_prot_seqs.py` scripts support this functionality.
 
 See [Benchmark models](#benchmarked-models) section for the list of currently supported models.
 
 ### Model evaluation
 We provide scripts to evaluate the embeddings models for each task in the `bacbench/tasks/` directory.
+We include details on how to evaluate models for each task in the task-specific README files in the `bacbench/tasks/` directory.
+
 Below, we show examples on how to evaluate the models using embedded data.
 
 **Note**: to run evaluation scripts, you need to have the embeddings saved in a parquet file (see above examples for how to embed the genomes).
@@ -260,7 +274,7 @@ Below, we show examples on how to evaluate the models using embedded data.
 #### Essential genes prediction task
 ```bash
 python bacbench/tasks/essential_genes/run_train_cls.py \
-    --input-df-filepath <input-dir>/essential_genes_esmc_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --input-df-filepath <input-dir>/essential_genes_esmc_embeddings.parquet \
     --output-dir <output-dir> \
     --lr 0.005 \
     --max-epochs 100 \
@@ -270,7 +284,7 @@ python bacbench/tasks/essential_genes/run_train_cls.py \
 #### Operon identification task
 ```bash
 python bacbench/tasks/operon/run_evaluation.py \
-    --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \
     --output-dir <output-dir> \
     --model-name bacformer
 ````
@@ -278,7 +292,7 @@ python bacbench/tasks/operon/run_evaluation.py \
 #### Strain clustering task
 ```bash
 python bacbench/tasks/strain_clustering/run_evaluation.py \
-    --input-df-filepath <input-dir>/strain_clustering_dnabert2_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --input-df-filepath <input-dir>/strain_clustering_esm2_embeddings.parquet \
     --output-dir <output-dir> \
     --model-name bacformer
 ````
@@ -329,19 +343,21 @@ We currently support the following models:
 | Model                  | Input                 | Variant / Checkpoint                                                                                                            | Objective      | Params | dim  | Max context |
 |------------------------|-----------------------|---------------------------------------------------------------------------------------------------------------------------------|----------------|--------|------|-------------|
 | Mistral-DNA            | DNA                   | [Mistral-DNA-v1-138M-bacteria](https://huggingface.co/RaphaelMourad/Mistral-DNA-v1-138M-bacteria)                               | Autoregressive | 138 M | 768  | 512         |
-| DNABERT-2              | DNA                   | [DNABERT-2-117M](https://huggingface.co/zhihan1996/DNABERT-2-117M)                                                              | Masked         | 117 M | 768  | 512         |
+| DNABERT-2*             | DNA                   | [DNABERT-2-117M](https://huggingface.co/zhihan1996/DNABERT-2-117M)                                                              | Masked         | 117 M | 768  | 512         |
 | Nucleotide Transformer | DNA                   | [nucleotide-transformer-v2-250m-multi-species](https://huggingface.co/InstaDeepAI/nucleotide-transformer-v2-250m-multi-species) | Masked         | 250 M | 768  | 2 048       |
-| Evo*                   | DNA                   | [evo-1-8k-base (1.1_fix)](https://huggingface.co/togethercomputer/evo-1-8k-base)                                                | Autoregressive | 6.5 B | 4 096| 8 192       |
+| Evo**                  | DNA                   | [evo-1-8k-base (1.1_fix)](https://huggingface.co/togethercomputer/evo-1-8k-base)                                                | Autoregressive | 6.5 B | 4 096| 8 192       |
 | ESM-2                  | Single protein seq.   | [esm2_t12_35M_UR50D](https://huggingface.co/facebook/esm2_t12_35M_UR50D)                                                        | Masked         | 35 M  | 480  | 1 024       |
 | ESM-C                  | Single protein seq.   | [esmc_300m](https://huggingface.co/EvolutionaryScale/esmc-300m-2024-12)                                                         | Masked         | 300 M | 960  | 1 024       |
 | ProtBert               | Single protein seq.   | [prot_bert](https://huggingface.co/Rostlab/prot_bert)                                                                           | Masked         | 420 M | 1 024| 1 024       |
-| Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)**                      | Masked         | 27 M  | 480  | 6 000       |
+| Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)***                     | Masked         | 27 M  | 480  | 6 000       |
 
-`*` We adapt Evo to extract sequence embeddings from the last layer of the model. The implementation is available in [bacbench/modeling/evo/](bacbench/modeling/evo).
+`*` DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
+
+`**` We adapt Evo to extract sequence embeddings from the last layer of the model. The implementation is available in [bacbench/modeling/evo/](bacbench/modeling/evo).
 We benchmarked Evo on only two tasks, `essential genes prediction` and `operon identification`, the smallest in `BacBench` due to the
 large computational cost of the model.
 
-`**` For strain clustering we used [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-MAG) as the input are
+`***` For strain clustering we used [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-MAG) as the input are
 metagenome-assembled genomes (MAGs), rather than complete genomes.
 
 

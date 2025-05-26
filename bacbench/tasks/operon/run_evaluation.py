@@ -41,37 +41,26 @@ def mean_pairwise_cosine(arrays: list[np.ndarray]) -> float:
     return score
 
 
-def fix_protein_embeddings_for_evo(protein_embeddings: list[np.ndarray]) -> list[np.ndarray]:
-    """Fix protein embeddings for evo model"""
-    out = []
-    for p in protein_embeddings:
-        if len(p) != 4096:
-            # pad the protein embedding to 8192 with the mean value
-            item = np.ones(4096 - len(p)) * np.mean(p)
-            p = np.concatenate((p, item))
-        out.append(p)
-    return out
-
-
-def run(input_filepath: str, output_dir: str, model_name: str = "bacformer", n_negatives: int = 10):
+def run(
+    input_df_filepath: str,
+    output_dir: str,
+    embedding_col: str = "embeddings",
+    model_name: str = None,
+    n_negatives: int = 10,
+):
     """Run zero-shot operon identification evaluation"""
     os.makedirs(output_dir, exist_ok=True)
     # define a set of seeds for reproducibility when computing evaluation metrics
     random_seeds = [1, 12, 123, 1234, 12345]
 
     # read the data
-    df = pd.read_parquet(input_filepath)
+    df = pd.read_parquet(input_df_filepath)
     # account for DNA LMs and protein LMs column names
-    if "gene_embedding" in df.columns:
-        df = df.rename(columns={"gene_embedding": "protein_embeddings"})
-    else:
-        # explode it by contig
-        df = df.explode(
-            ["contig_name", "operon_protein_names", "operon_protein_indices", "operon_names", "protein_embeddings"]
-        )
+    # explode it by contig
+    df = df.explode(["contig_name", "operon_protein_names", "operon_protein_indices", "operon_names", embedding_col])
     # separate protein embeddings from the rest of the data
-    df_protein_embeddings = df[["contig_name", "protein_embeddings"]].set_index("contig_name")
-    df = df.drop(columns=["protein_embeddings"])
+    df_gene_embeddings = df[["contig_name", embedding_col]].set_index("contig_name")
+    df = df.drop(columns=[embedding_col])
     df = df.explode(["operon_protein_names", "operon_protein_indices", "operon_names"])
     # remove operons with nan values
     df = df.dropna(subset=["operon_protein_indices"])
@@ -82,30 +71,26 @@ def run(input_filepath: str, output_dir: str, model_name: str = "bacformer", n_n
     output = defaultdict(list)
     for _, row in tqdm(df.iterrows()):
         # fetch contig protein embeddings
-        protein_embeddings = df_protein_embeddings.loc[row["contig_name"]]["protein_embeddings"]
-        # if model_type == "evo":
-        #     protein_embeddings = fix_protein_embeddings_for_evo(protein_embeddings)
+        gene_embeddings = df_gene_embeddings.loc[row["contig_name"]][embedding_col]
         # fetch operon protein indices
-        operon_protein_indices = row["operon_protein_indices"]
-        operon_prot_embeddings = [protein_embeddings[i] for i in operon_protein_indices]
+        operon_gene_indices = row["operon_protein_indices"]
+        operon_gene_embeddings = [gene_embeddings[i] for i in operon_gene_indices]
         # compute operon scores by computing pairwise cosine similarity
-        operon_score = mean_pairwise_cosine(operon_prot_embeddings)
+        operon_score = mean_pairwise_cosine(operon_gene_embeddings)
 
-        n_prot_embeds = len(protein_embeddings)
-        operon_size = len(operon_protein_indices)
+        n_gene_embeds = len(gene_embeddings)
+        operon_size = len(operon_gene_indices)
 
         for seed in random_seeds:
             random.seed(seed)
             # get random negatives
-            random_negatives = random.sample(range(n_prot_embeds - operon_size), n_negatives)
+            random_negatives = random.sample(range(n_gene_embeds - operon_size), n_negatives)
             # get random negative indices
             random_negative_indices = [list(range(i, i + operon_size)) for i in random_negatives]
             # compute random negative scores
-            random_negative_prot_embeds = [
-                [protein_embeddings[i] for i in indices] for indices in random_negative_indices
-            ]
+            random_negative_gene_embeds = [[gene_embeddings[i] for i in indices] for indices in random_negative_indices]
             random_negative_scores = [
-                mean_pairwise_cosine(neg_prot_embeds) for neg_prot_embeds in random_negative_prot_embeds
+                mean_pairwise_cosine(neg_gene_embeds) for neg_gene_embeds in random_negative_gene_embeds
             ]
             # compute metrics
             y_true = np.array([1] + [0] * n_negatives)  # 1 positve, k negatives
@@ -118,7 +103,7 @@ def run(input_filepath: str, output_dir: str, model_name: str = "bacformer", n_n
             output["contig_name"].append(row["contig_name"])
             output["operon_name"].append(row["operon_names"])
             output["operon_size"].append(operon_size)
-            output["operon_protein_indices"].append(operon_protein_indices)
+            output["operon_protein_indices"].append(operon_gene_indices)
             output["auroc"].append(auroc_val)
             output["auprc"].append(auprc_val)
             output["seed"].append(seed)
@@ -136,17 +121,19 @@ class ArgParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_filepath: str
+    input_df_filepath: str
     output_dir: str
-    model_name: str
+    model_name: str = None
     n_negatives: int = 10
+    embedding_col: str = "embeddings"
 
 
 if __name__ == "__main__":
     args = ArgParser().parse_args()
     run(
-        input_filepath=args.input_filepath,
+        input_df_filepath=args.input_df_filepath,
         output_dir=args.output_dir,
         model_name=args.model_name,
         n_negatives=args.n_negatives,
+        embedding_col=args.embedding_col,
     )
