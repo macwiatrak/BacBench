@@ -1,3 +1,4 @@
+import os
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -208,7 +209,7 @@ class ArgumentParser(Tap):
     # file paths for loading data
     dataset_name: str
     streaming: bool = False
-    output_filepath: str
+    output_filepath: str = None
     model_path: str
     model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"]
     batch_size: int = 64
@@ -228,6 +229,10 @@ if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     # load the dataset
     dataset = load_dataset(args.dataset_name, streaming=args.streaming)
+
+    if args.output_dir is not None:
+        os.makedirs(args.output_dir, exist_ok=True)
+
     # run the embedding
     df = run(
         dataset=dataset,

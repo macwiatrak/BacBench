@@ -1,4 +1,5 @@
 import logging
+import os
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -215,6 +216,10 @@ if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     # load the dataset
     dataset = load_dataset(args.dataset_name, streaming=args.streaming, cache_dir=None)
+
+    if args.output_dir is not None:
+        os.makedirs(args.output_dir, exist_ok=True)
+
     # run the embedding
     df = run(
         dataset=dataset,
