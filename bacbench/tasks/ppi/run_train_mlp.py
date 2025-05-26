@@ -137,7 +137,7 @@ class ArgumentParser(Tap):
     n_nodes: int = 1
     max_n_ppi_pairs: float = 2e6
     score_threshold: float = 0.6
-    split_filepath: str = None
+    embeddings_col: str = "embeddings"
 
 
 def run(args):
@@ -165,6 +165,7 @@ def run(args):
         max_n_proteins=args.max_n_proteins,
         score_threshold=args.score_threshold,
         max_n_ppi_pairs=args.max_n_ppi_pairs,
+        embeddings_col=args.embeddings_col,
     )
 
     n_gpus, use_ipex = get_gpu_info()
