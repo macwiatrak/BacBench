@@ -195,7 +195,7 @@ class ArgumentParser(Tap):
     # file paths for loading data
     dataset_name: str
     streaming: bool = False
-    output_filepath: str
+    output_filepath: str = None
     model_path: str
     model_type: Literal["esm2", "esmc", "protbert", "bacformer"]
     batch_size: int = 64
