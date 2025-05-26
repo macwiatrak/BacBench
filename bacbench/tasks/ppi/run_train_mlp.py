@@ -63,11 +63,6 @@ class PpiLightningModule(pl.LightningModule):
 
         logits = self.linear(self.dropout(protein_embeddings)).squeeze(-1)
 
-        # label 2 is the ground truth. The BCE logic from your snippet
-        print("Logits shape:", logits.shape)
-        print("Labels shape:", labels[:, 2].shape)
-        print("All labels shape:", labels.shape)
-        print("Labels unq values:", labels[:, 2].unique())
         loss = binary_cross_entropy_with_logits(logits, labels[:, 2].type_as(logits).squeeze(0))
         return loss, logits
 
