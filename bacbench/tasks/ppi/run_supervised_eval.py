@@ -85,7 +85,7 @@ class ArgumentParser(Tap):
     model_name: str = "esmc"
     score_threshold: float = 0.6
     max_n_proteins: int = 6000
-    max_n_ppi_pairs: float = 2 * 1e6
+    max_n_ppi_pairs: float = 3e6
 
 
 if __name__ == "__main__":

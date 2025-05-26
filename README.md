@@ -152,14 +152,16 @@ Dataset details including nr of genomes and more are available in the datasets c
 
 We provide extendable scripts to embed genomes at the gene and whole-genome level using various models.
 
-Embedding genomes is the first step to evaluating the models on the tasks.
+Embedding genomes is the first step to evaluating the models on the tasks. We include details on how to embed
+genomes for each task in the task-specific README files in the `bacbench/tasks/` directory.
+
 Below, we show examples on how to embed genomes using the supported models on a few tasks.
 
 #### Essential genes prediction task
 ```bash
 # embed and save the genomes using the ESM-C model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_esmc_embeddings.parquet \
     --model-path esmc_300m \
     --model-type esmc \
@@ -167,7 +169,7 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
@@ -176,19 +178,20 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 
 # embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-essential-genes-dna \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-essential-genes-dna \
     --output-filepath <output-dir>/essential_genes_nt_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
     --model-type nucleotide_transformer \
     --batch-size 128 \
-    --max-seq-len 2048 \  # max seq len, default value for the model
+    --max-seq-len 2048 \
     --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
 ```
+
 #### Operon identification task
 ```bash
 # embed and save the genomes using the ProtBert model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_protbert_embeddings.parquet \
     --model-path Rostlab/prot_bert  \
     --model-type protbert \
@@ -196,7 +199,7 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
@@ -211,15 +214,15 @@ python bacbench/modeling/run_embed_dna.py \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
     --model-type mistral_dna \
     --batch-size 256 \
-    --max-seq-len 512 \  # max seq len, default value for the model
-    --dna-seq-overlap 16  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
+    --max-seq-len 512 \
+    --dna-seq-overlap 16
 ```
 
 #### Strain clustering task
 ```bash
 # embed and save the genomes using the ESM-2 model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
     --output-filepath <output-dir>/strain_clustering_esm2_embeddings.parquet \
     --model-path facebook/esm2_t12_35M_UR50D \
     --model-type esm2 \
@@ -229,7 +232,7 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
     --output-filepath <output-dir>/strain_clustering_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --model-type bacformer \
@@ -241,14 +244,14 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 
 # embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-dna \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-strain-clustering-dna \
     --output-filepath <output-dir>/strain_clustering_nucleotide_transformer_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
     --model-type nucleotide_transformer \
     --batch-size 128 \
-    --max-seq-len 2048 \  # max seq len, default value for the model
-    --dna-seq-overlap 32 \  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
-    --agg-whole-genome \  # aggregate the embeddings for the whole genome
+    --max-seq-len 2048 \
+    --dna-seq-overlap 32 \
+    --agg-whole-genome \
     --streaming
 ```
 
@@ -262,6 +265,8 @@ See [Benchmark models](#benchmarked-models) section for the list of currently su
 
 ### Model evaluation
 We provide scripts to evaluate the embeddings models for each task in the `bacbench/tasks/` directory.
+We include details on how to evaluate models for each task in the task-specific README files in the `bacbench/tasks/` directory.
+
 Below, we show examples on how to evaluate the models using embedded data.
 
 **Note**: to run evaluation scripts, you need to have the embeddings saved in a parquet file (see above examples for how to embed the genomes).
@@ -269,7 +274,7 @@ Below, we show examples on how to evaluate the models using embedded data.
 #### Essential genes prediction task
 ```bash
 python bacbench/tasks/essential_genes/run_train_cls.py \
-    --input-df-filepath <input-dir>/essential_genes_esmc_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --input-df-filepath <input-dir>/essential_genes_esmc_embeddings.parquet \
     --output-dir <output-dir> \
     --lr 0.005 \
     --max-epochs 100 \
@@ -279,7 +284,7 @@ python bacbench/tasks/essential_genes/run_train_cls.py \
 #### Operon identification task
 ```bash
 python bacbench/tasks/operon/run_evaluation.py \
-    --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \
     --output-dir <output-dir> \
     --model-name bacformer
 ````
@@ -287,7 +292,7 @@ python bacbench/tasks/operon/run_evaluation.py \
 #### Strain clustering task
 ```bash
 python bacbench/tasks/strain_clustering/run_evaluation.py \
-    --input-df-filepath <input-dir>/strain_clustering_esm2_embeddings.parquet \  # input file with the embeddings, see above example for how to embed the genomes
+    --input-df-filepath <input-dir>/strain_clustering_esm2_embeddings.parquet \
     --output-dir <output-dir> \
     --model-name bacformer
 ````
