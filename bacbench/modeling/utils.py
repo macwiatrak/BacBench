@@ -52,7 +52,12 @@ def get_dna_seq_col_name(cols: list[str]) -> str:
     raise ValueError("No DNA sequence column found in the dataframe.")
 
 
-def _iterable_to_dataframe(iter_ds: IterableDataset, max_rows: int | None = None) -> pd.DataFrame:
+def _iterable_to_dataframe(
+    iter_ds: IterableDataset,
+    save_every_n_rows: int | None = None,
+    output_dir: str | None = None,
+    prefix: str = "",
+) -> pd.DataFrame | None:
     """
     Consume an IterableDataset and materialise it as a pandas DataFrame.
 
@@ -60,18 +65,24 @@ def _iterable_to_dataframe(iter_ds: IterableDataset, max_rows: int | None = None
     ----------
     iter_ds : IterableDataset
         The dataset to materialise.
-    max_rows : int | None
-        Optional hard-stop to avoid filling the machine’s memory by mistake.
 
     Returns
     -------
     pd.DataFrame
     """
     rows: list[dict] = []
+    chunk_idx = 1
     for idx, row in enumerate(tqdm(iter_ds)):
-        if max_rows is not None and idx >= max_rows:
-            break
         rows.append(row)
+        if idx == save_every_n_rows:
+            df = pd.DataFrame.from_records(rows)
+            df.to_parquet(f"{output_dir}/{prefix}chunk_{chunk_idx}.parquet")
+            rows = []
+            chunk_idx += 1
+    if save_every_n_rows is not None and len(rows) > 0:
+        df = pd.DataFrame.from_records(rows)
+        df.to_parquet(f"{output_dir}/{prefix}chunk_{chunk_idx}.parquet")
+        return None
     return pd.DataFrame.from_records(rows)
 
 

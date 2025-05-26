@@ -74,6 +74,8 @@ def run(
     start_idx: int | None = None,  # for slicing the dataset
     end_idx: int | None = None,  # for slicing the dataset
     streaming: bool = False,
+    save_every_n_rows: int | None = None,  # for saving the dataframe every n rows, only works for iterable datasets
+    output_dir: str = None,  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
 ):
     """Run script to embed protein sequences with various models.
 
@@ -89,6 +91,9 @@ def run(
     :param max_n_contigs: maximum number of contigs to use for each genome, only used for Bacformer
     :param start_idx: start index for slicing the dataset, if None, will use the whole dataset
     :param end_idx: end index for slicing the dataset, if None, will use the whole dataset
+    :param streaming: if True, will load the dataset in streaming mode, useful for large datasets
+    :param save_every_n_rows: if set, will save the dataframe every n rows, only works for iterable datasets
+    :param output_dir: output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
     :return: a pandas dataframe with the protein embeddings
     """
     # if dataset is a str, load dataset from HuggingFace
@@ -154,12 +159,25 @@ def run(
 
         if isinstance(split_ds, IterableDataset):
             # Materialise – be cautious with very large datasets!
-            df = _iterable_to_dataframe(split_ds)
+            df = _iterable_to_dataframe(
+                split_ds,
+                save_every_n_rows=save_every_n_rows,
+                output_dir=output_dir,
+                prefix=f"{split_name}_",
+            )
         else:  # regular in-memory Dataset
             df = split_ds.to_pandas()
 
+        # if save_every_n_rows is set, we already saved the dataframe in chunks
+        if save_every_n_rows:
+            continue
+
         df["split"] = split_name
         dfs.append(df)
+
+    # if save_every_n_rows is set, we already saved the dataframe in chunks
+    if save_every_n_rows:
+        return
 
     # concatenate all splits and drop the index col we do not need
     df = pd.concat(dfs, ignore_index=True)
@@ -189,6 +207,8 @@ class ArgumentParser(Tap):
     max_n_contigs: int = 1000  # for Bacformer
     start_idx: int | None = None  # for slicing the dataset
     end_idx: int | None = None  # for slicing the dataset
+    save_every_n_rows: int = None  # for saving the dataframe every n rows, only works for iterable datasets
+    output_dir: str = None  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
 
 
 if __name__ == "__main__":
@@ -210,6 +230,10 @@ if __name__ == "__main__":
         streaming=args.streaming,
         start_idx=args.start_idx,
         end_idx=args.end_idx,
+        save_every_n_rows=args.save_every_n_rows,
+        output_dir=args.output_dir,
     )
-    # save the dataframe to parquet
-    df.to_parquet(args.output_filepath)
+    # if save_every_n_rows is set, we already saved the dataframe in chunks
+    if args.save_every_n_rows is None:
+        # save the dataframe to parquet
+        df.to_parquet(args.output_filepath)
