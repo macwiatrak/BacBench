@@ -52,6 +52,8 @@ and was developed in `python=3.10`.
 
 To compute [ESM-2](https://github.com/facebookresearch/esm), [ESM-C](https://github.com/evolutionaryscale/esm), anc [Bacformer]() embeddings in a fast and efficient way, we leverage the [faplm](https://github.com/pengzhangzhi/faplm) package which requires [flash-attention](https://github.com/Dao-AILab/flash-attention).
 
+We recommend using BacBench on a machine with 1) considerable disk space (for downloading datasets), 2) GPU (for embedding genomes and running some evaluations).
+
 
 [//]: # (BacBench uses the open-source models available on HuggingFace as benchmark models and supports processing)
 
@@ -156,6 +158,8 @@ Embedding genomes is the first step to evaluating the models on the tasks. We in
 genomes for each task in the task-specific README files in the `bacbench/tasks/` directory.
 
 Below, we show examples on how to embed genomes using the supported models on a few tasks.
+
+**Note**: Running embedding scripts require GPU.
 
 #### Essential genes prediction task
 ```bash
