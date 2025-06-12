@@ -332,7 +332,7 @@ def compute_bacformer_embeddings(
     # sort by protein index
     # prot_embs_df = prot_embs_df.sort_values(by="protein_index")
     # group by contig id and get the list of protein embeddings
-    prot_embs_df = prot_embs_df.groupby(["contig_id", "contig_ids"])["protein_embedding"].apply(list).reset_index()
+    prot_embs_df = prot_embs_df.groupby(["contig_id", "contig_idx"])["protein_embedding"].apply(list).reset_index()
     # sort by contig index and drop it, as it is not needed anymore
     prot_embs_df = prot_embs_df.sort_values(by="contig_idx").drop(columns=["contig_idx"])
     # convert to list of lists
