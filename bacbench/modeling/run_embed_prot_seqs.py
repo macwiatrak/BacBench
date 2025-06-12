@@ -74,7 +74,6 @@ def run(
     max_n_contigs: int = 1000,  # for Bacformer
     start_idx: int | None = None,  # for slicing the dataset
     end_idx: int | None = None,  # for slicing the dataset
-    streaming: bool = False,
     save_every_n_rows: int | None = None,  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = None,  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
 ):
@@ -246,7 +245,6 @@ if __name__ == "__main__":
         genome_pooling_method=args.genome_pooling_method,
         max_n_proteins=args.max_n_proteins,
         max_n_contigs=args.max_n_contigs,
-        streaming=args.streaming,
         start_idx=args.start_idx,
         end_idx=args.end_idx,
         save_every_n_rows=args.save_every_n_rows,
