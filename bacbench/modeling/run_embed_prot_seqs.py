@@ -214,7 +214,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     # --  A) sanity-check input source  ---------------------------------
-    if (args.dataset_name is None) == (args.parquet_file is None):
+    if (args.dataset_name is None) == (args.input_parquet_filepath is None):
         raise ValueError("Provide **exactly one** of --dataset-name or --parquet-file.")
     # --  B) Load the dataset  ------------------------------------------
     if args.dataset_name:
