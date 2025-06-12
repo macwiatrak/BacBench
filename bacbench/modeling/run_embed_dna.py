@@ -137,10 +137,6 @@ def run(
     :param output_dir: output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
     :return: A pandas dataframe with the DNA embeddings.
     """
-    # if dataset is a str, load dataset from HuggingFace
-    if isinstance(dataset, str):
-        dataset = load_dataset(dataset, streaming=streaming)
-
     # load DNA LM
     model, tokenizer = load_dna_lm(model_path, model_type)
 
@@ -206,8 +202,11 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    # file paths for loading data
-    dataset_name: str
+    # use either dataset_name or parquet_file to load the dataset
+    # ──────────────────────────────────────────────────────────
+    dataset_name: str | None = None  # name of the HuggingFace dataset to load
+    input_parquet_filepath: str | None = None  # path to a parquet file to load and process
+    # ──────────────────────────────────────────────────────────
     streaming: bool = False
     output_filepath: str = None
     model_path: str
@@ -227,8 +226,23 @@ class ArgumentParser(Tap):
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    # load the dataset
-    dataset = load_dataset(args.dataset_name, streaming=args.streaming)
+    # --  A) sanity-check input source  ---------------------------------
+    if (args.dataset_name is None) == (args.input_parquet_filepath is None):
+        raise ValueError("Provide **exactly one** of --dataset-name or --parquet-file.")
+    # --  B) Load the dataset  ------------------------------------------
+    if args.dataset_name:
+        dataset = load_dataset(
+            args.dataset_name,
+            streaming=args.streaming,
+            cache_dir=None,
+        )
+    else:  # parquet file chosen
+        dataset = load_dataset(
+            "parquet",
+            data_files=args.input_parquet_filepath,
+            streaming=args.streaming,
+            cache_dir=None,
+        )
 
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
