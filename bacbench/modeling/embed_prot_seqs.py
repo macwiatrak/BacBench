@@ -295,8 +295,6 @@ def compute_bacformer_embeddings(
     # get contig order which will be useful later
     prot_embs_df["contig_idx"] = range(len(prot_embs_df))
     prot_embs_df = prot_embs_df.explode("protein_embedding")
-    # get protein order which will be useful later
-    # prot_embs_df["protein_index"] = range(len(prot_embs_df))
 
     # get model inputs
     device = model.device
@@ -329,8 +327,6 @@ def compute_bacformer_embeddings(
 
     # sort the embeddings by the protein index
     prot_embs_df["protein_embedding"] = bacformer_embeddings
-    # sort by protein index
-    # prot_embs_df = prot_embs_df.sort_values(by="protein_index")
     # group by contig id and get the list of protein embeddings
     prot_embs_df = prot_embs_df.groupby(["contig_id", "contig_idx"])["protein_embedding"].apply(list).reset_index()
     # sort by contig index and drop it, as it is not needed anymore
