@@ -111,7 +111,6 @@ def run(
     agg_whole_genome: bool = False,
     start_idx: int | None = None,  # for slicing the dataset
     end_idx: int | None = None,  # for slicing the dataset
-    streaming: bool = False,
     save_every_n_rows: int | None = None,  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = None,  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
 ):
@@ -259,7 +258,6 @@ if __name__ == "__main__":
         output_col=args.output_col,
         genome_pooling_method=args.genome_pooling_method,
         agg_whole_genome=args.agg_whole_genome,
-        streaming=args.streaming,
         start_idx=args.start_idx,
         end_idx=args.end_idx,
         save_every_n_rows=args.save_every_n_rows,
