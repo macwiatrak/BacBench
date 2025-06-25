@@ -232,13 +232,12 @@ if __name__ == "__main__":
             data_files = {"train": data_files}
             print(f"Loading {len(data_files['train'])} parquet files from {args.input_parquet_path}")
         else:
-            data_files = args.input_parquet_path
-        dataset = load_dataset(
-            "parquet",
-            data_files=args.input_parquet_path,
-            streaming=args.streaming,
-            cache_dir=None,
-        )
+            dataset = load_dataset(
+                "parquet",
+                data_files=args.input_parquet_path,
+                streaming=args.streaming,
+                cache_dir=None,
+            )
 
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
