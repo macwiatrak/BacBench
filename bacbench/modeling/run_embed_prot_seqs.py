@@ -224,7 +224,12 @@ if __name__ == "__main__":
         )
     else:  # parquet file chosen
         if os.path.isdir(args.input_parquet_path):
-            data_files = {"train": os.path.join(args.input_parquet_path, "*.parquet")}
+            data_files = [
+                os.path.join(args.input_parquet_path, f)
+                for f in os.listdir(args.input_parquet_path)
+                if f.endswith(".parquet")
+            ]
+            data_files = {"train": data_files}
             print(f"Loading {len(data_files['train'])} parquet files from {args.input_parquet_path}")
         else:
             data_files = args.input_parquet_path
