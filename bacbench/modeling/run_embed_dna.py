@@ -204,7 +204,7 @@ class ArgumentParser(Tap):
     # use either dataset_name or parquet_file to load the dataset
     # ──────────────────────────────────────────────────────────
     dataset_name: str | None = None  # name of the HuggingFace dataset to load
-    input_parquet_filepath: str | None = None  # path to a parquet file to load and process
+    input_parquet_path: str | None = None  # path to a parquet file or dir to load and process
     # ──────────────────────────────────────────────────────────
     streaming: bool = False
     output_filepath: str = None
@@ -226,7 +226,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     # --  A) sanity-check input source  ---------------------------------
-    if (args.dataset_name is None) == (args.input_parquet_filepath is None):
+    if (args.dataset_name is None) == (args.input_parquet_path is None):
         raise ValueError("Provide **exactly one** of --dataset-name or --parquet-file.")
     # --  B) Load the dataset  ------------------------------------------
     if args.dataset_name:
@@ -236,9 +236,19 @@ if __name__ == "__main__":
             cache_dir=None,
         )
     else:  # parquet file chosen
+        if os.path.isdir(args.input_parquet_path):
+            data_files = [
+                os.path.join(args.input_parquet_path, f)
+                for f in os.listdir(args.input_parquet_path)
+                if f.endswith(".parquet")
+            ]
+            # data_files = {"train": files}
+            print(f"Loading {len(data_files)} parquet files from {args.input_parquet_path}")
+        else:
+            data_files = args.input_parquet_path
         dataset = load_dataset(
             "parquet",
-            data_files=args.input_parquet_filepath,
+            data_files=data_files,
             streaming=args.streaming,
             cache_dir=None,
         )
