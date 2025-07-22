@@ -7,7 +7,7 @@ from typing import Literal
 import numpy as np
 import torch
 from torch import nn
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, T5EncoderModel, T5Tokenizer
 
 from bacbench.modeling.utils import average_unpadded
 
@@ -51,6 +51,7 @@ class SeqEmbedder(nn.Module):
         super().__init__()
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         self.dtype = dtype
+        # this must load the model and tokenizer
         self._load(model_name_or_path)  # implemented by child
         if compile_model:  # optional torch.compile
             self.model = torch.compile(self.model)
@@ -72,6 +73,18 @@ class SeqEmbedder(nn.Module):
         """Override if the LM needs special preprocessing (for example ProtBERT)."""
         return seqs
 
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer(
+            seqs,
+            add_special_tokens=True,
+            return_tensors="pt",
+            padding="longest",
+            truncation=True,
+            max_length=max_seq_len,
+        )
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
     # ---------- public method -------------------------------------------
     @torch.no_grad()
     def forward(
@@ -91,15 +104,7 @@ class SeqEmbedder(nn.Module):
 
         seqs = self._preprocess_seqs(sequences)
 
-        tok = self.tokenizer(
-            seqs,
-            add_special_tokens=True,
-            return_tensors="pt",
-            padding="longest",
-            truncation=True,
-            max_length=max_seq_len,
-        )
-        inputs = {k: v.to(self.device) for k, v in tok.items()}
+        inputs = self._tokenize(seqs, max_seq_len=max_seq_len)
         rep = self._forward_batch(inputs, pooling)  # (B,D)
         return list(rep.cpu().numpy())
 
@@ -164,11 +169,162 @@ class ProtBERTEmbedder(SeqEmbedder):
         return protein_representations
 
 
-def load_embedder(model_name_or_path: str, device: str = None):
-    """Helper function to load an embedder object based on model name or path"""
+class AnkhEmbedder(SeqEmbedder):
+    """Embedder for ProtBERT models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = T5EncoderModel.from_pretrained(model_name_or_path)
+        self.tokenizer = T5Tokenizer.from_pretrained(model_name_or_path)
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer(
+            seqs,
+            add_special_tokens=True,
+            return_tensors="pt",
+            is_split_into_words=False,
+            padding="longest",
+            truncation=True,
+            max_length=max_seq_len,
+        )
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
+    def _preprocess_seqs(self, seqs: list[str]) -> list[str]:
+        """Override if the LM needs special preprocessing (for example ProtBERT)."""
+        seqs = ["[S2S]" + sequence for sequence in seqs]
+        return seqs
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(**inputs)
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        protein_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return protein_representations
+
+
+class AmplifyEmbedder(SeqEmbedder):
+    """Embedder for ProtBERT models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+
+    def _preprocess_seqs(self, seqs: list[str]) -> list[str]:
+        """Override if the LM needs special preprocessing (for example ProtBERT)."""
+        seqs = ["[S2S]" + sequence for sequence in seqs]
+        return seqs
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(**inputs)
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        protein_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return protein_representations
+
+
+class NucleotideTransformerEmbedder(SeqEmbedder):
+    """Embedder for ProtBERT models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModelForMaskedLM.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer.batch_encode_plus(
+            seqs, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
+        )
+        # move inputs to the same device as the model
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(
+            inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            encoder_attention_mask=inputs["attention_mask"],
+            output_hidden_states=True,
+        )["hidden_states"][-1]
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        dna_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return dna_representations
+
+
+class DNABERT2Embedder(SeqEmbedder):
+    """Embedder for ProtBERT models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer.batch_encode_plus(
+            seqs, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
+        )
+        # move inputs to the same device as the model
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(
+            input_ids=inputs["input_ids"],
+            token_type_ids=inputs["token_type_ids"],
+            attention_mask=inputs["attention_mask"],
+        )[0]
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        dna_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return dna_representations
+
+
+class MistralDNAEmbedder(SeqEmbedder):
+    """Embedder for ProtBERT models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer.batch_encode_plus(
+            seqs, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
+        )
+        # move inputs to the same device as the model
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(
+            input_ids=inputs["input_ids"],
+            token_type_ids=inputs["token_type_ids"],
+            attention_mask=inputs["attention_mask"],
+        ).last_hidden_state
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        dna_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return dna_representations
+
+
+def load_seq_embedder(model_name_or_path: str, device: str = None):
+    """Helper function to load a sequence embedder object based on model name or path
+
+    :param model_name_or_path: path to a model on HuggingFace
+    :param device: device to load the model on
+    :return: SeqEmbedder object for the specific model
+    """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    # protein LMs
     if "facebook/esm2" in model_name_or_path:
         dtype = torch.float16 if faesm_installed else torch.float32
         return ESM2Embedder(model_name_or_path, dtype=dtype, device=device)
@@ -179,8 +335,25 @@ def load_embedder(model_name_or_path: str, device: str = None):
     if "prot_bert" in model_name_or_path:
         return ProtBERTEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
+    if "AMPLIFY" in model_name_or_path:
+        return AmplifyEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+
+    if "ankh" in model_name_or_path:
+        return AnkhEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+
+    # DNA LMs
+    if "nucleotide-transformer" in model_name_or_path:
+        return NucleotideTransformerEmbedder(model_name_or_path, dtype=torch.float16, device=device)
+
+    if "DNABERT-2" in model_name_or_path:
+        return DNABERT2Embedder(model_name_or_path, dtype=torch.float32, device=device)
+
+    if "Mistral-DNA" in model_name_or_path:
+        return MistralDNAEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+
     raise ValueError(
-        f"Unknown pLM model name or path: {model_name_or_path},"
-        f" supported models are: ESM-2, ESMC and ProtBert "
+        f"Unknown model name or path: {model_name_or_path},"
+        f" supported models are: ESM-2, ESMC, ProtBert, AMPLIFY, Ankh, "
+        "Nucleotide Transformer, Mistral-DNA, DNABERT-2 "
         f"available at HuggingFace."
     )

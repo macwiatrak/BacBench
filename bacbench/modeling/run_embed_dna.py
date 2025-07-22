@@ -1,5 +1,4 @@
 import os
-from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
@@ -7,17 +6,16 @@ import pandas as pd
 from datasets import Dataset, IterableDataset, load_dataset
 from tap import Tap
 
-from bacbench.modeling.embed_dna import embed_genome_dna_sequences, load_dna_lm
+from bacbench.modeling.embed_dna import embed_genome_dna_sequences
+from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
 from bacbench.modeling.utils import _iterable_to_dataframe, _slice_split, get_dna_seq_col_name
 
 
 def add_dna_embeddings(
     row: dict[str, Any],
-    model: Callable,
-    tokenizer: Callable,
+    embedder: SeqEmbedder,
     dna_col: str,
     output_col: str,
-    model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"],
     batch_size: int = 64,
     max_seq_len: int = 1024,
     dna_seq_overlap: int = 32,
@@ -28,16 +26,17 @@ def add_dna_embeddings(
     """Embed genome DNA sequences using pretrained models.
 
     Args:
-        model (Callable): The pretrained model to use for embedding.
-        tokenizer (Callable): The tokenizer to use for embedding.
-        dna_sequence (str): The DNA sequence to embed.
-        model_type (str): The type of model to use for embedding.
+        row: dict[str, Any]: A dictionary representing a row from the dataset.
+        embedder: The SeqEmbedder instance to use for embedding.
+        dna_col (str): The column name containing the DNA sequence.
+        output_col (str): The column name to store the embeddings.
         batch_size (int): The batch size to use for embedding.
         max_seq_len (int): The maximum sequence length for the model.
         dna_seq_overlap (int): The overlap between chunks of the DNA sequence.
         promoter_len (int): The length of the promoter region to include.
         genome_pooling_method (str): The pooling method to use for the genome level embedding.
             If None, list of DNA embedding chunks is returned.
+        agg_whole_genome (bool): If True, the whole genome is embedded and aggregated.
     """
     # embed the dna sequence
     dna_seq = row[dna_col]
@@ -47,10 +46,8 @@ def add_dna_embeddings(
             # and we concatenate them into a single string
             dna_seq = " ".join(dna_seq)
         embeddings = embed_genome_dna_sequences(
-            model=model,
-            tokenizer=tokenizer,
+            embedder=embedder,
             dna=dna_seq,
-            model_type=model_type,
             batch_size=batch_size,
             max_seq_len=max_seq_len,
             dna_seq_overlap=dna_seq_overlap,
@@ -66,10 +63,8 @@ def add_dna_embeddings(
             ):
                 embeddings.append(
                     embed_genome_dna_sequences(
-                        model=model,
-                        tokenizer=tokenizer,
+                        embedder=embedder,
                         dna=contig_dna_seq,
-                        model_type=model_type,
                         start=start,
                         end=end,
                         strand=strand,
@@ -82,10 +77,8 @@ def add_dna_embeddings(
                 )
         else:
             embeddings = embed_genome_dna_sequences(
-                model=model,
-                tokenizer=tokenizer,
+                embedder=embedder,
                 dna=row[dna_col],
-                model_type=model_type,
                 start=row["start"],
                 end=row["end"],
                 strand=row["strand"],
@@ -101,7 +94,6 @@ def add_dna_embeddings(
 def run(
     dataset: Dataset | None,
     model_path: str,
-    model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"],
     batch_size: int = 64,
     max_seq_len: int = 512,
     dna_seq_overlap: int = 32,
@@ -118,7 +110,6 @@ def run(
 
     :param dataset: Dataset to embed.
     :param model_path: Path to the model.
-    :param model_type: Type of the model to use.
     :param batch_size: Batch size for embedding.
     :param max_seq_len: Maximum sequence length for the model.
     :param dna_seq_overlap: Overlap between chunks of the DNA sequence.
@@ -131,13 +122,12 @@ def run(
         The latter is used for gene-level tasks.
     :param start_idx: Start index for slicing the dataset.
     :param end_idx: End index for slicing the dataset.
-    :param streaming: if True, will load the dataset in streaming mode, useful for large datasets
     :param save_every_n_rows: if set, will save the dataframe every n rows, only works for iterable datasets
     :param output_dir: output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
     :return: A pandas dataframe with the DNA embeddings.
     """
     # load DNA LM
-    model, tokenizer = load_dna_lm(model_path, model_type)
+    embedder = load_seq_embedder(model_path)
 
     # embed DNA sequences across splits
     dfs = []
@@ -150,11 +140,9 @@ def run(
         split_ds = split_ds.map(
             lambda row: add_dna_embeddings(
                 row=row,
-                model=model,
-                tokenizer=tokenizer,
+                embedder=embedder,
                 dna_col=dna_col,  # noqa
                 output_col=output_col,
-                model_type=model_type,
                 batch_size=batch_size,
                 max_seq_len=max_seq_len,
                 dna_seq_overlap=dna_seq_overlap,
@@ -209,7 +197,6 @@ class ArgumentParser(Tap):
     streaming: bool = False
     output_filepath: str = None
     model_path: str
-    model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"]
     batch_size: int = 64
     max_seq_len: int = 512
     dna_seq_overlap: int = 32
@@ -260,7 +247,6 @@ if __name__ == "__main__":
     df = run(
         dataset=dataset,
         model_path=args.model_path,
-        model_type=args.model_type,
         batch_size=args.batch_size,
         max_seq_len=args.max_seq_len,
         dna_seq_overlap=args.dna_seq_overlap,
