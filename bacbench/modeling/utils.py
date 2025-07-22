@@ -1,3 +1,5 @@
+from typing import Literal
+
 import numpy as np
 import pandas as pd
 import torch
@@ -195,3 +197,49 @@ def protein_embeddings_to_inputs(
         "token_type_ids": token_type_ids.unsqueeze(0),
         "attention_mask": attention_mask.unsqueeze(0),
     }
+
+
+def average_unpadded(
+    embeddings: torch.Tensor,
+    attention_mask: torch.Tensor,
+    pooling: Literal["cls", "mean"] = "mean",
+) -> torch.Tensor:
+    """Average unpadded token embeddings across sequences. Built for ESMC.
+
+    Args:
+      embeddings: (N, D) unpadded token embeddings concatenated across B sequences
+      attention_mask: (B, T) indicating which tokens in each sequence are real (1) vs pad (0).
+                     The total number of real tokens across all B sequences should be N.
+
+    Returns
+    -------
+      (B, D) tensor of per-sequence average embeddings (excluding pad).
+    """
+    B, T = attention_mask.shape  # e.g. (2, 24)
+
+    # 1) Compute unpadded lengths for each sequence
+    #    e.g. if attention_mask[1] has 21 tokens == 1, it means 21 unpadded tokens for seq #1
+    lengths = attention_mask.sum(dim=1)  # (B,)
+
+    # 2) Slice the embeddings for each sequence
+    #    We assume the embeddings have been "unpadded" and concatenated in order:
+    #    first all tokens from seq 0, then seq 1, etc.
+    results = []
+    start_idx = 0
+    for i in range(B):
+        # number of tokens in sequence i
+        seq_len = lengths[i].item()
+
+        # slice out embeddings for sequence i
+        seq_emb = embeddings[start_idx : start_idx + seq_len]  # shape (seq_len, D)
+        start_idx += seq_len
+
+        # do pooling
+        if pooling.lower() == "cls":
+            # if pooling is cls, we take the first token representation
+            results.append(seq_emb[0])
+        else:
+            results.append(seq_emb.mean(dim=0))
+
+    # 3) Stack results -> (B, D)
+    return torch.stack(results, dim=0)
