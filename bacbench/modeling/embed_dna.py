@@ -6,34 +6,6 @@ import pandas as pd
 
 from bacbench.modeling.embedder import SeqEmbedder
 
-# def load_dna_lm(
-#     model_path: str, model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"]
-# ) -> tuple[Callable, Callable]:
-#     """Load a pretrained DNA model.
-#
-#     Args:
-#         model_path (str): The path to the pretrained model.
-#         model_type (str): The type of model to load.
-#
-#     Returns
-#     -------
-#         Callable: The loaded model.
-#     """
-#     if model_type.lower() not in ["nucleotide_transformer", "mistral_dna", "dnabert2"]:
-#         raise ValueError(
-#             "Model currently not supported, please choose out of available models: ['nucleotide_transformer', 'mistral_dna']"
-#         )
-#     device = "cuda" if torch.cuda.is_available() else "cpu"
-#     if model_type.lower() == "nucleotide_transformer":
-#         model = (
-#             AutoModelForMaskedLM.from_pretrained(model_path, trust_remote_code=True).to(device).eval().to(torch.float16)
-#         )
-#     elif model_type.lower() in ["mistral_dna", "dnabert2"]:
-#         model = AutoModel.from_pretrained(model_path, trust_remote_code=True).to(device).eval()
-#
-#     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-#     return model, tokenizer
-
 
 def get_dna_seq(
     dna_seq: str,
@@ -207,40 +179,6 @@ def generate_dna_embeddings(
     for i in range(0, len(dna_sequence), batch_size):
         batch_sequences = dna_sequence[i : i + batch_size]
         dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean")
-
-        # # tokenize the input
-        # inputs = tokenizer.batch_encode_plus(
-        #     batch_sequences, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
-        # )
-        # # move inputs to the same device as the model
-        # inputs = {k: v.to(device) for k, v in inputs.items()}
-        #
-        # # Get the last hidden state from the model
-        # with torch.no_grad():
-        #     if model_type == "nucleotide_transformer":
-        #         # Get the last hidden state from the model
-        #         last_hidden_state = model(
-        #             inputs["input_ids"],
-        #             attention_mask=inputs["attention_mask"],
-        #             encoder_attention_mask=inputs["attention_mask"],
-        #             output_hidden_states=True,
-        #         )["hidden_states"][-1]
-        #     elif model_type == "mistral_dna":
-        #         last_hidden_state = model(
-        #             input_ids=inputs["input_ids"],
-        #             token_type_ids=inputs["token_type_ids"],
-        #             attention_mask=inputs["attention_mask"],
-        #         ).last_hidden_state
-        #     elif model_type == "dnabert2":
-        #         last_hidden_state = model(
-        #             input_ids=inputs["input_ids"],
-        #             token_type_ids=inputs["token_type_ids"],
-        #             attention_mask=inputs["attention_mask"],
-        #         )[0]
-        #
-        #     dna_representations = torch.einsum(
-        #         "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
-        #     ) / inputs["attention_mask"].sum(1).unsqueeze(1)
 
         # Append the generated embeddings to the list, moving them to CPU and converting to numpy
         mean_dna_embeddings += list(dna_representations.cpu().numpy())

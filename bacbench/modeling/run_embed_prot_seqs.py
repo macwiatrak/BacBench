@@ -76,8 +76,7 @@ def run(
     """Run script to embed protein sequences with various models.
 
     :param dataset: BacBench dataset
-    :param model_path: sHuggingFace model name or path to model
-    :param model_type: the used embedding model one of ["esm2", "esmc", "protbert", "bacformer"]
+    :param model_path: model path to a HuggingFace model.
     :param batch_size: batch size for embedding pLMs
     :param max_prot_seq_len: max protein sequence length for embedding pLMs
     :param device: device to use for embedding pLMs, if None, will use cuda if available

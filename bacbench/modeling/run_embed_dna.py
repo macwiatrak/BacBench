@@ -109,7 +109,7 @@ def run(
     """Run script to embed DNA sequences with various models.
 
     :param dataset: Dataset to embed.
-    :param model_path: Path to the model.
+    :param model_path: Path to the model from HuggingFace.
     :param batch_size: Batch size for embedding.
     :param max_seq_len: Maximum sequence length for the model.
     :param dna_seq_overlap: Overlap between chunks of the DNA sequence.

@@ -30,7 +30,7 @@ except ImportError:
 # -------------------------------------------------------
 class SeqEmbedder(nn.Module):
     """
-    Parent class for every sequence language‑model embedder.
+    Parent class for every sequence language‑model embedder. Currently works for a range of pLMs and DNA LMs.
 
     Sub‑classes must implement:
         * self._load(model_name_or_path)            (create tokenizer & model)
@@ -170,7 +170,7 @@ class ProtBERTEmbedder(SeqEmbedder):
 
 
 class AnkhEmbedder(SeqEmbedder):
-    """Embedder for ProtBERT models from HuggingFace."""
+    """Embedder for AnkhBERT models from HuggingFace."""
 
     def _load(self, model_name_or_path: str):
         self.model = T5EncoderModel.from_pretrained(model_name_or_path)
@@ -227,7 +227,7 @@ class AmplifyEmbedder(SeqEmbedder):
 
 
 class NucleotideTransformerEmbedder(SeqEmbedder):
-    """Embedder for ProtBERT models from HuggingFace."""
+    """Embedder for Nucleotide Transformer models from HuggingFace."""
 
     def _load(self, model_name_or_path: str):
         self.model = AutoModelForMaskedLM.from_pretrained(model_name_or_path, trust_remote_code=True)
@@ -257,7 +257,7 @@ class NucleotideTransformerEmbedder(SeqEmbedder):
 
 
 class DNABERT2Embedder(SeqEmbedder):
-    """Embedder for ProtBERT models from HuggingFace."""
+    """Embedder for DNABERT-2 models from HuggingFace."""
 
     def _load(self, model_name_or_path: str):
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
@@ -286,7 +286,7 @@ class DNABERT2Embedder(SeqEmbedder):
 
 
 class MistralDNAEmbedder(SeqEmbedder):
-    """Embedder for ProtBERT models from HuggingFace."""
+    """Embedder for Mistral-DNA models from HuggingFace."""
 
     def _load(self, model_name_or_path: str):
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
