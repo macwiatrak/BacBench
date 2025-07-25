@@ -188,7 +188,6 @@ class ArgumentParser(Tap):
     streaming: bool = False
     output_filepath: str = None
     model_path: str
-    model_type: Literal["esm2", "esmc", "protbert", "bacformer"]
     batch_size: int = 64
     max_prot_seq_len: int = 1024
     device: str = None
