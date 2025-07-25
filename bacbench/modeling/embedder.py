@@ -211,11 +211,6 @@ class AmplifyEmbedder(SeqEmbedder):
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
 
-    def _preprocess_seqs(self, seqs: list[str]) -> list[str]:
-        """Override if the LM needs special preprocessing (for example ProtBERT)."""
-        seqs = ["[S2S]" + sequence for sequence in seqs]
-        return seqs
-
     def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
         last_hidden_state = self.model(**inputs)
         if pooling == "cls":
