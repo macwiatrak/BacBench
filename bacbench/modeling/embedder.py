@@ -314,6 +314,31 @@ class MistralDNAEmbedder(SeqEmbedder):
         return dna_representations
 
 
+class ProkBERTEmbedder(SeqEmbedder):
+    """Embedder for ProkBERT models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer.batch_encode_plus(
+            seqs, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
+        )
+        # move inputs to the same device as the model
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(**inputs).last_hidden_state
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        dna_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return dna_representations
+
+
 def load_seq_embedder(model_name_or_path: str, device: str = None):
     """Helper function to load a sequence embedder object based on model name or path
 
