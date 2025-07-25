@@ -38,7 +38,7 @@ def generate_protein_embeddings(
         )
 
         # Append the generated embeddings to the list, moving them to CPU and converting to numpy
-        mean_protein_embeddings += list(protein_representations.cpu().numpy())
+        mean_protein_embeddings += protein_representations
 
     return mean_protein_embeddings
 
