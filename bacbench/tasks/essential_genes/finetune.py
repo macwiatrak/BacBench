@@ -71,7 +71,10 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
         return logits
 
     def _shared_step(self, batch, stage):
+        print(batch["input_ids"])
+        print(batch["input_ids"].shape, batch["attention_mask"].shape, batch["labels"].shape)
         y_hat = self(batch)
+        print(y_hat)
         y = batch["labels"]
         loss = self.criterion(y_hat, y)
         self.log(f"{stage}_loss", loss, prog_bar=True, batch_size=y.size(0))
@@ -127,6 +130,8 @@ def run(
     dataset_path: str = "macwiatrak/bacbench-essential-genes-protein-sequences",
 ):
     """Finetune a pretrained protein language model on essential gene classification."""
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
     # 0) prepare data (already sorted for efficiency)
     ds = load_dataset(dataset_path)  # HF streaming
 
