@@ -135,7 +135,6 @@ class ESMCEmbedder(SeqEmbedder):
     def _load(self, model_name_or_path: str):
         self.model = ESMC.from_pretrained(model_name_or_path, use_flash_attn=True)
         self.tokenizer = self.model.tokenizer
-        self.hidden_size = self.model.config.hidden_size
 
     def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
         last_hidden_state = self.model(inputs["input_ids"]).embeddings
