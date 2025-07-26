@@ -42,10 +42,7 @@ def get_intergenic_bp_dist(starts: list[int], ends: list[int]) -> np.ndarray:
 
 def predict_pairwise_operon_boundaries(
     emb: np.ndarray,
-    intergenic_bp: np.ndarray,
     strand: np.ndarray,
-    scale_bp: int = 500,
-    max_gap: int = 500,
 ) -> np.ndarray:
     """Predict pairwise operon boundaries based on embeddings and intergenic distances.
 
@@ -65,16 +62,7 @@ def predict_pairwise_operon_boundaries(
     same = (strand[:-1] == strand[1:]).astype(int)
     diff_mask = same == 0
 
-    # exponential distance weighting
-    if scale_bp is not None:
-        cos[:, 0] *= np.exp(-intergenic_bp / scale_bp)
-
     cos[diff_mask] = 0.0  # strand veto
-
-    # ---------- NEW distance-gate veto ------------------------------------
-    if max_gap is not None:
-        cos[intergenic_bp > max_gap] = 0.0  # hard boundary
-
     return cos[:, 0]
 
 
@@ -122,10 +110,7 @@ def run(
     df["operon_pairwise_scores"] = df.apply(
         lambda row: predict_pairwise_operon_boundaries(
             emb=np.stack(row["embeddings"]),
-            intergenic_bp=row["intergenic_bp"],
             strand=row["strand"],
-            scale_bp=500,
-            max_gap=500,
         ),
         axis=1,
     )
@@ -155,7 +140,7 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    input_filepath: str = "/Users/maciejwiatrak/Downloads/mistral.parquet"
+    input_filepath: str = "/Users/maciejwiatrak/Downloads/bacformer.parquet"
     output_filepath: str = None
 
 
