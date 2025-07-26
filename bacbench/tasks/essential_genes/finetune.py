@@ -15,7 +15,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from transformers import AutoModel, AutoTokenizer
 
-from bacbench.modeling.embedder import SeqEmbedder
 from bacbench.modeling.utils import average_unpadded
 
 try:
@@ -77,7 +76,7 @@ def load_model(model_path: str):
         return model, tokenizer, "esm2"
 
     if "esmc" in model_path:
-        model = ESMC.from_pretrained(model_path, use_flash_attn=True)
+        model = ESMC.from_pretrained(model_path, use_flash_attn=True).train()
         tokenizer = model.tokenizer
         return model, tokenizer, "esmc"
 
@@ -93,9 +92,7 @@ def load_model(model_path: str):
 class PlmEssentialGeneClassifier(pl.LightningModule):
     """Finetune essential gene classifier on protein sequences."""
 
-    def __init__(
-        self, model: SeqEmbedder, hidden_size: int, lr: float = 1e-5, dropout: float = 0.2, model_type: str = "esm2"
-    ):
+    def __init__(self, model, hidden_size: int, lr: float = 1e-5, dropout: float = 0.2, model_type: str = "esm2"):
         super().__init__()
         self.save_hyperparameters(logger=False)
         self.lr = lr
@@ -206,6 +203,8 @@ def run(
     train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
 
     model, tokenizer, model_type = load_model(model_path)
+    for p in model.parameters():
+        p.requires_grad = True
 
     # 2) datasets & dataloaders
     train_ds = ProteinDataset(train_df)
