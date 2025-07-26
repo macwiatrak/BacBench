@@ -48,7 +48,7 @@ class ProteinDataset(Dataset):
         return {"sequence": seq, "label": label}
 
 
-def collate_prots(tokenizer, max_seq_len, batch, model_type):
+def collate_prots(tokenizer, max_seq_len, model_type, batch):
     """Pad to the longest sequence in *this* batch (length‑sorted data)."""
     seqs = [b["sequence"] for b in batch]
     if "prot_bert" in model_type:
