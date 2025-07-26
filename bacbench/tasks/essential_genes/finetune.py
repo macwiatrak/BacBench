@@ -184,7 +184,7 @@ def run(
         max_epochs=num_epochs,
         accumulate_grad_batches=gradient_accumulation_steps,
         callbacks=[ckpt_cb, early_cb],
-        precision=32,
+        precision=16,
         # precision="bf16-mixed" if torch.cuda.is_available() else 32,
         log_every_n_steps=10,
     )
