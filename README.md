@@ -287,7 +287,7 @@ python bacbench/tasks/essential_genes/run_train_cls.py \
 
 #### Operon identification task
 ```bash
-python bacbench/tasks/operon/run_evaluation.py \
+python bacbench/tasks/operon/run_evaluation_operondb.py \
     --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \
     --output-dir <output-dir> \
     --model-name bacformer
@@ -295,7 +295,7 @@ python bacbench/tasks/operon/run_evaluation.py \
 
 #### Strain clustering task
 ```bash
-python bacbench/tasks/strain_clustering/run_evaluation.py \
+python bacbench/tasks/strain_clustering/run_evaluation_operondb.py \
     --input-df-filepath <input-dir>/strain_clustering_esm2_embeddings.parquet \
     --output-dir <output-dir> \
     --model-name bacformer

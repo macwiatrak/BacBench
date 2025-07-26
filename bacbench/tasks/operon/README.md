@@ -55,7 +55,7 @@ We provide a script evaluate the pre-trained models. The models are evaluated us
 This script should be executed in the root directory of the repository.
 
 ```bash
-python bacbench/tasks/operon/run_evaluation.py \
+python bacbench/tasks/operon/run_evaluation_operondb.py \
     --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \
     --output-dir <output-dir> \
     --model-name bacformer
