@@ -232,8 +232,8 @@ def run(
     # compute auroc and auprc
     auroc_test = roc_auc_score(test_df["label"], test_df["prob"])
     auprc_test = average_precision_score(test_df["label"], test_df["prob"])
-    logging.info(f"Test AUROC: {auroc_test:.4f}, AUPRC: {auprc_test:.4f}")
-    test_df.to_csv(output_dir, index=False)
+    print(f"Test AUROC: {auroc_test:.4f}, AUPRC: {auprc_test:.4f}")
+    test_df.to_csv(os.path.join(output_dir, "test_results.csv"), index=False)
 
 
 class ArgumentParser(Tap):
