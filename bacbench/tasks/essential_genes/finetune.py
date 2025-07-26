@@ -50,13 +50,13 @@ def collate_prots(tokenizer, max_seq_len, batch):
 class PlmEssentialGeneClassifier(pl.LightningModule):
     """Finetune essential gene classifier on protein sequences."""
 
-    def __init__(self, model: SeqEmbedder, lr: float = 1e-5, dropout: float = 0.2):
+    def __init__(self, model: SeqEmbedder, hidden_size: int, lr: float = 1e-5, dropout: float = 0.2):
         super().__init__()
         self.save_hyperparameters(logger=False)
         self.lr = lr
 
         self.model = model
-        hidden_size = model.hidden_size
+        self.hidden_size = hidden_size
         self.classifier = nn.Linear(hidden_size, 1)
         self.dropout = nn.Dropout(dropout)
         self.criterion = nn.BCEWithLogitsLoss()
@@ -118,6 +118,7 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
 def run(
     model_path: str,
     output_filepath: str,
+    hidden_size: int,
     lr: float = 1e-5,
     dropout: float = 0.2,
     batch_size: int = 64,
@@ -172,7 +173,7 @@ def run(
     )
 
     # 3) Lightning objects
-    model = PlmEssentialGeneClassifier(model=model, lr=lr, dropout=dropout)
+    model = PlmEssentialGeneClassifier(model=model, hidden_size=hidden_size, lr=lr, dropout=dropout)
 
     ckpt_cb = ModelCheckpoint(  # :contentReference[oaicite:7]{index=7}
         monitor="val_auc", mode="max", save_top_k=1, filename="best-val_auc"
@@ -208,6 +209,7 @@ class ArgumentParser(Tap):
 
     model_path: str
     output_filepath: str
+    hidden_size: int
     lr: float = 1e-5
     dropout: float = 0.2
     batch_size: int = 64
@@ -222,6 +224,7 @@ if __name__ == "__main__":
     run(
         model_path=args.model_path,
         output_filepath=args.output_filepath,
+        hidden_size=args.hidden_size,
         lr=args.lr,
         dropout=args.dropout,
         batch_size=args.batch_size,
