@@ -72,7 +72,7 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
         return logits
 
     def _shared_step(self, batch, stage):
-        y_hat = self(batch["input_ids"], batch["attention_mask"])
+        y_hat = self(batch)
         y = batch["labels"]
         loss = self.criterion(y_hat, y)
         self.log(f"{stage}_loss", loss, prog_bar=True, batch_size=y.size(0))
