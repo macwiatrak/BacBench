@@ -1,6 +1,4 @@
-import logging
 import os
-import re
 from functools import partial
 
 import pandas as pd
@@ -13,83 +11,110 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from tap import Tap
 from torch.utils.data import DataLoader, Dataset
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
 
-from bacbench.modeling.utils import average_unpadded
+from bacbench.modeling.embed_dna import chunk_dna_sequence, get_dna_seq
 
-try:
-    from faesm.esm import FAEsmForMaskedLM
-    from faesm.esmc import ESMC
 
-    faesm_installed = True
-except ImportError:
-    faesm_installed = False
-    logging.warning(
-        "faESM (fast ESM) not installed, this will lead to significant slowdown. "
-        "Defaulting to use HuggingFace implementation. "
-        "Please consider installing faESM: https://github.com/pengzhangzhi/faplm"
-    )
+def grouped_mean_pytorch(M: torch.Tensor, K: torch.Tensor):
+    """
+    Average rows in `M` that share the same index in `K`.
+
+    Parameters
+    ----------
+    M : (B, D) tensor
+    K : (B,)   int tensor, 0 ≤ K[i] ≤ K.max()
+
+    Returns
+    -------
+    means : (L, D) tensor   – group means ordered by the unique values in `K`
+    groups: (L,)  tensor    – the corresponding unique keys
+    """
+    # Make sure dtype/device match
+    K = K.to(M.device)
+
+    # 1) find mapping from each row to its group index
+    groups, inverse = torch.unique(K, sorted=True, return_inverse=True)  # L,  (B,) mapping
+
+    # 2) sum rows per group
+    sums = torch.zeros(groups.numel(), M.size(1), device=M.device)
+    sums.index_add_(0, inverse, M)  # inplace accumulation
+
+    # 3) divide by group sizes to get means
+    counts = torch.bincount(inverse, minlength=groups.numel()).unsqueeze(1)  # (L,1)
+    means = sums / counts
+
+    return means
 
 
 # ------------------------- data helpers --------------------------------
-class ProteinDataset(Dataset):
+class DNADataset(Dataset):
     """Wrap a pandas DataFrame with 'sequence' and 'label' columns."""
 
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame, seqs: dict, promoter_len: int, max_seq_len: int, overlap: int):
         self.df = df.reset_index(drop=True)
+        self.seqs = seqs
+        self.promoter_len = promoter_len
+        self.max_seq_len = max_seq_len
+        self.overlap = overlap
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        seq, label = row.sequence, row.label
-        return {"sequence": seq, "label": label}
+        seq = get_dna_seq(
+            dna_seq=self.seqs[row.genome_name],
+            start=int(row.start),
+            end=int(row.end),
+            strand=row.strand,
+            promoter_len=self.promoter_len,
+        )
+        seqs = chunk_dna_sequence(
+            seq,
+            max_seq_len=self.max_seq_len,
+            overlap=self.overlap,
+        )
+        return {"seqs": seqs, "label": row.label}
 
 
-def collate_prots(tokenizer, max_seq_len, model_type, batch):
-    """Pad to the longest sequence in *this* batch (length‑sorted data)."""
-    seqs = [b["sequence"] for b in batch]
-    if "prot_bert" in model_type:
-        seqs = [" ".join(list(re.sub(r"[UZOB]", "X", sequence))) for sequence in seqs]
-    inputs = tokenizer(
-        seqs,
-        add_special_tokens=True,
-        return_tensors="pt",
-        padding="longest",
-        truncation=True,
-        max_length=max_seq_len,
+def collate_dna_seqs(tokenizer, max_seq_len, batch):
+    """Collate function for DNA sequences."""
+    seqs = []
+    seq_indices = []
+    for idx, b in enumerate(batch):
+        seqs += b["seqs"]
+        seq_indices += [idx] * len(b["seqs"])
+    inputs = tokenizer.batch_encode_plus(
+        seqs, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
     )
+    inputs["seq_indices"] = torch.tensor(seq_indices, dtype=torch.long)
     inputs["labels"] = torch.tensor([b["label"] for b in batch], dtype=torch.float32)
     return inputs
 
 
 def load_model(model_path: str):
-    """Load a pretrained protein language model and its tokenizer."""
-    if "esm2" in model_path:
-        if faesm_installed:
-            model = FAEsmForMaskedLM.from_pretrained(model_path)
-            tokenizer = model.tokenizer
-        else:
-            model = AutoModel.from_pretrained(model_path)
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-        return model, tokenizer, "esm2"
+    """Load a pretrained DNA language model and its tokenizer."""
+    if "nucleotide-transformer" in model_path:
+        model = AutoModelForMaskedLM.from_pretrained(model_path, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        return model, tokenizer, "nucleotide_transformer"
 
-    if "esmc" in model_path:
-        model = ESMC.from_pretrained(model_path, use_flash_attn=True).train()
-        tokenizer = model.tokenizer
-        return model, tokenizer, "esmc"
+    if "dnabert" in model_path:
+        model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        return model, tokenizer, "dnabert"
 
-    if "prot_bert" in model_path:
-        model = AutoModel.from_pretrained(model_path)
-        tokenizer = AutoTokenizer.from_pretrained(model_path, do_lower_case=False)
-        return model, tokenizer, "prot_bert"
+    if "mistral" in model_path:
+        model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        return model, tokenizer, "mistral"
 
-    raise ValueError(f"Unsupported model type: {model_path}. Supported: esm2, esmc, prot_bert.")
+    raise ValueError(f"Unsupported model type: {model_path}. Supported: nucleotide_transformer, dnabert and mistral.")
 
 
 # ------------------------- Lightning module ----------------------------
-class PlmEssentialGeneClassifier(pl.LightningModule):
+class DNALMEssentialGeneClassifier(pl.LightningModule):
     """Finetune essential gene classifier on protein sequences."""
 
     def __init__(self, model, hidden_size: int, lr: float = 1e-5, dropout: float = 0.2, model_type: str = "esm2"):
@@ -111,30 +136,38 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
     # ------------- forward & common step helpers -----------------------
     def forward(self, inputs):
         """Forward pass through the model."""
-        if self.model_type == "esm2":
-            last_hidden_state = self.model(**inputs)["last_hidden_state"]
-            mask = inputs["attention_mask"].type_as(last_hidden_state)
-            out = torch.einsum("b n d, b n -> b d", last_hidden_state, mask) / mask.sum(1, keepdim=True)
-        elif self.model_type == "esmc":
-            last_hidden_state = self.model(inputs["input_ids"]).embeddings
-            out = average_unpadded(last_hidden_state, inputs["attention_mask"])
-        elif self.model_type == "prot_bert":
+        if self.model_type == "nucleotide_transformer":
             last_hidden_state = self.model(
-                input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]
+                inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                encoder_attention_mask=inputs["attention_mask"],
+                output_hidden_states=True,
+            )["hidden_states"][-1]
+        elif self.model_type == "dnabert":
+            last_hidden_state = self.model(
+                input_ids=inputs["input_ids"],
+                token_type_ids=inputs["token_type_ids"],
+                attention_mask=inputs["attention_mask"],
+            )[0]
+        elif self.model_type == "mistral":
+            last_hidden_state = self.model(
+                input_ids=inputs["input_ids"],
+                token_type_ids=inputs["token_type_ids"],
+                attention_mask=inputs["attention_mask"],
             ).last_hidden_state
-            out = torch.einsum(
-                "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
-            ) / inputs["attention_mask"].sum(1).unsqueeze(1)
         else:
-            raise ValueError(f"Unsupported model type: {self.model_type}. Supported: esm2, esmc, prot_bert.")
+            raise ValueError(
+                f"Unsupported model type: {self.model_type}. Supported: nucleotide_transformer, dnabert, mistral."
+            )
+        out = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        out = grouped_mean_pytorch(out, inputs["seq_indices"])
         logits = self.classifier(self.dropout(out)).squeeze()  # (B,)
         return logits
 
     def _shared_step(self, batch, stage):
-        # print("input_ids", batch["input_ids"])
-        # print(batch["input_ids"].shape, batch["attention_mask"].shape, batch["labels"].shape)
         y_hat = self(batch)
-        # print(y_hat)
         y = batch["labels"]
         loss = self.criterion(y_hat, y)
         self.log(f"{stage}_loss", loss, prog_bar=True, batch_size=y.size(0))
@@ -187,35 +220,45 @@ def run(
     max_seq_len: int = 1024,
     num_epochs: int = 10,
     gradient_accumulation_steps: int = 8,
+    promoter_len: int = 128,
+    overlap: int = 32,
     dataset_path: str = "macwiatrak/bacbench-essential-genes-protein-sequences",
 ):
     """Finetune a pretrained protein language model on essential gene classification."""
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-    # 0) prepare data (already sorted for efficiency)
+
     ds = load_dataset(dataset_path)  # HF streaming
 
-    def _prep(split):
-        df = ds[split].to_pandas().explode(["protein_id", "product", "start", "end", "essential", "sequence"])
-        df["label"] = df.essential.map({"Yes": 1, "No": 0})
-        return df.sort_values("sequence", key=lambda x: x.str.len(), ascending=False)
+    train_df = ds["train"].to_pandas()
+    train_seqs = {row.genome_name: row.dna_seq for _, row in train_df.iterrows()}
+    train_df = train_df.drop(columns=["dna_seq"]).explode(["protein_id", "product", "start", "end", "essential"])
+    train_df["label"] = train_df.essential.map({"Yes": 1, "No": 0})
 
-    train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
+    val_df = ds["validation"].to_pandas()
+    val_seqs = {row.genome_name: row.dna_seq for _, row in val_df.iterrows()}
+    val_df = val_df.drop(columns=["dna_seq"]).explode(["protein_id", "product", "start", "end", "essential"])
+    val_df["label"] = val_df.essential.map({"Yes": 1, "No": 0})
+
+    test_df = ds["test"].to_pandas()
+    test_seqs = {row.genome_name: row.dna_seq for _, row in test_df.iterrows()}
+    test_df = test_df.drop(columns=["dna_seq"]).explode(["protein_id", "product", "start", "end", "essential"])
+    test_df["label"] = test_df.essential.map({"Yes": 1, "No": 0})
 
     model, tokenizer, model_type = load_model(model_path)
     for p in model.parameters():
         p.requires_grad = True
 
     # 2) datasets & dataloaders
-    train_ds = ProteinDataset(train_df)
-    val_ds = ProteinDataset(val_df)
-    test_ds = ProteinDataset(test_df)
+    train_ds = DNADataset(train_df, train_seqs, promoter_len, max_seq_len, overlap)
+    val_ds = DNADataset(val_df, val_seqs, promoter_len, max_seq_len, overlap)
+    test_ds = DNADataset(test_df, test_seqs, promoter_len, max_seq_len, overlap)
 
-    collate_fn = partial(collate_prots, tokenizer, max_seq_len, model_type)
+    collate_fn = partial(collate_dna_seqs, tokenizer, max_seq_len)
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=os.cpu_count() // 2,
         collate_fn=collate_fn,
         pin_memory=True,
@@ -238,7 +281,7 @@ def run(
     )
 
     # 3) Lightning objects
-    model = PlmEssentialGeneClassifier(
+    model = DNALMEssentialGeneClassifier(
         model=model, hidden_size=hidden_size, lr=lr, dropout=dropout, model_type=model_type
     )
 
@@ -260,7 +303,7 @@ def run(
     trainer.fit(model, train_loader, val_loader)
 
     # 5) test with the best checkpoint
-    best_model = PlmEssentialGeneClassifier.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
+    best_model = DNALMEssentialGeneClassifier.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
     trainer.test(best_model, test_loader)
 
     # 6) save per‑protein predictions
@@ -287,6 +330,8 @@ class ArgumentParser(Tap):
     max_seq_len: int = 1024
     num_epochs: int = 10
     gradient_accumulation_steps: int = 1
+    promoter_len: int = 128
+    overlap: int = 32
     dataset_path: str = "macwiatrak/bacbench-essential-genes-dna"
 
 
@@ -302,5 +347,7 @@ if __name__ == "__main__":
         max_seq_len=args.max_seq_len,
         num_epochs=args.num_epochs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
+        promoter_len=args.promoter_len,
+        overlap=args.overlap,
         dataset_path=args.dataset_path,
     )
