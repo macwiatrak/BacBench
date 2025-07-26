@@ -323,11 +323,11 @@ class ArgumentParser(Tap):
 
     model_path: str = "InstaDeepAI/nucleotide-transformer-v2-250m-multi-species"
     output_dir: str = "/tmp/"
-    hidden_size: int = 960
+    hidden_size: int = 768
     lr: float = 1e-5
     dropout: float = 0.2
     batch_size: int = 32
-    max_seq_len: int = 768
+    max_seq_len: int = 2048
     num_epochs: int = 10
     gradient_accumulation_steps: int = 1
     promoter_len: int = 128
