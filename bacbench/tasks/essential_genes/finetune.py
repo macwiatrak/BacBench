@@ -68,7 +68,7 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
     def forward(self, inputs):
         """Forward pass through the model."""
         out = self.model._forward_batch(inputs)
-        logits = self.classifier(out).squeeze()  # (B,)
+        logits = self.classifier(self.dropout(out)).squeeze()  # (B,)
         return logits
 
     def _shared_step(self, batch, stage):
@@ -142,9 +142,9 @@ def run(
     model = load_seq_embedder(model_path)
 
     # 2) datasets & dataloaders
-    train_ds = ProteinDataset(train_df)
-    val_ds = ProteinDataset(val_df)
-    test_ds = ProteinDataset(test_df)
+    train_ds = ProteinDataset(train_df[:6000])
+    val_ds = ProteinDataset(val_df[:3000])
+    test_ds = ProteinDataset(test_df[:3000])
 
     collate_fn = partial(collate_prots, model.tokenizer, max_seq_len)
     train_loader = DataLoader(
@@ -184,7 +184,8 @@ def run(
         max_epochs=num_epochs,
         accumulate_grad_batches=gradient_accumulation_steps,
         callbacks=[ckpt_cb, early_cb],
-        precision="bf16-mixed" if torch.cuda.is_available() else 32,
+        precision=32,
+        # precision="bf16-mixed" if torch.cuda.is_available() else 32,
         log_every_n_steps=10,
     )
 
@@ -212,10 +213,10 @@ class ArgumentParser(Tap):
     hidden_size: int
     lr: float = 1e-5
     dropout: float = 0.2
-    batch_size: int = 64
+    batch_size: int = 32
     max_seq_len: int = 1024
     num_epochs: int = 10
-    gradient_accumulation_steps: int = 8
+    gradient_accumulation_steps: int = 1
     dataset_path: str = "macwiatrak/bacbench-essential-genes-protein-sequences"
 
 
