@@ -243,7 +243,7 @@ def run(
     )
 
     ckpt_cb = ModelCheckpoint(dirpath=output_dir, monitor="val_auc", mode="max", save_top_k=1, filename="best-val_auc")
-    early_cb = EarlyStopping(monitor="val_auc", mode="max", patience=3)  # :contentReference[oaicite:8]{index=8}
+    early_cb = EarlyStopping(monitor="val_auc", mode="max", patience=5)  # :contentReference[oaicite:8]{index=8}
 
     trainer = pl.Trainer(
         max_epochs=num_epochs,
