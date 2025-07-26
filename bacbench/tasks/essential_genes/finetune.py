@@ -125,7 +125,7 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
 
     def on_test_epoch_end(self):
         """Log test predictions at the end of the epoch."""
-        self.test_probs = torch.cat(self.test_probs).numpy()
+        self.test_probs = torch.cat(self.test_probs).type(torch.float32).numpy()
 
     # ------------- optimiser ------------------------------------------
     def configure_optimizers(self):
@@ -170,8 +170,10 @@ def run(
 
     # 2) datasets & dataloaders
     train_ds = ProteinDataset(train_df[:6000])
-    val_ds = ProteinDataset(val_df[:3000])
-    test_ds = ProteinDataset(test_df[:3000])
+    val_ds = ProteinDataset(train_df[:1000])
+    test_ds = ProteinDataset(train_df[:1000])
+    # val_ds = ProteinDataset(val_df[:3000])
+    # test_ds = ProteinDataset(test_df[:3000])
 
     collate_fn = partial(collate_prots, tokenizer, max_seq_len)
     train_loader = DataLoader(
@@ -209,7 +211,9 @@ def run(
         max_epochs=num_epochs,
         accumulate_grad_batches=gradient_accumulation_steps,
         callbacks=[ckpt_cb, early_cb],
-        # precision=16,
+        enable_checkpointing=True,
+        enable_model_summary=True,
+        default_root_dir=output_dir,
         precision="bf16-mixed" if torch.cuda.is_available() else 32,
         log_every_n_steps=10,
     )
@@ -218,7 +222,7 @@ def run(
     trainer.fit(model, train_loader, val_loader)
 
     # 5) test with the best checkpoint
-    best_model = PlmEssentialGeneClassifier.load_from_checkpoint(ckpt_cb.best_model_path)
+    best_model = PlmEssentialGeneClassifier.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
     trainer.test(best_model, test_loader)
 
     # 6) save per‑protein predictions
