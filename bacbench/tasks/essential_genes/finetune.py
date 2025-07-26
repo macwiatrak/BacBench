@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from functools import partial
 
 import pandas as pd
@@ -15,10 +16,11 @@ from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from transformers import AutoModel, AutoTokenizer
 
 from bacbench.modeling.embedder import SeqEmbedder
+from bacbench.modeling.utils import average_unpadded
 
 try:
     from faesm.esm import FAEsmForMaskedLM
-    # from faesm.esmc import ESMC
+    from faesm.esmc import ESMC
 
     faesm_installed = True
 except ImportError:
@@ -46,9 +48,11 @@ class ProteinDataset(Dataset):
         return {"sequence": seq, "label": label}
 
 
-def collate_prots(tokenizer, max_seq_len, batch):
+def collate_prots(tokenizer, max_seq_len, batch, model_type):
     """Pad to the longest sequence in *this* batch (length‑sorted data)."""
     seqs = [b["sequence"] for b in batch]
+    if "prot_bert" in model_type:
+        seqs = [" ".join(list(re.sub(r"[UZOB]", "X", sequence))) for sequence in seqs]
     inputs = tokenizer(
         seqs,
         add_special_tokens=True,
@@ -61,11 +65,37 @@ def collate_prots(tokenizer, max_seq_len, batch):
     return inputs
 
 
+def load_model(model_path: str):
+    """Load a pretrained protein language model and its tokenizer."""
+    if "esm2" in model_path:
+        if faesm_installed:
+            model = FAEsmForMaskedLM.from_pretrained(model_path)
+            tokenizer = model.tokenizer
+        else:
+            model = AutoModel.from_pretrained(model_path)
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+        return model, tokenizer, "esm2"
+
+    if "esmc" in model_path:
+        model = ESMC.from_pretrained(model_path, use_flash_attn=True)
+        tokenizer = model.tokenizer
+        return model, tokenizer, "esmc"
+
+    if "prot_bert" in model_path:
+        model = AutoModel.from_pretrained(model_path)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, do_lower_case=False)
+        return model, tokenizer, "prot_bert"
+
+    raise ValueError(f"Unsupported model type: {model_path}. Supported: esm2, esmc, prot_bert.")
+
+
 # ------------------------- Lightning module ----------------------------
 class PlmEssentialGeneClassifier(pl.LightningModule):
     """Finetune essential gene classifier on protein sequences."""
 
-    def __init__(self, model: SeqEmbedder, hidden_size: int, lr: float = 1e-5, dropout: float = 0.2):
+    def __init__(
+        self, model: SeqEmbedder, hidden_size: int, lr: float = 1e-5, dropout: float = 0.2, model_type: str = "esm2"
+    ):
         super().__init__()
         self.save_hyperparameters(logger=False)
         self.lr = lr
@@ -74,6 +104,8 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
         self.hidden_size = hidden_size
         self.classifier = nn.Linear(hidden_size, 1)
         self.dropout = nn.Dropout(dropout)
+        self.model_type = model_type
+
         self.criterion = nn.BCEWithLogitsLoss()
         self.val_auc = BinaryAUROC()
         self.val_auprc = BinaryAveragePrecision()
@@ -82,9 +114,22 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
     # ------------- forward & common step helpers -----------------------
     def forward(self, inputs):
         """Forward pass through the model."""
-        last_hidden_state = self.model(**inputs)["last_hidden_state"]
-        mask = inputs["attention_mask"].type_as(last_hidden_state)
-        out = torch.einsum("b n d, b n -> b d", last_hidden_state, mask) / mask.sum(1, keepdim=True)
+        if self.model_type == "esm2":
+            last_hidden_state = self.model(**inputs)["last_hidden_state"]
+            mask = inputs["attention_mask"].type_as(last_hidden_state)
+            out = torch.einsum("b n d, b n -> b d", last_hidden_state, mask) / mask.sum(1, keepdim=True)
+        elif self.model_type == "esmc":
+            last_hidden_state = self.model(inputs["input_ids"]).embeddings
+            out = average_unpadded(last_hidden_state, inputs["attention_mask"])
+        elif self.model_type == "prot_bert":
+            last_hidden_state = self.model(
+                input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]
+            ).last_hidden_state
+            out = torch.einsum(
+                "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+            ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        else:
+            raise ValueError(f"Unsupported model type: {self.model_type}. Supported: esm2, esmc, prot_bert.")
         logits = self.classifier(self.dropout(out)).squeeze()  # (B,)
         return logits
 
@@ -160,23 +205,14 @@ def run(
 
     train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
 
-    # 1) backbone + tokenizer
-    # model = load_seq_embedder(model_path)
-    if faesm_installed:
-        model = FAEsmForMaskedLM.from_pretrained(model_path)
-        tokenizer = model.tokenizer
-    else:
-        model = AutoModel.from_pretrained(model_path)
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model, tokenizer, model_type = load_model(model_path)
 
     # 2) datasets & dataloaders
-    train_ds = ProteinDataset(train_df[:6000])
-    val_ds = ProteinDataset(train_df[:1000])
-    test_ds = ProteinDataset(train_df[:1000])
-    # val_ds = ProteinDataset(val_df[:3000])
-    # test_ds = ProteinDataset(test_df[:3000])
+    train_ds = ProteinDataset(train_df)
+    val_ds = ProteinDataset(val_df)
+    test_ds = ProteinDataset(test_df)
 
-    collate_fn = partial(collate_prots, tokenizer, max_seq_len)
+    collate_fn = partial(collate_prots, tokenizer, max_seq_len, model_type)
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
@@ -203,7 +239,9 @@ def run(
     )
 
     # 3) Lightning objects
-    model = PlmEssentialGeneClassifier(model=model, hidden_size=hidden_size, lr=lr, dropout=dropout)
+    model = PlmEssentialGeneClassifier(
+        model=model, hidden_size=hidden_size, lr=lr, dropout=dropout, model_type=model_type
+    )
 
     ckpt_cb = ModelCheckpoint(dirpath=output_dir, monitor="val_auc", mode="max", save_top_k=1, filename="best-val_auc")
     early_cb = EarlyStopping(monitor="val_auc", mode="max", patience=3)  # :contentReference[oaicite:8]{index=8}
@@ -227,7 +265,6 @@ def run(
     trainer.test(best_model, test_loader)
 
     # 6) save per‑protein predictions
-    test_df = train_df[:1000]  # test_df.reset_index(drop=True)
     test_df["prob"] = best_model.test_probs
     # compute auroc and auprc
     auroc_test = roc_auc_score(test_df["label"], test_df["prob"])
