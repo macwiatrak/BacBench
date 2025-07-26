@@ -1,3 +1,4 @@
+import logging
 import os
 from functools import partial
 
@@ -10,8 +11,22 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint  # PL ≥
 from tap import Tap
 from torch.utils.data import DataLoader, Dataset
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
+from transformers import AutoModel, AutoTokenizer
 
-from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
+from bacbench.modeling.embedder import SeqEmbedder
+
+try:
+    from faesm.esm import FAEsmForMaskedLM
+    # from faesm.esmc import ESMC
+
+    faesm_installed = True
+except ImportError:
+    faesm_installed = False
+    logging.warning(
+        "faESM (fast ESM) not installed, this will lead to significant slowdown. "
+        "Defaulting to use HuggingFace implementation. "
+        "Please consider installing faESM: https://github.com/pengzhangzhi/faplm"
+    )
 
 
 # ------------------------- data helpers --------------------------------
@@ -66,12 +81,14 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
     # ------------- forward & common step helpers -----------------------
     def forward(self, inputs):
         """Forward pass through the model."""
-        out = self.model._forward_batch(inputs)
+        last_hidden_state = self.model(**inputs)["last_hidden_state"]
+        mask = inputs["attention_mask"].type_as(last_hidden_state)
+        out = torch.einsum("b n d, b n -> b d", last_hidden_state, mask) / mask.sum(1, keepdim=True)
         logits = self.classifier(self.dropout(out)).squeeze()  # (B,)
         return logits
 
     def _shared_step(self, batch, stage):
-        print(batch["input_ids"])
+        print("input_ids", batch["input_ids"])
         print(batch["input_ids"].shape, batch["attention_mask"].shape, batch["labels"].shape)
         y_hat = self(batch)
         print(y_hat)
@@ -143,14 +160,20 @@ def run(
     train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
 
     # 1) backbone + tokenizer
-    model = load_seq_embedder(model_path)
+    # model = load_seq_embedder(model_path)
+    if faesm_installed:
+        model = FAEsmForMaskedLM.from_pretrained(model_path)
+        tokenizer = model.tokenizer
+    else:
+        model = AutoModel.from_pretrained(model_path)
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     # 2) datasets & dataloaders
     train_ds = ProteinDataset(train_df[:6000])
     val_ds = ProteinDataset(val_df[:3000])
     test_ds = ProteinDataset(test_df[:3000])
 
-    collate_fn = partial(collate_prots, model.tokenizer, max_seq_len)
+    collate_fn = partial(collate_prots, tokenizer, max_seq_len)
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
