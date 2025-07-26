@@ -180,8 +180,8 @@ def generate_dna_embeddings(
         batch_sequences = dna_sequence[i : i + batch_size]
         dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean")
 
-        # Append the generated embeddings to the list, moving them to CPU and converting to numpy
-        mean_dna_embeddings += list(dna_representations.cpu().numpy())
+        # Append the generated embeddings to the list
+        mean_dna_embeddings += dna_representations
 
     return mean_dna_embeddings
 
