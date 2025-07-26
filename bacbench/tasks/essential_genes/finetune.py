@@ -175,17 +175,15 @@ def run(
     # 3) Lightning objects
     model = PlmEssentialGeneClassifier(model=model, hidden_size=hidden_size, lr=lr, dropout=dropout)
 
-    ckpt_cb = ModelCheckpoint(  # :contentReference[oaicite:7]{index=7}
-        monitor="val_auc", mode="max", save_top_k=1, filename="best-val_auc"
-    )
+    ckpt_cb = ModelCheckpoint(monitor="val_auc", mode="max", save_top_k=1, filename="best-val_auc")
     early_cb = EarlyStopping(monitor="val_auc", mode="max", patience=3)  # :contentReference[oaicite:8]{index=8}
 
-    trainer = pl.Trainer(  # :contentReference[oaicite:9]{index=9}
+    trainer = pl.Trainer(
         max_epochs=num_epochs,
         accumulate_grad_batches=gradient_accumulation_steps,
         callbacks=[ckpt_cb, early_cb],
-        precision=16,
-        # precision="bf16-mixed" if torch.cuda.is_available() else 32,
+        # precision=16,
+        precision="bf16-mixed" if torch.cuda.is_available() else 32,
         log_every_n_steps=10,
     )
 
