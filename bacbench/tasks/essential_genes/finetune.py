@@ -56,7 +56,7 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
         self.lr = lr
 
         self.model = model
-        hidden_size = model.config.hidden_size
+        hidden_size = model.hidden_size
         self.classifier = nn.Linear(hidden_size, 1)
         self.dropout = nn.Dropout(dropout)
         self.criterion = nn.BCEWithLogitsLoss()
