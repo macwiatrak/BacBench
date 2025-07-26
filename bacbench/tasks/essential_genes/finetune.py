@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from datasets import load_dataset
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint  # PL ≥2.0
+from sklearn.metrics import average_precision_score, roc_auc_score
 from tap import Tap
 from torch.utils.data import DataLoader, Dataset
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
@@ -226,8 +227,12 @@ def run(
     trainer.test(best_model, test_loader)
 
     # 6) save per‑protein predictions
-    test_df = test_df.reset_index(drop=True)
+    test_df = train_df[:1000]  # test_df.reset_index(drop=True)
     test_df["prob"] = best_model.test_probs
+    # compute auroc and auprc
+    auroc_test = roc_auc_score(test_df["label"], test_df["prob"])
+    auprc_test = average_precision_score(test_df["label"], test_df["prob"])
+    logging.info(f"Test AUROC: {auroc_test:.4f}, AUPRC: {auprc_test:.4f}")
     test_df.to_csv(output_dir, index=False)
 
 
