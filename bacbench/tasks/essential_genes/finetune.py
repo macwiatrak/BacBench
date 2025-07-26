@@ -37,7 +37,6 @@ def collate_prots(tokenizer, max_seq_len, batch):
         seqs,
         add_special_tokens=True,
         return_tensors="pt",
-        is_split_into_words=False,
         padding="longest",
         truncation=True,
         max_length=max_seq_len,
@@ -117,7 +116,7 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
 # ------------------------- main run() ----------------------------------
 def run(
     model_path: str,
-    output_filepath: str,
+    output_dir: str,
     hidden_size: int,
     lr: float = 1e-5,
     dropout: float = 0.2,
@@ -175,7 +174,7 @@ def run(
     # 3) Lightning objects
     model = PlmEssentialGeneClassifier(model=model, hidden_size=hidden_size, lr=lr, dropout=dropout)
 
-    ckpt_cb = ModelCheckpoint(monitor="val_auc", mode="max", save_top_k=1, filename="best-val_auc")
+    ckpt_cb = ModelCheckpoint(dirpath=output_dir, monitor="val_auc", mode="max", save_top_k=1, filename="best-val_auc")
     early_cb = EarlyStopping(monitor="val_auc", mode="max", patience=3)  # :contentReference[oaicite:8]{index=8}
 
     trainer = pl.Trainer(
@@ -197,7 +196,7 @@ def run(
     # 6) save per‑protein predictions
     test_df = test_df.reset_index(drop=True)
     test_df["prob"] = best_model.test_probs
-    test_df.to_csv(output_filepath, index=False)
+    test_df.to_csv(output_dir, index=False)
 
 
 class ArgumentParser(Tap):
@@ -206,9 +205,9 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    model_path: str
-    output_filepath: str
-    hidden_size: int
+    model_path: str = "esmc_300m"
+    output_dir: str = "/tmp/"
+    hidden_size: int = 960
     lr: float = 1e-5
     dropout: float = 0.2
     batch_size: int = 32
@@ -222,7 +221,7 @@ if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     run(
         model_path=args.model_path,
-        output_filepath=args.output_filepath,
+        output_dir=args.output_dir,
         hidden_size=args.hidden_size,
         lr=args.lr,
         dropout=args.dropout,
