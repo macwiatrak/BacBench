@@ -232,17 +232,21 @@ def run(
 
     train_df = ds["train"].to_pandas()
     train_seqs = {row.genome_name: row.dna_seq for _, row in train_df.iterrows()}
-    train_df = train_df.drop(columns=["dna_seq"]).explode(["protein_id", "product", "start", "end", "essential"])
+    train_df = train_df.drop(columns=["dna_seq"]).explode(
+        ["protein_id", "product", "start", "end", "strand", "essential"]
+    )
     train_df["label"] = train_df.essential.map({"Yes": 1, "No": 0})
 
     val_df = ds["validation"].to_pandas()
     val_seqs = {row.genome_name: row.dna_seq for _, row in val_df.iterrows()}
-    val_df = val_df.drop(columns=["dna_seq"]).explode(["protein_id", "product", "start", "end", "essential"])
+    val_df = val_df.drop(columns=["dna_seq"]).explode(["protein_id", "product", "start", "end", "strand", "essential"])
     val_df["label"] = val_df.essential.map({"Yes": 1, "No": 0})
 
     test_df = ds["test"].to_pandas()
     test_seqs = {row.genome_name: row.dna_seq for _, row in test_df.iterrows()}
-    test_df = test_df.drop(columns=["dna_seq"]).explode(["protein_id", "product", "start", "end", "essential"])
+    test_df = test_df.drop(columns=["dna_seq"]).explode(
+        ["protein_id", "product", "start", "end", "strand", "essential"]
+    )
     test_df["label"] = test_df.essential.map({"Yes": 1, "No": 0})
 
     model, tokenizer, model_type = load_model(model_path)
