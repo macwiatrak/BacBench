@@ -18,31 +18,31 @@ from bacbench.modeling.embed_dna import chunk_dna_sequence, get_dna_seq
 
 def grouped_mean_pytorch(M: torch.Tensor, K: torch.Tensor):
     """
-    Average rows in `M` that share the same index in `K`.
+    Average rows in `M` that share the same key in `K`.
 
     Parameters
     ----------
-    M : (B, D) tensor
-    K : (B,)   int tensor, 0 ≤ K[i] ≤ K.max()
+    M : (B, D) tensor  – any floating dtype (f16, bf16, f32, …)
+    K : (B,)   int tensor
 
     Returns
     -------
-    means : (L, D) tensor   – group means ordered by the unique values in `K`
-    groups: (L,)  tensor    – the corresponding unique keys
+    means  : (L, D) tensor  – mean per unique key, same dtype as M
+    groups : (L,)   tensor  – the unique keys (sorted as returned by torch.unique)
     """
-    # Make sure dtype/device match
+    # ensure keys live on the same device as M
     K = K.to(M.device)
 
-    # 1) find mapping from each row to its group index
-    groups, inverse = torch.unique(K, sorted=True, return_inverse=True)  # L,  (B,) mapping
+    # map each row to a contiguous group index
+    groups, inverse = torch.unique(K, sorted=True, return_inverse=True)  # (L,), (B,)
 
-    # 2) sum rows per group
-    sums = torch.zeros(groups.numel(), M.size(1), device=M.device)
-    sums.index_add_(0, inverse, M)  # inplace accumulation
+    # allocate accumulator in *exactly the same dtype* as M
+    sums = torch.zeros(groups.numel(), M.size(1), device=M.device, dtype=M.dtype)  # <- dtype fix
+    sums.index_add_(0, inverse, M)  # accumulate
 
-    # 3) divide by group sizes to get means
-    counts = torch.bincount(inverse, minlength=groups.numel()).unsqueeze(1)  # (L,1)
-    means = sums / counts
+    # counts per group, then divide (cast counts to dtype of sums)
+    counts = torch.bincount(inverse, minlength=groups.numel()).unsqueeze(1)
+    means = sums / counts.to(sums.dtype)
 
     return means
 
