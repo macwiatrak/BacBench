@@ -200,8 +200,7 @@ def run(
     train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
 
     model, tokenizer, model_type = load_model(model_path)
-    for p in model.parameters():
-        p.requires_grad = True
+    model.train()
 
     # 2) datasets & dataloaders
     train_ds = ProteinDataset(train_df)

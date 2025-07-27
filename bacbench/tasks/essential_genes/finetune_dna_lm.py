@@ -250,8 +250,7 @@ def run(
     test_df["label"] = test_df.essential.map({"Yes": 1, "No": 0})
 
     model, tokenizer, model_type = load_model(model_path)
-    for p in model.parameters():
-        p.requires_grad = True
+    model.train()
 
     # 2) datasets & dataloaders
     train_ds = DNADataset(train_df, train_seqs, promoter_len, max_seq_len, overlap)
