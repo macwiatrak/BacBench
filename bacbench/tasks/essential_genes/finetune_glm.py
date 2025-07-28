@@ -89,7 +89,7 @@ def add_strand_info(df: pd.DataFrame, dna_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def collate_prots(tokenizer, max_seq_len, model_type, batch):
+def collate_prots(tokenizer, max_seq_len, batch):
     """Pad to the longest sequence in *this* batch (length‑sorted data)."""
     seqs = [b["sequence"] for b in batch]
     inputs = tokenizer(
