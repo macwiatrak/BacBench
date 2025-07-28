@@ -263,9 +263,9 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    model_path: str = "esmc_300m"
+    model_path: str = "hugohrban/progen2-small"
     output_dir: str = "/tmp/"
-    hidden_size: int = 960
+    hidden_size: int = 1024
     lr: float = 1e-5
     dropout: float = 0.2
     batch_size: int = 32
