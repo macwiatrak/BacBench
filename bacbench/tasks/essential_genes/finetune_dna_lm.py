@@ -163,7 +163,11 @@ class DNALMEssentialGeneClassifier(pl.LightningModule):
                 attention_mask=inputs["attention_mask"],
             ).last_hidden_state
         elif self.model_type == "prokbert":
-            last_hidden_state = self.model(**inputs).last_hidden_state
+            last_hidden_state = self.model(
+                input_ids=inputs["input_ids"],
+                token_type_ids=inputs["token_type_ids"],
+                attention_mask=inputs["attention_mask"],
+            ).last_hidden_state
         else:
             raise ValueError(
                 f"Unsupported model type: {self.model_type}. Supported: nucleotide_transformer, dnabert, mistral."
