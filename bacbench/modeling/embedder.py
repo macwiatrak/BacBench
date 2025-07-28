@@ -7,7 +7,7 @@ from typing import Literal
 import numpy as np
 import torch
 from torch import nn
-from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer, T5EncoderModel, T5Tokenizer
+from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
 
 from bacbench.modeling.utils import average_unpadded
 
@@ -169,58 +169,6 @@ class ProtBERTEmbedder(SeqEmbedder):
         return protein_representations
 
 
-class AnkhEmbedder(SeqEmbedder):
-    """Embedder for AnkhBERT models from HuggingFace."""
-
-    def _load(self, model_name_or_path: str):
-        self.model = T5EncoderModel.from_pretrained(model_name_or_path)
-        self.tokenizer = T5Tokenizer.from_pretrained(model_name_or_path)
-
-    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
-        inputs = self.tokenizer(
-            seqs,
-            add_special_tokens=True,
-            return_tensors="pt",
-            is_split_into_words=False,
-            padding="longest",
-            truncation=True,
-            max_length=max_seq_len,
-        )
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-        return inputs
-
-    def _preprocess_seqs(self, seqs: list[str]) -> list[str]:
-        """Override if the LM needs special preprocessing (for example ProtBERT)."""
-        seqs = ["[S2S]" + sequence for sequence in seqs]
-        return seqs
-
-    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
-        last_hidden_state = self.model(**inputs)
-        if pooling == "cls":
-            return last_hidden_state[:, 0]  # (B,D)
-        protein_representations = torch.einsum(
-            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
-        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
-        return protein_representations
-
-
-class AmplifyEmbedder(SeqEmbedder):
-    """Embedder for ProtBERT models from HuggingFace."""
-
-    def _load(self, model_name_or_path: str):
-        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
-
-    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
-        last_hidden_state = self.model(**inputs)
-        if pooling == "cls":
-            return last_hidden_state[:, 0]  # (B,D)
-        protein_representations = torch.einsum(
-            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
-        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
-        return protein_representations
-
-
 class NucleotideTransformerEmbedder(SeqEmbedder):
     """Embedder for Nucleotide Transformer models from HuggingFace."""
 
@@ -355,12 +303,6 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
     if "prot_bert" in model_name_or_path:
         return ProtBERTEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
-    if "AMPLIFY" in model_name_or_path:
-        return AmplifyEmbedder(model_name_or_path, dtype=torch.float32, device=device)
-
-    if "ankh" in model_name_or_path:
-        return AnkhEmbedder(model_name_or_path, dtype=torch.float32, device=device)
-
     # DNA LMs
     if "nucleotide-transformer" in model_name_or_path:
         return NucleotideTransformerEmbedder(model_name_or_path, dtype=torch.float16, device=device)
@@ -373,7 +315,7 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
 
     raise ValueError(
         f"Unknown model name or path: {model_name_or_path},"
-        f" supported models are: ESM-2, ESMC, ProtBert, AMPLIFY, Ankh, "
+        f" supported models are: ESM-2, ESMC, ProtBert, "
         "Nucleotide Transformer, Mistral-DNA, DNABERT-2 "
         f"available at HuggingFace."
     )
