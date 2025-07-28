@@ -192,7 +192,7 @@ def run(
     dna_ds = load_dataset(dna_dataset_path)
 
     def _prep(split):
-        df = ds[split].to_pandas().explode(["protein_id", "product", "start", "end", "essential", "sequence"])
+        df = ds[split].to_pandas().explode(["protein_id", "product", "start", "end", "essential", "strand", "sequence"])
         df["label"] = df.essential.map({"Yes": 1, "No": 0})
         return df.sort_values("sequence", key=lambda x: x.str.len(), ascending=False)
 
