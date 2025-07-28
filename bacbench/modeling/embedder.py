@@ -7,7 +7,7 @@ from typing import Literal
 import numpy as np
 import torch
 from torch import nn
-from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
+from transformers import AutoModel, AutoModelForCausalLM, AutoModelForMaskedLM, AutoTokenizer
 
 from bacbench.modeling.utils import average_unpadded
 
@@ -169,6 +169,30 @@ class ProtBERTEmbedder(SeqEmbedder):
         return protein_representations
 
 
+class ProGen2Embedder(SeqEmbedder):
+    """Embedder for ProtBERT models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModelForCausalLM.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+        # set padding token
+        self.tokenizer.pad_token_id = 0
+
+    def _preprocess_seqs(self, seqs: list[str]) -> list[str]:
+        """Override if the LM needs special preprocessing (for example ProtBERT)."""
+        seqs = ["1" + sequence for sequence in seqs]
+        return seqs
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(inputs["input_ids"], output_hidden_states=True).hidden_states[-1]
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        protein_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return protein_representations
+
+
 class NucleotideTransformerEmbedder(SeqEmbedder):
     """Embedder for Nucleotide Transformer models from HuggingFace."""
 
@@ -282,6 +306,31 @@ class ProkBERTEmbedder(SeqEmbedder):
         return dna_representations
 
 
+class gLM2Embedder(SeqEmbedder):
+    """Embedder for ProkBERT models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer.batch_encode_plus(
+            seqs, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
+        )
+        # move inputs to the same device as the model
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(**inputs, output_hidden_states=True).last_hidden_state
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        seq_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return seq_representations
+
+
 def load_seq_embedder(model_name_or_path: str, device: str = None):
     """Helper function to load a sequence embedder object based on model name or path
 
@@ -303,6 +352,9 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
     if "prot_bert" in model_name_or_path:
         return ProtBERTEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
+    if "progen2" in model_name_or_path:
+        return ProGen2Embedder(model_name_or_path, dtype=torch.float32, device=device)
+
     # DNA LMs
     if "nucleotide-transformer" in model_name_or_path:
         return NucleotideTransformerEmbedder(model_name_or_path, dtype=torch.float16, device=device)
@@ -312,6 +364,13 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
 
     if "Mistral-DNA" in model_name_or_path:
         return MistralDNAEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+
+    if "prokbert" in model_name_or_path:
+        return ProkBERTEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+
+    # mixed modality LMs
+    if "gLM2" in model_name_or_path:
+        return gLM2Embedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
     raise ValueError(
         f"Unknown model name or path: {model_name_or_path},"
