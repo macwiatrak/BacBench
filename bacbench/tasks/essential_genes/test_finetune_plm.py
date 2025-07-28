@@ -214,7 +214,6 @@ def run(
     train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
 
     model, tokenizer, model_type = load_model(model_path)
-    model.load_state_dict(torch.load(ckpt_path, map_location="cpu")["state_dict"])
     model.eval()
 
     # 2) datasets & dataloaders
@@ -234,6 +233,7 @@ def run(
     model = PlmEssentialGeneClassifier(
         model=model, hidden_size=hidden_size, lr=lr, dropout=dropout, model_type=model_type
     )
+    model.load_state_dict(torch.load(ckpt_path, map_location="cpu")["state_dict"], strict=False)
 
     trainer = pl.Trainer(
         max_epochs=num_epochs,
