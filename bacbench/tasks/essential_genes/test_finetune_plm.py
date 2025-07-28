@@ -214,6 +214,7 @@ def run(
     train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
 
     model, tokenizer, model_type = load_model(model_path)
+    model.load_state_dict(torch.load(ckpt_path, map_location="cpu")["state_dict"])
     model.eval()
 
     # 2) datasets & dataloaders
@@ -244,13 +245,13 @@ def run(
     )
 
     # 5) test with the best checkpoint
-    best_model = PlmEssentialGeneClassifier.load_from_checkpoint(
-        checkpoint_path=ckpt_path, model=model, hidden_size=hidden_size, lr=lr, dropout=dropout, model_type=model_type
-    )
-    trainer.test(best_model, test_loader)
+    # best_model = PlmEssentialGeneClassifier.load_from_checkpoint(
+    #     checkpoint_path=ckpt_path, model=model, hidden_size=hidden_size, lr=lr, dropout=dropout, model_type=model_type
+    # )
+    trainer.test(model, test_loader)
 
     # 6) save per‑protein predictions
-    test_df["prob"] = best_model.test_probs
+    test_df["prob"] = model.test_probs
     # compute auroc and auprc
     auroc_test = roc_auc_score(test_df["label"], test_df["prob"])
     auprc_test = average_precision_score(test_df["label"], test_df["prob"])
