@@ -285,7 +285,7 @@ class ProkBERTEmbedder(SeqEmbedder):
     """Embedder for ProkBERT models from HuggingFace."""
 
     def _load(self, model_name_or_path: str):
-        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True, dtype=torch.bfloat16)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:

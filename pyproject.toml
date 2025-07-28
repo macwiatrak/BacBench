@@ -126,6 +126,7 @@ lint.ignore = [
   "D107", # Missing docstring in __init__
   # Disable one in each pair of mutually incompatible rules
   "D203", # We don’t want a blank line before a class docstring
+  "D205", # We want a blank line before a class docstring
   "D213", # <> We want docstrings to start immediately after the opening triple quote
   "D400", # first line should end with a period [Bug: doesn’t work with single-line docstrings]
   "D401", # First line should be in imperative mood; try rephrasing

@@ -235,7 +235,7 @@ def run(
     gradient_accumulation_steps: int = 8,
     promoter_len: int = 128,
     overlap: int = 32,
-    dataset_path: str = "macwiatrak/bacbench-essential-genes-protein-sequences",
+    dataset_path: str = "macwiatrak/bacbench-essential-genes-dna",
 ):
     """Finetune a pretrained protein language model on essential gene classification."""
     if not os.path.exists(output_dir):
