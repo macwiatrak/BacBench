@@ -127,7 +127,7 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
     # ------------- forward & common step helpers -----------------------
     def forward(self, inputs):
         """Forward pass through the model."""
-        last_hidden_state = self.model(**inputs, output_hidden_states=True).last_hidden_state
+        last_hidden_state = self.model(inputs["input_ids"], output_hidden_states=True).last_hidden_state
         out = torch.einsum(
             "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
         ) / inputs["attention_mask"].sum(1).unsqueeze(1)

@@ -322,7 +322,7 @@ class gLM2Embedder(SeqEmbedder):
         return inputs
 
     def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
-        last_hidden_state = self.model(**inputs, output_hidden_states=True).last_hidden_state
+        last_hidden_state = self.model(inputs["input_ids"], output_hidden_states=True).last_hidden_state
         if pooling == "cls":
             return last_hidden_state[:, 0]  # (B,D)
         seq_representations = torch.einsum(
