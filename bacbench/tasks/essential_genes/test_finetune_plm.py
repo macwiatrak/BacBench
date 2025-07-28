@@ -214,7 +214,7 @@ def run(
     train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
 
     model, tokenizer, model_type = load_model(model_path)
-    model.train()
+    model.eval()
 
     # 2) datasets & dataloaders
     test_ds = ProteinDataset(test_df)
@@ -230,10 +230,9 @@ def run(
     )
 
     # 3) Lightning objects
-    # model = PlmEssentialGeneClassifier(
-    #     model=model, hidden_size=hidden_size, lr=lr, dropout=dropout, model_type=model_type
-    # )
-    best_model = PlmEssentialGeneClassifier.load_from_checkpoint(ckpt_path)
+    model = PlmEssentialGeneClassifier(
+        model=model, hidden_size=hidden_size, lr=lr, dropout=dropout, model_type=model_type
+    )
 
     trainer = pl.Trainer(
         max_epochs=num_epochs,
@@ -245,7 +244,9 @@ def run(
     )
 
     # 5) test with the best checkpoint
-    best_model = PlmEssentialGeneClassifier.load_from_checkpoint(checkpoint_path=ckpt_path)
+    best_model = PlmEssentialGeneClassifier.load_from_checkpoint(
+        checkpoint_path=ckpt_path, model=model, hidden_size=hidden_size, lr=lr, dropout=dropout, model_type=model_type
+    )
     trainer.test(best_model, test_loader)
 
     # 6) save per‑protein predictions
