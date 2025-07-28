@@ -13,7 +13,7 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from tap import Tap
 from torch.utils.data import DataLoader, Dataset
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 from bacbench.modeling.utils import average_unpadded
 
@@ -52,6 +52,8 @@ def collate_prots(tokenizer, max_seq_len, model_type, batch):
     seqs = [b["sequence"] for b in batch]
     if "prot_bert" in model_type:
         seqs = [" ".join(list(re.sub(r"[UZOB]", "X", sequence))) for sequence in seqs]
+    if "progen2" in model_type:
+        seqs = ["1" + sequence for sequence in seqs]  # prepend '1' to ProGen2 sequences
     inputs = tokenizer(
         seqs,
         add_special_tokens=True,
@@ -85,7 +87,14 @@ def load_model(model_path: str):
         tokenizer = AutoTokenizer.from_pretrained(model_path, do_lower_case=False)
         return model, tokenizer, "prot_bert"
 
-    raise ValueError(f"Unsupported model type: {model_path}. Supported: esm2, esmc, prot_bert.")
+    if "progen2" in model_path:
+        model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        # set padding token
+        tokenizer.pad_token_id = 0
+        return model, tokenizer, "progen2"
+
+    raise ValueError(f"Unsupported model type: {model_path}. Supported: esm2, esmc, prot_bert, progen2.")
 
 
 # ------------------------- Lightning module ----------------------------
@@ -122,6 +131,11 @@ class PlmEssentialGeneClassifier(pl.LightningModule):
             last_hidden_state = self.model(
                 input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]
             ).last_hidden_state
+            out = torch.einsum(
+                "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+            ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        elif self.model_type == "progen2":
+            last_hidden_state = self.model(inputs["input_ids"], output_hidden_states=True).hidden_states[-1]
             out = torch.einsum(
                 "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
             ) / inputs["attention_mask"].sum(1).unsqueeze(1)

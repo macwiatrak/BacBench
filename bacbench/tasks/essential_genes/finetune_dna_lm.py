@@ -110,7 +110,14 @@ def load_model(model_path: str):
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         return model, tokenizer, "mistral"
 
-    raise ValueError(f"Unsupported model type: {model_path}. Supported: nucleotide_transformer, dnabert and mistral.")
+    if "prokbert" in model_path:
+        model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        return model, tokenizer, "prokbert"
+
+    raise ValueError(
+        f"Unsupported model type: {model_path}. Supported: nucleotide_transformer, dnabert, prokbert and mistral."
+    )
 
 
 # ------------------------- Lightning module ----------------------------
@@ -155,6 +162,8 @@ class DNALMEssentialGeneClassifier(pl.LightningModule):
                 token_type_ids=inputs["token_type_ids"],
                 attention_mask=inputs["attention_mask"],
             ).last_hidden_state
+        elif self.model_type == "prokbert":
+            last_hidden_state = self.model(**inputs).last_hidden_state
         else:
             raise ValueError(
                 f"Unsupported model type: {self.model_type}. Supported: nucleotide_transformer, dnabert, mistral."
