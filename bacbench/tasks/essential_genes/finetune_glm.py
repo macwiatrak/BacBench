@@ -81,6 +81,14 @@ class gLM2Dataset(Dataset):
         return {"sequence": seq, "label": row.label}
 
 
+def add_strand_info(df: pd.DataFrame, dna_df: pd.DataFrame) -> pd.DataFrame:
+    """Add strand info"""
+    strand_df = dna_df[["genome_name", "strand", "start", "protein_id"]].explode(["strand", "start", "protein_id"])
+    df = pd.merge(df, strand_df, on=["genome_name", "start", "protein_id"], how="left")
+    df["strand"] = df["strand"].fillna(1.0)
+    return df
+
+
 def collate_prots(tokenizer, max_seq_len, model_type, batch):
     """Pad to the longest sequence in *this* batch (length‑sorted data)."""
     seqs = [b["sequence"] for b in batch]
@@ -192,17 +200,20 @@ def run(
     dna_ds = load_dataset(dna_dataset_path)
 
     def _prep(split):
-        df = ds[split].to_pandas().explode(["protein_id", "product", "start", "end", "essential", "strand", "sequence"])
+        df = ds[split].to_pandas().explode(["protein_id", "product", "start", "end", "essential", "sequence"])
         df["label"] = df.essential.map({"Yes": 1, "No": 0})
         return df.sort_values("sequence", key=lambda x: x.str.len(), ascending=False)
 
     train_df, val_df, test_df = map(_prep, ["train", "validation", "test"])
     # get DNA sequences for each genome
     train_dna_df = dna_ds["train"].to_pandas()
+    train_df = add_strand_info(train_df, train_dna_df)
     train_seqs = {row.genome_name: row.dna_seq for _, row in train_dna_df.iterrows()}
     val_dna_df = dna_ds["validation"].to_pandas()
+    val_df = add_strand_info(val_df, val_dna_df)
     val_seqs = {row.genome_name: row.dna_seq for _, row in val_dna_df.iterrows()}
     test_dna_df = dna_ds["test"].to_pandas()
+    test_df = add_strand_info(test_df, test_dna_df)
     test_seqs = {row.genome_name: row.dna_seq for _, row in test_dna_df.iterrows()}
 
     model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
