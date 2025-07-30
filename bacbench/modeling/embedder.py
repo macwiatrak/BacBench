@@ -106,7 +106,7 @@ class SeqEmbedder(nn.Module):
 
         inputs = self._tokenize(seqs, max_seq_len=max_seq_len)
         rep = self._forward_batch(inputs, pooling)  # (B,D)
-        return list(rep.cpu().numpy())
+        return list(rep.cpu().type(torch.float32).numpy())
 
 
 class ESM2Embedder(SeqEmbedder):
