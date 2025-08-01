@@ -62,7 +62,7 @@ def run(
 
         # get the sequence column and sort by len to speed up
         # the processing
-        df["seq_len"] = df["sequence"].str.len()
+        df["seq_len"] = df["protein_sequence"].str.len()
         df["prot_idx"] = range(len(df))
         df = df.sort_values(by="seq_len", ascending=False)
 
