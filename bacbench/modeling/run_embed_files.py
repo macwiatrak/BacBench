@@ -66,7 +66,7 @@ def run(
         df["prot_idx"] = range(len(df))
         df = df.sort_values(by="seq_len", ascending=False)
 
-        prot_seqs = df["sequence"].tolist()
+        prot_seqs = df["protein_sequence"].tolist()
 
         # batch the sequences
         embeddings_arr = []
@@ -99,7 +99,7 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    input_dir: str
+    input_dir: str = "/rds/user/mw896/rds-flotolab-9X9gY1OFt4M/projects/bacformer/input-data/complete_genomes/ncbi_dataset/preprocessed"
     output_dir: str
     batch_size: int = 128
     model_path: str = "esmc_300m"
