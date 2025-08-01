@@ -53,7 +53,7 @@ def run(
 
     # for each file in the input_dir
     for f in tqdm(files):
-        df = pd.read_parquet(os.path.join(input_dir, f))[:10000]
+        df = pd.read_parquet(os.path.join(input_dir, f))
 
         # check if the dataframe has the embeddings column
         if "embeddings" in df.columns:
