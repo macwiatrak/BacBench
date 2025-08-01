@@ -44,6 +44,7 @@ def run(
     if end_idx is None:
         end_idx = len(files)
     files = files[start_idx:end_idx]
+    print(f"Processing {len(files)} files, from {start_idx}, to {end_idx}.")
 
     # get device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
