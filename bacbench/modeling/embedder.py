@@ -92,6 +92,7 @@ class SeqEmbedder(nn.Module):
         sequences: list[str],
         max_seq_len: int = 1024,
         pooling: Literal["cls", "mean"] = "mean",
+        return_numpy: bool = True,
     ) -> list[np.ndarray]:
         """
         Return a list of numpy embeddings (one per input sequence).
@@ -106,6 +107,8 @@ class SeqEmbedder(nn.Module):
 
         inputs = self._tokenize(seqs, max_seq_len=max_seq_len)
         rep = self._forward_batch(inputs, pooling)  # (B,D)
+        if not return_numpy:
+            return rep
         return list(rep.cpu().type(torch.float32).numpy())
 
 
