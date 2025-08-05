@@ -10,6 +10,7 @@ def run(
     input_dir: str,
     input_dir_prot_indices: str,
     output_dir: str,
+    split_df_filepath: str,
     max_n_genomes_per_chunk: int = 50,
 ):
     """Run the matching of protein indices to genome indices."""
@@ -17,18 +18,18 @@ def run(
     train_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "train_prot_cluster_indices.parquet"))
     val_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "val_prot_cluster_indices.parquet"))
     test_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "test_prot_cluster_indices.parquet"))
-    train_prot_indices["split"] = "train"
-    val_prot_indices["split"] = "val"
-    test_prot_indices["split"] = "test"
 
     prot_indices = pd.concat([train_prot_indices, val_prot_indices, test_prot_indices], ignore_index=True)
     del train_prot_indices, val_prot_indices, test_prot_indices
     prot_indices = prot_indices.rename(
         columns={"indices": "prot_cluster_id", "Protein Name": "protein_id", "Genome Name": "genome_name_full"}
-    )
+    ).drop(columns=["start"])
     prot_indices["genome_name"] = prot_indices["genome_name_full"].apply(
         lambda x: x.split("_")[-1]
     )  # remove GCA_ or GCF_
+
+    split_df = pd.read_parquet(split_df_filepath)
+    genome2split = {row["Genome name"]: row["split"] for _, row in split_df.iterrows()}
 
     train_idx = 1
     val_idx = 1
@@ -39,8 +40,9 @@ def run(
         df = df.to_pandas(types_mapper=pd.ArrowDtype)  # stay Arrow‑backed
         genome_names = df["genome_name"].unique().tolist()
         prot_indices_subset = prot_indices[prot_indices["genome_name"].isin(genome_names)]
-        df = pd.merge(df, prot_indices_subset, on=["genome_name", "start", "protein_id"], how="left")
+        df = pd.merge(df, prot_indices_subset, on=["genome_name", "protein_id"], how="left")
         df = df.drop(columns=["genome_name"]).rename(columns={"genome_name_full": "genome_name"})
+        df["split"] = df["genome_name"].map(genome2split)
         # print("df columns:", df.columns)
         # print("prot_indices_subset columns:", prot_indices_subset.columns)
         df["prot_cluster_id"] = df["prot_cluster_id"].fillna(-100)
@@ -113,6 +115,9 @@ class ArgumentParser(Tap):
         "/rds/user/mw896/rds-flotolab-9X9gY1OFt4M/projects/bacformer/input-data/complete_genomes/esmc-dataset"
     )
     max_n_genomes_per_chunk: int = 50
+    split_df_filepath: str = (
+        "/rds/user/mw896/rds-flotolab-9X9gY1OFt4M/projects/bacformer/input-data/complete_genomes/genome2split.parquet"
+    )
 
 
 if __name__ == "__main__":
@@ -121,5 +126,6 @@ if __name__ == "__main__":
         input_dir=args.input_dir,
         input_dir_prot_indices=args.input_dir_prot_indices,
         output_dir=args.output_dir,
+        split_df_filepath=args.split_df_filepath,
         max_n_genomes_per_chunk=args.max_n_genomes_per_chunk,
     )
