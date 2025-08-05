@@ -14,13 +14,9 @@ def run(
 ):
     """Run the matching of protein indices to genome indices."""
     # load the protein indices
-    train_prot_indices = pd.read_parquet(
-        os.path.join(input_dir_prot_indices, "train_prot_cluster_indices.parquet.parquet")
-    )
-    val_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "val_prot_cluster_indices.parquet.parquet"))
-    test_prot_indices = pd.read_parquet(
-        os.path.join(input_dir_prot_indices, "test_prot_cluster_indices.parquet.parquet")
-    )
+    train_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "train_prot_cluster_indices.parquet"))
+    val_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "val_prot_cluster_indices.parquet"))
+    test_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "test_prot_cluster_indices.parquet"))
 
     prot_indices = pd.concat([train_prot_indices, val_prot_indices, test_prot_indices], ignore_index=True)
     del train_prot_indices, val_prot_indices, test_prot_indices
