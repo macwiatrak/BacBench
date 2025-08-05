@@ -17,6 +17,9 @@ def run(
     train_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "train_prot_cluster_indices.parquet"))
     val_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "val_prot_cluster_indices.parquet"))
     test_prot_indices = pd.read_parquet(os.path.join(input_dir_prot_indices, "test_prot_cluster_indices.parquet"))
+    train_prot_indices["split"] = "train"
+    val_prot_indices["split"] = "val"
+    test_prot_indices["split"] = "test"
 
     prot_indices = pd.concat([train_prot_indices, val_prot_indices, test_prot_indices], ignore_index=True)
     del train_prot_indices, val_prot_indices, test_prot_indices
@@ -38,8 +41,8 @@ def run(
         prot_indices_subset = prot_indices[prot_indices["genome_name"].isin(genome_names)]
         df = pd.merge(df, prot_indices_subset, on=["genome_name", "start", "protein_id"], how="left")
         df = df.drop(columns=["genome_name"]).rename(columns={"genome_name_full": "genome_name"})
-        print("df columns:", df.columns)
-        print("prot_indices_subset columns:", prot_indices_subset.columns)
+        # print("df columns:", df.columns)
+        # print("prot_indices_subset columns:", prot_indices_subset.columns)
         df["prot_cluster_id"] = df["prot_cluster_id"].fillna(-100)
         for split in df["split"].unique():
             if split == "train":
