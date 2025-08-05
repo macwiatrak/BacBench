@@ -38,8 +38,10 @@ def run(
         prot_indices_subset = prot_indices[prot_indices["genome_name"].isin(genome_names)]
         df = pd.merge(df, prot_indices_subset, on=["genome_name", "start", "protein_id"], how="left")
         df = df.drop(columns=["genome_name"]).rename(columns={"genome_name_full": "genome_name"})
+        print("df columns:", df.columns)
+        print("prot_indices_subset columns:", prot_indices_subset.columns)
         df["prot_cluster_id"] = df["prot_cluster_id"].fillna(-100)
-        for split in df.split.unique():
+        for split in df["split"].unique():
             if split == "train":
                 df_split = df[df["split"] == split]
                 genomes = df_split["genome_name"].unique().tolist()
