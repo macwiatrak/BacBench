@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import pyarrow.parquet as pq
 from tap import Tap
+from tqdm import tqdm
 
 
 def run(
@@ -32,7 +33,7 @@ def run(
     val_idx = 1
     test_idx = 1
     files = sorted([f for f in os.listdir(input_dir) if f.endswith(".parquet")])
-    for f in files:
+    for f in tqdm(files):
         df = pq.read_table(os.path.join(input_dir, f))  # preserves FixedSizeList
         df = df.to_pandas(types_mapper=pd.ArrowDtype)  # stay Arrow‑backed
         genome_names = df["genome_name"].unique().tolist()
