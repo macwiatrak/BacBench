@@ -48,6 +48,7 @@ def run(
             if split == "train":
                 df_split = df[df["split"] == split]
                 genomes = df_split["genome_name"].unique().tolist()
+                print(f"Processing {len(genomes)} genomes for split {split} in file {f}")
                 if len(genomes) > max_n_genomes_per_chunk:
                     df_split[df_split.genome_name.isin(genomes[: len(genomes) // 2])].to_parquet(
                         os.path.join(output_dir, "train", f"train_chunk_idx_{train_idx}.parquet"), engine="pyarrow"
@@ -64,6 +65,7 @@ def run(
             elif split == "val":
                 df_split = df[df["split"] == split]
                 genomes = df_split["genome_name"].unique().tolist()
+                print(f"Processing {len(genomes)} genomes for split {split} in file {f}")
                 if len(genomes) > max_n_genomes_per_chunk:
                     df_split[df_split.genome_name.isin(genomes[: len(genomes) // 2])].to_parquet(
                         os.path.join(output_dir, "val", f"val_chunk_idx_{val_idx}.parquet"), engine="pyarrow"
@@ -80,6 +82,7 @@ def run(
             elif split == "test":
                 df_split = df[df["split"] == split]
                 genomes = df_split["genome_name"].unique().tolist()
+                print(f"Processing {len(genomes)} genomes for split {split} in file {f}")
                 if len(genomes) > max_n_genomes_per_chunk:
                     df_split[df_split.genome_name.isin(genomes[: len(genomes) // 2])].to_parquet(
                         os.path.join(output_dir, "test", f"test_chunk_idx_{test_idx}.parquet"), index=False
