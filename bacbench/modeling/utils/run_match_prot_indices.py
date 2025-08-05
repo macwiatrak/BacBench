@@ -29,7 +29,7 @@ def run(
     )  # remove GCA_ or GCF_
 
     split_df = pd.read_parquet(split_df_filepath)
-    genome2split = {row["Genome name"]: row["split"] for _, row in split_df.iterrows()}
+    genome2split = {row["Genome Name"]: row["split"] for _, row in split_df.iterrows()}
 
     train_idx = 1
     val_idx = 1
