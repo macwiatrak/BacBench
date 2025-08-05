@@ -23,7 +23,9 @@ def run(
     prot_indices = prot_indices.rename(
         columns={"indices": "prot_cluster_id", "Protein Name": "protein_id", "Genome Name": "genome_name_full"}
     )
-    prot_indices["genome_name"] = prot_indices["genome_name_full"].str.split("_", 1).str[-1]  # remove GCA_ or GCF_
+    prot_indices["genome_name"] = prot_indices["genome_name_full"].apply(
+        lambda x: x.split("_")[-1]
+    )  # remove GCA_ or GCF_
 
     train_idx = 1
     val_idx = 1
