@@ -34,7 +34,7 @@ def run(
         input_split_dir = os.path.join(input_dir, split)
         files = sorted([i for i in os.listdir(input_split_dir) if i.endswith(".parquet")])
 
-        for f in tqdm(files):
+        for f in tqdm(files[1:]):  # skip the first file, it is already aggregated
             tbl = pq.read_table(os.path.join(input_split_dir, f))
             df = tbl.to_pandas(types_mapper=pd.ArrowDtype)
 
