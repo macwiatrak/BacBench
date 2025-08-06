@@ -34,9 +34,11 @@ def run(
         input_split_dir = os.path.join(input_dir, split)
         files = sorted([i for i in os.listdir(input_split_dir) if i.endswith(".parquet")])
 
-        for f in tqdm(files[1:]):  # skip the first file, it is already aggregated
+        for f in tqdm(files[2:]):  # skip the first two files, as they are already aggregated
             tbl = pq.read_table(os.path.join(input_split_dir, f))
             df = tbl.to_pandas(types_mapper=pd.ArrowDtype)
+            if "split" not in df.columns:
+                continue
 
             df = fix_columns(df)
             # aggregate data at genome-level
@@ -44,7 +46,6 @@ def run(
             # save the data
             df.to_parquet(os.path.join(input_split_dir, f))
             print("Finished processing file:", f)
-            break
 
 
 if __name__ == "__main__":
