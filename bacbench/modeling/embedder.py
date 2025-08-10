@@ -7,7 +7,7 @@ from typing import Literal
 import numpy as np
 import torch
 from torch import nn
-from transformers import AutoModel, AutoModelForCausalLM, AutoModelForMaskedLM, AutoTokenizer
+from transformers import AutoConfig, AutoModel, AutoModelForCausalLM, AutoModelForMaskedLM, AutoTokenizer
 
 from bacbench.modeling.utils import average_unpadded
 
@@ -331,6 +331,71 @@ class gLM2Embedder(SeqEmbedder):
         seq_representations = torch.einsum(
             "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
         ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return seq_representations
+
+
+class EvoEmbedder(SeqEmbedder):
+    """Embedder for Evo models from HuggingFace."""
+
+    def _load(
+        self,
+        model_name_or_path: str,
+        cache_dir: str | None = "/rds/user/mw896/hpc-work/cache/transformers",
+        revision: str = "1.1_fix",
+    ):
+        # load the config
+        config = AutoConfig.from_pretrained(
+            model_name_or_path, trust_remote_code=True, revision=revision, cache_dir=cache_dir
+        )
+        config.use_cache = False
+        config.inference_mode = True
+        # load the model
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name_or_path,
+            config=config,
+            trust_remote_code=True,
+            revision=revision,
+            cache_dir=cache_dir,
+            torch_dtype=torch.bfloat16,
+        )
+
+        # support for getting the final layer embedding
+        class CustomEmbedding(nn.Module):
+            def unembed(self, u):
+                return u
+
+        self.model.backbone.unembed = CustomEmbedding()
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name_or_path, trust_remote_code=True, cls_token="@", eos_token="&", bos_token="^", pad_token="N"
+        )
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer.batch_encode_plus(
+            seqs,
+            padding="longest",
+            truncation=True,
+            max_length=max_seq_len,
+            return_tensors="pt",
+        )
+        # move inputs to the same device as the model
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
+    def _forward_batch(self, inputs, pooling: Literal["mean", "eos"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(inputs["input_ids"], output_hidden_states=True).last_hidden_state
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        last_hidden_state, _ = self.model(inputs["input_ids"])  # (batch, length, embed dim)
+        if pooling == "eos":
+            eos_token_id = self.tokenizer.eos_token_id
+            eos_mask = inputs["input_ids"] == eos_token_id
+            seq_representations = last_hidden_state[eos_mask].view(-1, last_hidden_state.size(-1))
+        elif pooling == "mean":
+            torch.einsum("ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)) / inputs[
+                "attention_mask"
+            ].sum(1).unsqueeze(1)
+        else:
+            raise ValueError(f"Use 'mean' or 'eos' pooling for Evo, got {pooling}.")
         return seq_representations
 
 
