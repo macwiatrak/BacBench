@@ -320,7 +320,7 @@ class ProkBERTEmbedder(SeqEmbedder):
 
 
 class gLM2Embedder(SeqEmbedder):
-    """Embedder for ProkBERT models from HuggingFace."""
+    """Embedder for gLM2 models from HuggingFace."""
 
     def _load(self, model_name_or_path: str):
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
@@ -328,6 +328,7 @@ class gLM2Embedder(SeqEmbedder):
         self.model_type = "glm2"
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        print(seqs[0][:64])
         inputs = self.tokenizer.batch_encode_plus(
             seqs, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
         )
@@ -337,6 +338,7 @@ class gLM2Embedder(SeqEmbedder):
 
     def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
         last_hidden_state = self.model(inputs["input_ids"], output_hidden_states=True).last_hidden_state
+        print(inputs["input_ids"].shape, last_hidden_state.shape)
         if pooling == "cls":
             return last_hidden_state[:, 0]  # (B,D)
         seq_representations = torch.einsum(
