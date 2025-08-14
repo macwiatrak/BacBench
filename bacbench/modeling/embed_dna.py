@@ -3,6 +3,7 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
+import torch
 
 from bacbench.modeling.embedder import SeqEmbedder
 from bacbench.modeling.utils_glm2 import preprocess_seq_for_glm2
@@ -179,7 +180,8 @@ def generate_dna_embeddings(
     # Process the DNA sequences in batches
     for i in range(0, len(dna_sequence), batch_size):
         batch_sequences = dna_sequence[i : i + batch_size]
-        dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean")
+        with torch.no_grad():
+            dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean")
 
         # Append the generated embeddings to the list
         mean_dna_embeddings += dna_representations
