@@ -157,7 +157,7 @@ def extract_cds_and_intergenic_regions(
     return df
 
 
-def dna_seq_to_cds_and_intergenic_df(
+def dna_seq_to_cds_and_intergenic(
     dna_sequences: list[str] | str,
     contig_names: list[str] = None,
     output_filepath: str = None,  # optional: write GenBank

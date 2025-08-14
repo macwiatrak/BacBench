@@ -40,6 +40,7 @@ class SeqEmbedder(nn.Module):
     tokenizer: object  # filled by _load()
     model: nn.Module  # filled by _load()
     device: torch.device
+    model_type: str | None = None  # filled by _load()
 
     def __init__(
         self,
@@ -51,6 +52,7 @@ class SeqEmbedder(nn.Module):
         super().__init__()
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         self.dtype = dtype
+        self.model_type = None  # type: str | None
         # this must load the model and tokenizer
         self._load(model_name_or_path)  # implemented by child
         if compile_model:  # optional torch.compile
@@ -122,6 +124,7 @@ class ESM2Embedder(SeqEmbedder):
         else:
             self.model = AutoModel.from_pretrained(model_name_or_path)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        self.model_type = "esm2"
 
     def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
         last_hidden_state = self.model(**inputs)["last_hidden_state"]  # (B,N,D)
@@ -138,6 +141,7 @@ class ESMCEmbedder(SeqEmbedder):
     def _load(self, model_name_or_path: str):
         self.model = ESMC.from_pretrained(model_name_or_path, use_flash_attn=True)
         self.tokenizer = self.model.tokenizer
+        self.model_type = "esmc"
 
     def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
         last_hidden_state = self.model(inputs["input_ids"]).embeddings
@@ -154,6 +158,7 @@ class ProtBERTEmbedder(SeqEmbedder):
     def _load(self, model_name_or_path: str):
         self.model = AutoModel.from_pretrained(model_name_or_path)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, do_lower_case=False)
+        self.model_type = "protbert"
 
     def _preprocess_seqs(self, seqs: list[str]) -> list[str]:
         """Override if the LM needs special preprocessing (for example ProtBERT)."""
@@ -180,6 +185,7 @@ class ProGen2Embedder(SeqEmbedder):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
         # set padding token
         self.tokenizer.pad_token_id = 0
+        self.model_type = "progen2"
 
     def _preprocess_seqs(self, seqs: list[str]) -> list[str]:
         """Override if the LM needs special preprocessing (for example ProtBERT)."""
@@ -202,6 +208,7 @@ class NucleotideTransformerEmbedder(SeqEmbedder):
     def _load(self, model_name_or_path: str):
         self.model = AutoModelForMaskedLM.from_pretrained(model_name_or_path, trust_remote_code=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.model_type = "nucleotide_transformer"
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
         inputs = self.tokenizer.batch_encode_plus(
@@ -232,6 +239,7 @@ class DNABERT2Embedder(SeqEmbedder):
     def _load(self, model_name_or_path: str):
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.model_type = "dnabert2"
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
         inputs = self.tokenizer.batch_encode_plus(
@@ -261,6 +269,7 @@ class MistralDNAEmbedder(SeqEmbedder):
     def _load(self, model_name_or_path: str):
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.model_type = "mistral_dna"
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
         inputs = self.tokenizer.batch_encode_plus(
@@ -290,6 +299,7 @@ class ProkBERTEmbedder(SeqEmbedder):
     def _load(self, model_name_or_path: str):
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.model_type = "prokbert"
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
         inputs = self.tokenizer.batch_encode_plus(
@@ -315,6 +325,7 @@ class gLM2Embedder(SeqEmbedder):
     def _load(self, model_name_or_path: str):
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.model_type = "glm2"
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
         inputs = self.tokenizer.batch_encode_plus(
@@ -368,6 +379,7 @@ class EvoEmbedder(SeqEmbedder):
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name_or_path, trust_remote_code=True, cls_token="@", eos_token="&", bos_token="^", pad_token="N"
         )
+        self.model_type = "evo"
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
         inputs = self.tokenizer.batch_encode_plus(
@@ -438,6 +450,9 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
     # mixed modality LMs
     if "gLM2" in model_name_or_path:
         return gLM2Embedder(model_name_or_path, dtype=torch.bfloat16, device=device)
+
+    if "evo" in model_name_or_path:
+        return EvoEmbedder(model_name_or_path, device=device, dtype=torch.bfloat16)
 
     raise ValueError(
         f"Unknown model name or path: {model_name_or_path},"
