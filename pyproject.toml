@@ -70,6 +70,9 @@ optional-dependencies.faesm = [
   "faesm[flash-attn]>=0.1.1",
   "flash-attn>=0.2",          # If you need the direct flash-attn package
 ]
+optional-dependencies.pyrodigal = [
+  "pyrodigal>=3.6.3",
+]
 optional-dependencies.test = [
   "coverage",
   "pytest",

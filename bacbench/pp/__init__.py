@@ -1,3 +1,4 @@
+from .extract_cds_and_intergenic import dna_seq_to_cds_and_intergenic_df, extract_cds_and_intergenic_regions
 from .preprocess import (
     download_and_process_genome_by_assembly_id,
     download_and_process_genome_by_taxid,
@@ -14,4 +15,6 @@ __all__ = [
     "extract_dna_info_from_fna",
     "download_and_process_genome_by_taxid",
     "download_and_process_genome_by_assembly_id",
+    "extract_cds_and_intergenic_regions",
+    "dna_seq_to_cds_and_intergenic_df",
 ]
