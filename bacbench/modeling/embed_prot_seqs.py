@@ -31,11 +31,12 @@ def generate_protein_embeddings(
     for i in range(0, len(protein_sequences), batch_size):
         batch_sequences = protein_sequences[i : i + batch_size]
 
-        protein_representations = embedder(
-            batch_sequences,
-            max_seq_len=max_seq_len,
-            pooling="mean",
-        )
+        with torch.no_grad():
+            protein_representations = embedder(
+                batch_sequences,
+                max_seq_len=max_seq_len,
+                pooling="mean",
+            )
 
         # Append the generated embeddings to the list, moving them to CPU and converting to numpy
         mean_protein_embeddings += protein_representations
