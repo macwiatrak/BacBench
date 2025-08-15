@@ -402,9 +402,9 @@ class EvoEmbedder(SeqEmbedder):
             eos_mask = inputs["input_ids"] == eos_token_id
             seq_representations = last_hidden_state[eos_mask].view(-1, last_hidden_state.size(-1))
         elif pooling == "mean":
-            torch.einsum("ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)) / inputs[
-                "attention_mask"
-            ].sum(1).unsqueeze(1)
+            seq_representations = torch.einsum(
+                "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+            ) / inputs["attention_mask"].sum(1).unsqueeze(1)
         else:
             raise ValueError(f"Use 'mean' or 'eos' pooling for Evo, got {pooling}.")
         return seq_representations
