@@ -33,7 +33,7 @@ def extract_cds_and_intergenic_regions(
     joint_seq = "TTAATTAATTAA".join(seqs)  # pyrodigal uses this as a separator
     if len(seqs) == 0:
         raise ValueError("No sequences provided.")
-    elif joint_seq > 20000:
+    elif len(joint_seq) > 20000:
         orf_finder = pyrodigal.GeneFinder()
         orf_finder.train(joint_seq)
     else:
