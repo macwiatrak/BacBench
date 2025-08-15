@@ -30,10 +30,14 @@ def extract_cds_and_intergenic_regions(
     seqs = [str(s).upper() for s in sequences]
 
     # Train ORF finder on all contigs (varargs; pyrodigal will join with TTAATTAATTAA)
-    orf_finder = pyrodigal.GeneFinder()
+    joint_seq = "TTAATTAATTAA".join(seqs)  # pyrodigal uses this as a separator
     if len(seqs) == 0:
         raise ValueError("No sequences provided.")
-    orf_finder.train("TTAATTAATTAA".join(seqs))
+    elif joint_seq > 20000:
+        orf_finder = pyrodigal.GeneFinder()
+        orf_finder.train(joint_seq)
+    else:
+        orf_finder = pyrodigal.GeneFinder(meta=True)  # use meta mode for short sequences
 
     today_str = datetime.today().strftime("%d-%b-%Y").upper()
 
