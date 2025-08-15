@@ -351,7 +351,7 @@ class EvoEmbedder(SeqEmbedder):
     def _load(
         self,
         model_name_or_path: str,
-        cache_dir: str | None = "/rds/user/mw896/hpc-work/cache/transformers",
+        cache_dir: str | None = None,
         revision: str = "1.1_fix",
     ):
         # load the config
