@@ -15,6 +15,19 @@ from torchmetrics.functional import auroc, average_precision, f1_score
 from tqdm import tqdm
 from transformers import set_seed
 
+# learnigng rates for different models after tuning on the validation set
+MODEL2LR = {
+    "gLM2": 0.001,
+    "ProkBERT": 0.01,  # DONE
+    "esm2": 0.01,  # DONE
+    "bacformer": 0.01,  # DONE
+    "dnabert": 0.001,
+    "esmc": 0.005,
+    "mistral_dna": 0.005,
+    "nucleotide_transformer": 0.005,
+    "protbert": 0.005,
+}
+
 
 def calculate_metrics_per_genome(df: pd.DataFrame):
     """Calculate metrics per genome."""
@@ -44,7 +57,11 @@ class LinearModel(pl.LightningModule):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         self.lr = lr
-        self.cls = nn.Linear(dim, 1)
+        self.net = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Dropout(dropout),
+            nn.Linear(dim, 1),  # <— always 1 output
+        )
         self.save_hyperparameters(logger=False)
 
         # Buffers to store predictions/labels across an epoch
@@ -58,7 +75,7 @@ class LinearModel(pl.LightningModule):
     def forward(self, x: torch.Tensor):
         """Forward pass."""
         x = self.dropout(x)
-        return self.cls(x).squeeze()
+        return self.net(x).squeeze()
 
     def training_step(self, batch, batch_idx):
         """Training step."""
@@ -334,7 +351,7 @@ class ArgumentParser(Tap):
     lr: float = 0.005
     dropout: float = 0.2
     max_epochs: int = 100
-    batch_size: int = 128
+    batch_size: int = 256
     num_workers: int = 4
     test: bool = True
     embeddings_col: str = "embeddings"
