@@ -327,7 +327,7 @@ def main(
     if not test:
         return
 
-    model = LinearModel.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
+    model = LinearModel.load_from_checkpoint(trainer.checkpoint_callback.best_model_path).to(device)
     print("Best model path:", trainer.checkpoint_callback.best_model_path)
     model.eval()
 
@@ -359,7 +359,7 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str = "~/Downloads/essential_genes_esm2_gene_embeddings.parquet"
+    input_df_file_path: str = "~/Downloads/essential_genes_bacformer_gene_embeddings.parquet"
     output_dir: str = "/tmp/"
     lr: float = 0.01
     dropout: float = 0.2
@@ -368,7 +368,7 @@ class ArgumentParser(Tap):
     num_workers: int = 4
     test: bool = True
     embeddings_col: str = "embeddings"
-    model_name: str = "Unknown"
+    model_name: str = "bacformer"
 
 
 if __name__ == "__main__":
