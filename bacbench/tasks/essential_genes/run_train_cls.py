@@ -330,12 +330,22 @@ def main(
     print("Best model path:", trainer.checkpoint_callback.best_model_path)
     model.eval()
 
+    print("Val metrics:")
+    device = next(model.parameters()).device
+    trainer.test(model, val_dataloader)
+    output = []
+    with torch.no_grad():
+        for batch in val_dataloader:
+            output.append(model(batch[0].to(device)))
+    val_df["logits"] = torch.cat(output).cpu().numpy()
+    _ = calculate_metrics_per_genome(val_df)
+
     print("Test metrics:")
     trainer.test(model, test_dataloader)
     output = []
     with torch.no_grad():
         for batch in test_dataloader:
-            output.append(model(batch[0]))
+            output.append(model(batch[0].to(device)))
     test_df["logits"] = torch.cat(output).cpu().numpy()
     test_df = calculate_metrics_per_genome(test_df)
     test_df = test_df.drop(columns=[embeddings_col])
