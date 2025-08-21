@@ -16,14 +16,13 @@ def run(
     output_dir: str,
     save_every_n_rows: int = 1000,
     max_seq_len: int = 4096,
-    start_idx: int | None = None,
-    end_idx: int | None = None,
 ):
     """
     Run the embedding of essential genes from a dataset.
 
     Args:
-        dataset_name (str): Name of the dataset to process.
+        prot_dataset_name (str): Name of the protein dataset to process.
+        dna_dataset_name (str): Name of the DNA dataset to process.
         model_path (str): Path to the model for embedding.
         output_dir (str): Directory to save the output files.
         save_every_n_rows (int): Save the output every n rows.
@@ -82,7 +81,7 @@ def run(
             )
             if len(output) == save_every_n_rows:
                 pd.DataFrame(output).to_parquet(
-                    os.path.join(output_dir, f"chunk_{chunk_idx}_start_{start_idx}_end_{end_idx}_embeddings.parquet"),
+                    os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
                     index=False,
                 )
                 output = []
@@ -90,7 +89,7 @@ def run(
 
     if len(output) > 0:
         pd.DataFrame(output).to_parquet(
-            os.path.join(output_dir, f"chunk_{chunk_idx}_start_{start_idx}_end_{end_idx}_embeddings.parquet"),
+            os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
             index=False,
         )
 
@@ -106,9 +105,7 @@ class ArgumentParser(Tap):
     dna_dataset_name: str = "macwiatrak/bacbench-essential-genes-dna"
     model_path: str = "tattabio/gLM2_650M"
     max_seq_len: int = 4096
-    start_idx: int | None = None
-    end_idx: int | None = None
-    save_every_n_rows: int = 1000  # for saving the dataframe every n rows, only works for iterable datasets
+    save_every_n_rows: int = 20000  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = "/projects/u5ah/public/benchmarks/tasks/essential-genes/glm2"  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
 
 
@@ -121,6 +118,4 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         save_every_n_rows=args.save_every_n_rows,
         max_seq_len=args.max_seq_len,
-        start_idx=args.start_idx,
-        end_idx=args.end_idx,
     )
