@@ -349,8 +349,8 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str
-    output_dir: str
+    input_df_file_path: str = "~/Downloads/essential_genes_esm2_gene_embeddings.parquet"
+    output_dir: str = "/tmp/"
     lr: float = 0.005
     dropout: float = 0.2
     max_epochs: int = 100
