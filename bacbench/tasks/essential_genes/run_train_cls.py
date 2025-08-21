@@ -286,9 +286,8 @@ def main(
         persistent_workers=True,
     )
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     # create the model
-    model = LinearModel(lr=lr, dropout=dropout, dim=dim).to(device)
+    model = LinearModel(lr=lr, dropout=dropout, dim=dim)
 
     # create the trainer
     early_stop_callback = EarlyStopping(
@@ -327,7 +326,7 @@ def main(
     if not test:
         return
 
-    model = LinearModel.load_from_checkpoint(trainer.checkpoint_callback.best_model_path).to(device)
+    model = LinearModel.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
     print("Best model path:", trainer.checkpoint_callback.best_model_path)
     model.eval()
 
@@ -336,7 +335,7 @@ def main(
     output = []
     with torch.no_grad():
         for batch in val_dataloader:
-            output.append(model(batch[0].to(device)))
+            output.append(model(batch[0]))
     val_df["logits"] = torch.cat(output).cpu().numpy()
     _ = calculate_metrics_per_genome(val_df)
 
@@ -345,7 +344,7 @@ def main(
     output = []
     with torch.no_grad():
         for batch in test_dataloader:
-            output.append(model(batch[0].to(device)))
+            output.append(model(batch[0]))
     test_df["logits"] = torch.cat(output).cpu().numpy()
     test_df = calculate_metrics_per_genome(test_df)
     test_df = test_df.drop(columns=[embeddings_col])
