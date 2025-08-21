@@ -398,16 +398,12 @@ class EvoEmbedder(SeqEmbedder):
             max_length=max_seq_len,
             return_tensors="pt",
         )
-        # move inputs to the same device as the model
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-        print("seqs len:", [len(i) for i in seqs], "seqs:", seqs[0][:10])
-        print("input_ids len:", len(inputs["input_ids"][0]), "input ids:", inputs["input_ids"][0][:10])
         return inputs
 
     def _forward_batch(
         self, inputs, pooling: Literal["mean", "eos"] = "mean", gene_mask: list[np.array] = None
     ) -> torch.Tensor:
-        last_hidden_state = self.model(inputs["input_ids"]).logits  # (batch, length, embed dim)
+        last_hidden_state = self.model(inputs["input_ids"]).logits.cpu()  # (batch, length, embed dim)
         if gene_mask is not None:
             # apply gene mask to the last hidden state
             gene_mask = torch.from_numpy(np.stack(gene_mask, axis=0)).to(
