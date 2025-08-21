@@ -9,7 +9,7 @@ import torch
 from torch import nn
 from transformers import AutoConfig, AutoModel, AutoModelForCausalLM, AutoModelForMaskedLM, AutoTokenizer
 
-from bacbench.modeling.utils import average_unpadded
+from bacbench.modeling.utils.utils import average_unpadded
 
 try:
     from faesm.esm import FAEsmForMaskedLM
