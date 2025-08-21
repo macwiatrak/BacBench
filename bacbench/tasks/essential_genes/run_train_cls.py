@@ -244,6 +244,8 @@ def main(
     # split the data
     train_df = df[df["split"] == "train"]
     val_df = df[df["split"] == "validation"]
+    if len(val_df) == 0:
+        val_df = df[df["split"] == "val"]
     test_df = df[df["split"] == "test"]
 
     # create datasets
@@ -358,16 +360,16 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str = "~/Downloads/essential_genes_bacformer_gene_embeddings.parquet"
+    input_df_file_path: str = "~/Downloads/essential_genes_esmc_prot_embeddings (1).parquet"
     output_dir: str = "/tmp/"
-    lr: float = 0.01
+    lr: float = 0.005
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 256
     num_workers: int = 4
     test: bool = True
-    embeddings_col: str = "embeddings"
-    model_name: str = "bacformer"
+    embeddings_col: str = "gene_embedding"
+    model_name: str = "esmc"
 
 
 if __name__ == "__main__":
