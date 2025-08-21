@@ -201,7 +201,10 @@ class LinearModel(pl.LightningModule):
 
 def prepare_essential_genes_df(df: pd.DataFrame, embeddings_col: str) -> pd.DataFrame:
     """Prepare the essential genes DataFrame."""
-    # currently the embeddings is List[List[np.ndarray]], we need to make it List[np.ndarray]
+    # check if the embeddings column is already in the correct format
+    if isinstance(df[embeddings_col].iloc[0], np.ndarray):
+        return df
+    # if embeddings is List[List[np.ndarray]], we need to make it List[np.ndarray]
     if isinstance(df[embeddings_col].iloc[0], list):
         df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
     # explode the DF
