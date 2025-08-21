@@ -232,6 +232,7 @@ def embed_genome_dna_sequences(
         else:
             dna = chunk_whole_genome_dna_seq(dna_sequence=dna, max_seq_len=max_seq_len, overlap=dna_seq_overlap)
         gene_indices = None
+        gene_mask = None
     # embed the dna sequence for each gene
     else:
         if embedder.model_type == "evo":
@@ -244,7 +245,6 @@ def embed_genome_dna_sequences(
             )
             gene_indices = list(range(len(dna)))  # indices of genes in the original sequence
         else:
-            gene_mask = None  # only used for Evo model
             dna, gene_indices = chunk_genes_dna_seqs(
                 dna=dna,
                 start=start,
@@ -254,6 +254,7 @@ def embed_genome_dna_sequences(
                 max_seq_len=max_seq_len,
                 dna_seq_overlap=dna_seq_overlap,
             )
+            gene_mask = None  # only used for Evo model
 
     # embed protein sequences
     dna_embeddings = generate_dna_embeddings(
