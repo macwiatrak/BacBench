@@ -286,8 +286,9 @@ def main(
         persistent_workers=True,
     )
 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     # create the model
-    model = LinearModel(lr=lr, dropout=dropout, dim=dim)
+    model = LinearModel(lr=lr, dropout=dropout, dim=dim).to(device)
 
     # create the trainer
     early_stop_callback = EarlyStopping(
@@ -331,7 +332,6 @@ def main(
     model.eval()
 
     print("Val metrics:")
-    device = next(model.parameters()).device
     trainer.test(model, val_dataloader)
     output = []
     with torch.no_grad():
@@ -361,7 +361,7 @@ class ArgumentParser(Tap):
     # file paths for loading data
     input_df_file_path: str = "~/Downloads/essential_genes_esm2_gene_embeddings.parquet"
     output_dir: str = "/tmp/"
-    lr: float = 0.005
+    lr: float = 0.01
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 256
