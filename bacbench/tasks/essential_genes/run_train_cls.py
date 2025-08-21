@@ -18,14 +18,15 @@ from transformers import set_seed
 # learnigng rates for different models after tuning on the validation set
 MODEL2LR = {
     "gLM2": 0.001,
+    "evom": 0.001,  # DONE
     "ProkBERT": 0.01,  # DONE
     "esm2": 0.01,  # DONE
     "bacformer": 0.01,  # DONE
-    "dnabert": 0.001,
-    "esmc": 0.005,
-    "mistral_dna": 0.005,
-    "nucleotide_transformer": 0.005,
-    "protbert": 0.005,
+    "dnabert": 0.001,  # DONE
+    "esmc": 0.001,  # DONE
+    "mistral_dna": 0.005,  # DONE
+    "nucleotide_transformer": 0.001,  # DONE
+    "protbert": 0.005,  # DONE
 }
 
 
@@ -360,22 +361,22 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str = "~/Downloads/essential_genes_esmc_prot_embeddings (1).parquet"
+    input_df_file_path: str = "~/Downloads/essential_genes_esm2_gene_embeddings.parquet"
     output_dir: str = "/tmp/"
-    lr: float = 0.005
+    lr: float = 0.01
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 256
     num_workers: int = 4
     test: bool = True
-    embeddings_col: str = "gene_embedding"
-    model_name: str = "esmc"
+    embeddings_col: str = "embeddings"
+    model_name: str = "esm2"
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     output = []
-    for random_state in tqdm([1]):
+    for random_state in tqdm([1, 2, 3]):
         test_df = main(
             input_df_dile_path=args.input_df_file_path,
             lr=args.lr,
