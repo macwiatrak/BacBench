@@ -68,12 +68,12 @@ def run(
                 "essential": ess,
             })
             if len(output) == save_every_n_rows:
-                pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"), index=False)
+                pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{chunk_idx}_start_{start_idx}_end_{end_idx}_embeddings.parquet"), index=False)
                 output = []
                 chunk_idx += 1
 
     if len(output) > 0:
-        pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"), index=False)
+        pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{chunk_idx}_start_{start_idx}_end_{end_idx}_embeddings.parquet"), index=False)
 
 
 class ArgumentParser(Tap):
