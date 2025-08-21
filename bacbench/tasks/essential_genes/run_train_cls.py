@@ -17,8 +17,8 @@ from transformers import set_seed
 
 # learnigng rates for different models after tuning on the validation set
 MODEL2LR = {
-    "gLM2": 0.001,
-    "evom": 0.001,  # DONE
+    "gLM2": None,  # Unknown yet
+    "evo": None,  # Unknown yet
     "ProkBERT": 0.01,  # DONE
     "esm2": 0.01,  # DONE
     "bacformer": 0.01,  # DONE
@@ -361,7 +361,7 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str = "~/Downloads/essential_genes_esm2_gene_embeddings.parquet"
+    input_df_file_path: str = "~/Downloads/essential_genes_prokbert_gene_embeddings.parquet"
     output_dir: str = "/tmp/"
     lr: float = 0.01
     dropout: float = 0.2
@@ -370,7 +370,7 @@ class ArgumentParser(Tap):
     num_workers: int = 4
     test: bool = True
     embeddings_col: str = "embeddings"
-    model_name: str = "esm2"
+    model_name: str = "ProkBERT"
 
 
 if __name__ == "__main__":

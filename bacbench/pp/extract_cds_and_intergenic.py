@@ -1,12 +1,17 @@
+import logging
 from datetime import datetime
 from typing import Any
 
 import pandas as pd
-import pyrodigal
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqFeature import FeatureLocation, SeqFeature
 from Bio.SeqRecord import SeqRecord
+
+try:
+    import pyrodigal
+except ImportError:
+    logging.warning("pyrodigal is not installed. Please install it if you want to use gLM2.")
 
 
 def extract_cds_and_intergenic_regions(

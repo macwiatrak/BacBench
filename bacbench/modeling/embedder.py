@@ -95,20 +95,29 @@ class SeqEmbedder(nn.Module):
         max_seq_len: int = 1024,
         pooling: Literal["cls", "mean"] = "mean",
         return_numpy: bool = True,
+        gene_mask: list[np.array] = None,  # for EvoEmbedder
     ) -> list[np.ndarray]:
         """
         Return a list of numpy embeddings (one per input sequence).
 
-        *Pooling*
-            "cls"  – return representation at token 0
-            "mean" – mean of un‑padded amino‑acid token embeddings
+        :param sequences: list of protein or DNA sequences to embed
+        :param max_seq_len: maximum sequence length for the model
+        :param pooling: pooling method to use for the embeddings
+            * "cls"  – return representation at token 0
+            * "mean" – mean of un‑padded token embeddings
+        :param return_numpy: if True, return numpy arrays, otherwise return torch tensors
+        :param gene_mask: optional mask for EvoEmbedder to take the representations of tokens
+            corresponding to genes only
         """
         assert pooling in {"cls", "mean"}
 
         seqs = self._preprocess_seqs(sequences)
 
         inputs = self._tokenize(seqs, max_seq_len=max_seq_len)
-        rep = self._forward_batch(inputs, pooling)  # (B,D)
+        if self.model_type == "evo" and gene_mask is not None:
+            rep = self._forward_batch(inputs, pooling, gene_mask=gene_mask)
+        else:
+            rep = self._forward_batch(inputs, pooling)  # (B,D)
         if not return_numpy:
             return rep
         return list(rep.cpu().type(torch.float32).numpy())
@@ -393,8 +402,18 @@ class EvoEmbedder(SeqEmbedder):
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
         return inputs
 
-    def _forward_batch(self, inputs, pooling: Literal["mean", "eos"] = "mean") -> torch.Tensor:
+    def _forward_batch(
+        self, inputs, pooling: Literal["mean", "eos"] = "mean", gene_mask: list[np.array] = None
+    ) -> torch.Tensor:
         last_hidden_state = self.model(inputs["input_ids"]).logits  # (batch, length, embed dim)
+        if gene_mask is not None:
+            # apply gene mask to the last hidden state
+            gene_mask = torch.from_numpy(np.stack(gene_mask, axis=0)).to(
+                device=last_hidden_state.device, dtype=last_hidden_state.dtype
+            )
+            # multiply last_hidden_state with gene_mask
+            last_hidden_state = last_hidden_state * gene_mask.unsqueeze(-1)
+            pooling = "mean"  # force mean pooling if gene_mask is provided
         if pooling == "cls":
             return last_hidden_state[:, 0]  # (B,D)
         if pooling == "eos":
