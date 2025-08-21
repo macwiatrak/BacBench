@@ -88,7 +88,7 @@ class ArgumentParser(Tap):
     max_seq_len: int = 8192
     start_idx: int | None = None
     end_idx: int | None = None
-    save_every_n_rows: int = 1000  # for saving the dataframe every n rows, only works for iterable datasets
+    save_every_n_rows: int = 10000  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = "/tmp/"  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
 
 
