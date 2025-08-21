@@ -8,7 +8,7 @@ from tap import Tap
 
 from bacbench.modeling.embed_dna import embed_genome_dna_sequences
 from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
-from bacbench.modeling.utils import _iterable_to_dataframe, _slice_split, get_dna_seq_col_name
+from bacbench.modeling.utils.utils import _iterable_to_dataframe, _slice_split, get_dna_seq_col_name
 
 
 def add_dna_embeddings(
