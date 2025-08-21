@@ -114,7 +114,7 @@ class SeqEmbedder(nn.Module):
         seqs = self._preprocess_seqs(sequences)
 
         inputs = self._tokenize(seqs, max_seq_len=max_seq_len)
-        if self.model_type == "evo" and gene_mask is not None:
+        if self.model_type in ["evo", "glm2"] and gene_mask is not None:
             rep = self._forward_batch(inputs, pooling, gene_mask=gene_mask)
         else:
             rep = self._forward_batch(inputs, pooling)  # (B,D)
@@ -344,8 +344,18 @@ class gLM2Embedder(SeqEmbedder):
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
         return inputs
 
-    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+    def _forward_batch(
+        self, inputs, pooling: Literal["cls", "mean"] = "mean", gene_mask: list[np.array] = None
+    ) -> torch.Tensor:
         last_hidden_state = self.model(inputs["input_ids"], output_hidden_states=True).last_hidden_state
+        if gene_mask is not None:
+            # apply gene mask to the last hidden state
+            gene_mask = torch.from_numpy(np.stack(gene_mask, axis=0)).to(
+                device=last_hidden_state.device, dtype=last_hidden_state.dtype
+            )
+            # multiply last_hidden_state with gene_mask
+            last_hidden_state = last_hidden_state * gene_mask.unsqueeze(-1)
+            pooling = "mean"  # force mean pooling if gene_mask is provided
         if pooling == "cls":
             return last_hidden_state[:, 0]  # (B,D)
         seq_representations = torch.einsum(

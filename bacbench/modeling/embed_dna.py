@@ -6,8 +6,8 @@ import pandas as pd
 import torch
 
 from bacbench.modeling.embedder import SeqEmbedder
-from bacbench.modeling.utils_evo import prepare_gene_seqs_for_evo
-from bacbench.modeling.utils_glm2 import preprocess_seq_for_glm2
+from bacbench.modeling.utils.utils_evo import prepare_gene_seqs_for_evo
+from bacbench.modeling.utils.utils_glm2 import preprocess_whole_genome_for_glm2
 
 
 def get_dna_seq(
@@ -228,7 +228,7 @@ def embed_genome_dna_sequences(
     if start is None or end is None:
         if embedder.model_type == "glm2":
             # GLM2 model requires the whole genome to be embedded in a specific manner
-            dna = preprocess_seq_for_glm2(dna_sequence=dna, max_seq_len=max_seq_len, n_overlap=dna_seq_overlap)
+            dna = preprocess_whole_genome_for_glm2(dna_sequence=dna, max_seq_len=max_seq_len, n_overlap=dna_seq_overlap)
         else:
             dna = chunk_whole_genome_dna_seq(dna_sequence=dna, max_seq_len=max_seq_len, overlap=dna_seq_overlap)
         gene_indices = None

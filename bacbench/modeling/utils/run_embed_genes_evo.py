@@ -6,7 +6,7 @@ from datasets import load_dataset, tqdm
 from tap import Tap
 
 from bacbench.modeling.embedder import load_seq_embedder
-from bacbench.modeling.utils_evo import preprocess_gene_seq_for_evo
+from bacbench.modeling.utils.utils_evo import preprocess_gene_seq_for_evo
 
 
 def run(
@@ -36,7 +36,7 @@ def run(
     out_dfs = []
     for split_name, split_ds in dataset.items():
         df = split_ds.to_pandas()
-        df['split'] = split_name
+        df["split"] = split_name
         out_dfs.append(df)
     df = pd.concat(out_dfs, ignore_index=True)
 
@@ -48,9 +48,11 @@ def run(
     output = []
     chunk_idx = 1
     for _, row in df.iterrows():
-        for start, end, strand, ess in tqdm(zip(row['start'], row['end'], row['strand'], row['essential'])):
+        for start, end, strand, ess in tqdm(
+            zip(row["start"], row["end"], row["strand"], row["essential"], strict=False)
+        ):
             gene_seq, gene_mask = preprocess_gene_seq_for_evo(
-                dna=row['dna_seq'],
+                dna=row["dna_seq"],
                 start=start,
                 end=end,
                 strand=strand,
@@ -58,22 +60,30 @@ def run(
             )
             with torch.no_grad():
                 dna_representations = embedder([gene_seq], max_seq_len, pooling="mean", gene_mask=[gene_mask])
-            output.append({
-                "genome_name": row['genome_name'],
-                "start": start,
-                "end": end,
-                "strand": strand,
-                "embeddings": dna_representations[0],
-                "split": row['split'],
-                "essential": ess,
-            })
+            output.append(
+                {
+                    "genome_name": row["genome_name"],
+                    "start": start,
+                    "end": end,
+                    "strand": strand,
+                    "embeddings": dna_representations[0],
+                    "split": row["split"],
+                    "essential": ess,
+                }
+            )
             if len(output) == save_every_n_rows:
-                pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{chunk_idx}_start_{start_idx}_end_{end_idx}_embeddings.parquet"), index=False)
+                pd.DataFrame(output).to_parquet(
+                    os.path.join(output_dir, f"chunk_{chunk_idx}_start_{start_idx}_end_{end_idx}_embeddings.parquet"),
+                    index=False,
+                )
                 output = []
                 chunk_idx += 1
 
     if len(output) > 0:
-        pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{chunk_idx}_start_{start_idx}_end_{end_idx}_embeddings.parquet"), index=False)
+        pd.DataFrame(output).to_parquet(
+            os.path.join(output_dir, f"chunk_{chunk_idx}_start_{start_idx}_end_{end_idx}_embeddings.parquet"),
+            index=False,
+        )
 
 
 class ArgumentParser(Tap):
