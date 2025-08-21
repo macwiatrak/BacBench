@@ -373,7 +373,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     output = []
-    for random_state in tqdm([1, 2, 3]):
+    for random_state in tqdm([1]):
         test_df = main(
             input_df_dile_path=args.input_df_file_path,
             lr=args.lr,
