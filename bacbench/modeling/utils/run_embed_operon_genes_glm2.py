@@ -66,7 +66,7 @@ def run(
             strand=row["strand"],
         )
 
-        for gene_idx in tqdm(enumerate(row["start"], strict=False)):
+        for gene_idx in tqdm(range(len(row["start"]))):
             seq_str, gene_mask = preprocess_glm2_gene_seq(
                 elements=elements,
                 gene_idx_to_elem_idx=gene_idx_to_elem_idx,
