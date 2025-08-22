@@ -128,21 +128,21 @@ def run(
     os.makedirs(output_dir, exist_ok=True)
     if k_neighbors is None:
         k_neighbors = [5, 10, 15]
-    # if leiden_resolutions is None:
-    #     leiden_resolutions = [0.1, 0.25, 0.5, 1.0]
+    if leiden_resolutions is None:
+        leiden_resolutions = [0.1, 0.25, 0.5, 1.0]
     output = []
 
     df = pd.read_parquet(input_df_file_path)
     embeds = np.stack(df[input_col].tolist())
-    for resolution in tqdm(leiden_resolutions):
+    for res in tqdm(leiden_resolutions):
         for k in k_neighbors:
-            print(f"Running {model_name} with leiden resolution {resolution} and k neighbors {k}")
+            print(f"Running {model_name} with leiden resolution {res} and k neighbors {k}")
 
             _, ari, nmi, sil = compute_leiden_clustering_metrics(
                 embeddings=embeds,
                 metadata=df,
                 n_neighbors=k,
-                resolution=resolution,
+                resolution=res,
                 label_key="species",
             )
             output.append(
@@ -151,7 +151,7 @@ def run(
                     "NMI": nmi,
                     "ASW": sil,
                     "Model": model_name,
-                    "resolution": resolution,
+                    "resolution": res,
                     "k_neighbors": k,
                     "taxa_level": "species",
                 }
@@ -161,7 +161,7 @@ def run(
                 embeddings=embeds,
                 metadata=df,
                 n_neighbors=k,
-                resolution=resolution,
+                resolution=res,
                 label_key="genus",
             )
             output.append(
@@ -170,7 +170,7 @@ def run(
                     "NMI": nmi,
                     "ASW": sil,
                     "Model": model_name,
-                    "resolution": resolution,
+                    "resolution": res,
                     "k_neighbors": k,
                     "taxa_level": "genus",
                 }
@@ -180,7 +180,7 @@ def run(
                 embeddings=embeds,
                 metadata=df,
                 n_neighbors=k,
-                resolution=resolution,
+                resolution=res,
                 label_key="family",
             )
             output.append(
@@ -189,15 +189,15 @@ def run(
                     "NMI": nmi,
                     "ASW": sil,
                     "Model": model_name,
-                    "resolution": resolution,
+                    "resolution": res,
                     "k_neighbors": k,
                     "taxa_level": "family",
                 }
             )
 
-        output_df = pd.DataFrame(output)
-        return output_df
-        # output_df.to_parquet(os.path.join(output_dir, f"results_{model_name}.parquet"))
+    output_df = pd.DataFrame(output)
+    return output_df
+    # output_df.to_parquet(os.path.join(output_dir, f"results_{model_name}.parquet"))
 
 
 class ArgumentParser(Tap):
