@@ -1,10 +1,11 @@
 import os
 
-import numpy as np
 import pandas as pd
+import torch
 from datasets import load_dataset, tqdm
 from tap import Tap
 
+from bacbench.modeling.embedder import load_seq_embedder
 from bacbench.modeling.utils.utils_evo import preprocess_gene_seq_for_evo
 
 
@@ -26,7 +27,7 @@ def run(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # embedder = load_seq_embedder(model_path)
+    embedder = load_seq_embedder(model_path)
 
     dataset = load_dataset(dataset_name)
     out_dfs = []
@@ -49,12 +50,12 @@ def run(
                 strand=strand,
                 max_seq_len=max_seq_len,
             )
-            # with torch.no_grad():
-            #     dna_representations = embedder([gene_seq], max_seq_len, pooling="mean", gene_mask=[gene_mask])
+            with torch.no_grad():
+                dna_representations = embedder([gene_seq], max_seq_len, pooling="mean", gene_mask=[gene_mask])
             output.append(
                 {
                     "contig_name": row["contig_name"],
-                    "embeddings": np.ones(100),  # dna_representations[0],
+                    "embeddings": dna_representations[0],
                 }
             )
 
