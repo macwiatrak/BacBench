@@ -196,7 +196,8 @@ def run(
             )
 
         output_df = pd.DataFrame(output)
-        output_df.to_parquet(os.path.join(output_dir, f"results_{model_name}.parquet"))
+        return output_df
+        # output_df.to_parquet(os.path.join(output_dir, f"results_{model_name}.parquet"))
 
 
 class ArgumentParser(Tap):
@@ -211,16 +212,35 @@ class ArgumentParser(Tap):
     model_name: str = "Unknown_model"
     leiden_resolutions: list[float] = [0.1, 0.25, 0.5, 1.0]
     k_neighbors: list[int] = [5, 10, 15]
-    input_col: str = "embeddings"
+    input_col: str = "genome_embedding"
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    run(
-        input_df_file_path=args.input_df_filepath,
-        output_dir=args.output_dir,
-        model_name=args.model_name,
-        leiden_resolutions=args.leiden_resolutions,
-        k_neighbors=args.k_neighbors,
-        input_col=args.input_col,
-    )
+    input_dir = "/rds/user/mw896/rds-flotolab-9X9gY1OFt4M/projects/bacformer/input-data/datasets/strain-clustering/models/subset"
+    output_dir = os.path.join(input_dir, "results")
+    os.makedirs(output_dir, exist_ok=True)
+    output = []
+    for model_name in [
+        "bacformer",
+        "dnabert2",
+        "esm2",
+        "esmc",
+        "glm2",
+        "mistral",
+        "nucleotide_transformer",
+        "prokbert",
+        "protbert",
+    ]:
+        df = run(
+            input_df_file_path=f"{input_dir}/{model_name}.parquet",
+            output_dir=output_dir,
+            model_name=args.model_name,
+            leiden_resolutions=args.leiden_resolutions,
+            k_neighbors=args.k_neighbors,
+            input_col=args.input_col,
+        )
+        df["Method"] = model_name
+        output.append(df)
+    output_df = pd.concat(output, ignore_index=True)
+    output_df.to_parquet(os.path.join(output_dir, "strain_clustering_results.parquet"), index=False)
