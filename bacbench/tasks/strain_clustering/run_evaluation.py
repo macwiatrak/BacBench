@@ -128,8 +128,8 @@ def run(
     os.makedirs(output_dir, exist_ok=True)
     if k_neighbors is None:
         k_neighbors = [5, 10, 15]
-    if leiden_resolutions is None:
-        leiden_resolutions = [0.1, 0.25, 0.5, 1.0]
+    # if leiden_resolutions is None:
+    #     leiden_resolutions = [0.1, 0.25, 0.5, 1.0]
     output = []
 
     df = pd.read_parquet(input_df_file_path)
@@ -236,7 +236,7 @@ if __name__ == "__main__":
             input_df_file_path=f"{input_dir}/{model_name}.parquet",
             output_dir=output_dir,
             model_name=model_name,
-            leiden_resolutions=args.leiden_resolutions,
+            leiden_resolutions=[0.1, 0.25, 0.5, 1.0],
             k_neighbors=args.k_neighbors,
             input_col=args.input_col,
         )
