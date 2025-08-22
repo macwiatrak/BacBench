@@ -13,6 +13,8 @@ def run(
     dataset_name: str,
     model_path: str,
     output_dir: str,
+    start_idx: int = None,
+    end_idx: int = None,
     max_seq_len: int = 8192,
 ):
     """
@@ -36,6 +38,11 @@ def run(
         df["split"] = split_name
         out_dfs.append(df)
     df = pd.concat(out_dfs, ignore_index=True)
+    start_idx = start_idx if start_idx is not None else 0
+    end_idx = end_idx if end_idx is not None else len(df)
+    df = df.iloc[start_idx:end_idx]
+    print(f"Processing {len(df)} rows, from {start_idx}, to {end_idx}.")
+
     df = df[["strain_name", "contig_name", "dna_sequence", "start", "end", "strand", "operon_prot_indices"]].explode(
         ["contig_name", "dna_sequence", "start", "end", "strand", "operon_prot_indices"]
     )
@@ -64,7 +71,7 @@ def run(
     output = output.groupby("strain_name").agg(list).reset_index()
 
     output.to_parquet(
-        os.path.join(output_dir, "evo.parquet"),
+        os.path.join(output_dir, f"evo_{str(start_idx)}_{str(end_idx)}.parquet"),
         index=False,
     )
 
@@ -79,6 +86,8 @@ class ArgumentParser(Tap):
     dataset_name: str = "macwiatrak/operon-identification-long-read-rna-sequencing-dna"
     model_path: str = "togethercomputer/evo-1-8k-base"
     max_seq_len: int = 8192
+    start_idx: int = None
+    end_idx: int = None
     output_dir: str = "/projects/u5ah/public/benchmarks/tasks/operon-long-read/"
 
 
@@ -88,5 +97,7 @@ if __name__ == "__main__":
         dataset_name=args.dataset_name,
         model_path=args.model_path,
         output_dir=args.output_dir,
+        start_idx=args.start_idx,
+        end_idx=args.end_idx,
         max_seq_len=args.max_seq_len,
     )
