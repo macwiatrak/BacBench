@@ -14,7 +14,6 @@ def run(
     dna_dataset_name: str,
     model_path: str,
     output_dir: str,
-    save_every_n_rows: int = 1000,
     max_seq_len: int = 4096,
 ):
     """
@@ -41,26 +40,33 @@ def run(
     df = pd.concat(out_dfs, ignore_index=True)
 
     dataset = load_dataset(dna_dataset_name)
-    dna_df = pd.concat([d.to_pandas() for d in dataset.values()], ignore_index=True)[
-        ["genome_name", "dna_seq", "strand"]
-    ]
+    dna_df = pd.concat([d.to_pandas() for d in dataset.values()], ignore_index=True)[["strain_name", "dna_sequence"]]
 
-    df = pd.merge(df, dna_df, on="genome_name", how="inner")
+    df = pd.merge(df, dna_df, on="strain_name", how="inner")
+    df = df[
+        [
+            "strain_name",
+            "contig_name",
+            "protein_sequence",
+            "dna_sequence",
+            "start",
+            "end",
+            "strand",
+            "operon_prot_indices",
+        ]
+    ].explode(["contig_name", "protein_sequence", "dna_sequence", "start", "end", "strand", "operon_prot_indices"])
 
     output = []
-    chunk_idx = 1
     for _, row in df.iterrows():
         elements, gene_idx_to_elem_idx = precompute_glm2_elements(
-            prot_seqs=row["sequence"],
-            dna_seq=row["dna_seq"],
+            prot_seqs=row["protein_sequence"],
+            dna_seq=row["dna_sequence"],
             start=row["start"],
             end=row["end"],
             strand=row["strand"],
         )
 
-        for gene_idx, (start, end, ess) in tqdm(
-            enumerate(zip(row["start"], row["end"], row["essential"], strict=False))
-        ):
+        for gene_idx in tqdm(enumerate(row["start"], strict=False)):
             seq_str, gene_mask = preprocess_glm2_gene_seq(
                 elements=elements,
                 gene_idx_to_elem_idx=gene_idx_to_elem_idx,
@@ -71,27 +77,19 @@ def run(
                 dna_representations = embedder([seq_str], max_seq_len, pooling="mean", gene_mask=[gene_mask])
             output.append(
                 {
-                    "genome_name": row["genome_name"],
-                    "start": start,
-                    "end": end,
+                    "contig_name": row["contig_name"],
                     "embeddings": dna_representations[0],
-                    "split": row["split"],
-                    "essential": ess,
                 }
             )
-            if len(output) == save_every_n_rows:
-                pd.DataFrame(output).to_parquet(
-                    os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
-                    index=False,
-                )
-                output = []
-                chunk_idx += 1
 
-    if len(output) > 0:
-        pd.DataFrame(output).to_parquet(
-            os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
-            index=False,
-        )
+    output = pd.DataFrame(output).groupby(["contig_name"])[["embeddings"]].agg(list).reset_index()
+    output = pd.merge(df, output, on="contig_name", how="inner")
+    output = output.groupby("strain_name").agg(list).reset_index()
+
+    output.to_parquet(
+        os.path.join(output_dir, "glm2.parquet"),
+        index=False,
+    )
 
 
 class ArgumentParser(Tap):
@@ -101,12 +99,11 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # ──────────────────────────────────────────────────────────
-    prot_dataset_name: str = "macwiatrak/bacbench-essential-genes-protein-sequences"
-    dna_dataset_name: str = "macwiatrak/bacbench-essential-genes-dna"
+    prot_dataset_name: str = "macwiatrak/operon-identification-long-read-rna-sequencing-protein-sequences"
+    dna_dataset_name: str = "macwiatrak/operon-identification-long-read-rna-sequencing-dna"
     model_path: str = "tattabio/gLM2_650M"
     max_seq_len: int = 4096
-    save_every_n_rows: int = 20000  # for saving the dataframe every n rows, only works for iterable datasets
-    output_dir: str = "/projects/u5ah/public/benchmarks/tasks/essential-genes/glm2"  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
+    output_dir: str = "/projects/u5ah/public/benchmarks/tasks/operon-long-read/"
 
 
 if __name__ == "__main__":
@@ -116,6 +113,5 @@ if __name__ == "__main__":
         dna_dataset_name=args.dna_dataset_name,
         model_path=args.model_path,
         output_dir=args.output_dir,
-        save_every_n_rows=args.save_every_n_rows,
         max_seq_len=args.max_seq_len,
     )
