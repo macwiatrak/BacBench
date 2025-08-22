@@ -235,7 +235,7 @@ if __name__ == "__main__":
         df = run(
             input_df_file_path=f"{input_dir}/{model_name}.parquet",
             output_dir=output_dir,
-            model_name=args.model_name,
+            model_name=model_name,
             leiden_resolutions=args.leiden_resolutions,
             k_neighbors=args.k_neighbors,
             input_col=args.input_col,
