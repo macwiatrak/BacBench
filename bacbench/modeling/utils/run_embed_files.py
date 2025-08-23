@@ -100,7 +100,7 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    input_dir: str = "/rds/user/mw896/rds-flotolab-9X9gY1OFt4M/projects/bacformer/input-data/complete_genomes/ncbi_dataset/preprocessed"
+    input_dir: str
     output_dir: str
     batch_size: int = 128
     model_path: str = "esmc_300m"

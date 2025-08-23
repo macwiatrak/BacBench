@@ -101,7 +101,6 @@ def run(
             # store the results
             output["taxid"].append(row["taxid"])
             output["contig_name"].append(row["contig_name"])
-            # output["operon_name"].append(row["operon_names"])
             output["operon_size"].append(operon_size)
             output["operon_protein_indices"].append(operon_gene_indices)
             output["auroc"].append(auroc_val)

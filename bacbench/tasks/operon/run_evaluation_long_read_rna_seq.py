@@ -140,7 +140,7 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    input_filepath: str = "/Users/maciejwiatrak/Downloads/bacformer.parquet"
+    input_filepath: str
     output_filepath: str = None
 
 

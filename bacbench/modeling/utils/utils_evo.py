@@ -8,7 +8,21 @@ def preprocess_gene_seq_for_evo(
     strand: float,
     max_seq_len: int = 8192,
 ):
-    """Prepare a gene sequence with equal left/right genomic context for evo model."""
+    """Prepare a gene sequence with equal left/right genomic context for evo model.
+
+    Args:
+        dna (str): The DNA sequence of the contig.
+        start (int): 1-based inclusive start coordinate of the gene.
+        end (int): 1-based inclusive end coordinate of the gene.
+        strand (float): Strand information (1 for forward, -1 for reverse).
+        max_seq_len (int): Maximum length of the output sequence including context.
+
+    Returns
+    -------
+        tuple: A tuple containing:
+            - gene_seq_w_context (str): The gene sequence with left/right context.
+            - gene_mask (np.ndarray): A mask array where 1 indicates the gene region, 0 indicates context.
+    """
     dna_len = len(dna)
     # safety clamp
     st_i = max(1, min(start, dna_len))

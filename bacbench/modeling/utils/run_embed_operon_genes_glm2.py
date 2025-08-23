@@ -99,11 +99,11 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # ──────────────────────────────────────────────────────────
+    output_dir: str
     prot_dataset_name: str = "macwiatrak/operon-identification-long-read-rna-sequencing-protein-sequences"
     dna_dataset_name: str = "macwiatrak/operon-identification-long-read-rna-sequencing-dna"
     model_path: str = "tattabio/gLM2_650M"
     max_seq_len: int = 4096
-    output_dir: str = "/projects/u5ah/public/benchmarks/tasks/operon-long-read/"
 
 
 if __name__ == "__main__":

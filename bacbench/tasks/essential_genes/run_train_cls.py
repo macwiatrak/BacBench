@@ -18,7 +18,7 @@ from transformers import set_seed
 # learnigng rates for different models after tuning on the validation set
 MODEL2LR = {
     "gLM2": 0.001,  # Unknown yet
-    "evo": None,  # Unknown yet
+    "evo": 0.0005,  # Unknown yet
     "ProkBERT": 0.01,  # DONE
     "esm2": 0.01,  # DONE
     "bacformer": 0.01,  # DONE
@@ -361,16 +361,16 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str = "~/Downloads/eg_glm2_gene_embeddings.parquet"
-    output_dir: str = "/tmp/"
-    lr: float = 0.001
+    input_df_file_path: str
+    output_dir: str
+    lr: float
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 256
     num_workers: int = 4
     test: bool = True
     embeddings_col: str = "embeddings"
-    model_name: str = "gLM2"
+    model_name: str = None
 
 
 if __name__ == "__main__":

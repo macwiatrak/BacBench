@@ -34,22 +34,28 @@ def run(
 
     dataset = load_dataset(prot_dataset_name)
     out_dfs = []
+    # convert each split of the dataset to a pandas DataFrame and add a 'split' column
     for split_name, split_ds in dataset.items():
         df = split_ds.to_pandas()
         df["split"] = split_name
         out_dfs.append(df)
     df = pd.concat(out_dfs, ignore_index=True)
 
+    # select relevant rows for processing
     dataset = load_dataset(dna_dataset_name)
+    # concatenate all splits of the DNA dataset into a single DataFrame
     dna_df = pd.concat([d.to_pandas() for d in dataset.values()], ignore_index=True)[
         ["genome_name", "dna_seq", "strand"]
     ]
 
+    # merge the protein and DNA datasets on the genome name
     df = pd.merge(df, dna_df, on="genome_name", how="inner")
 
     output = []
     chunk_idx = 1
+    # iterate over each row in the DataFrame
     for _, row in df.iterrows():
+        # precompute GLM2 elements for the gene sequences
         elements, gene_idx_to_elem_idx = precompute_glm2_elements(
             prot_seqs=row["sequence"],
             dna_seq=row["dna_seq"],
@@ -57,18 +63,21 @@ def run(
             end=row["end"],
             strand=row["strand"],
         )
-
+        # iterate through each gene in the row
         for gene_idx, (start, end, ess) in tqdm(
             enumerate(zip(row["start"], row["end"], row["essential"], strict=False))
         ):
+            # preprocess the gene sequence for GLM2
             seq_str, gene_mask = preprocess_glm2_gene_seq(
                 elements=elements,
                 gene_idx_to_elem_idx=gene_idx_to_elem_idx,
                 gene_idx=gene_idx,  # Assuming start is the gene index here
                 max_seq_len=4096,
             )
+            # embed the gene sequence
             with torch.no_grad():
                 dna_representations = embedder([seq_str], max_seq_len, pooling="mean", gene_mask=[gene_mask])
+            # prepare the output dictionary with relevant information
             output.append(
                 {
                     "genome_name": row["genome_name"],
@@ -80,6 +89,7 @@ def run(
                     "essential": ess,
                 }
             )
+            # save the output every `save_every_n_rows` rows
             if len(output) == save_every_n_rows:
                 pd.DataFrame(output).to_parquet(
                     os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
@@ -88,6 +98,7 @@ def run(
                 output = []
                 chunk_idx += 1
 
+    # save any remaining output
     if len(output) > 0:
         pd.DataFrame(output).to_parquet(
             os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
@@ -102,12 +113,12 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # ──────────────────────────────────────────────────────────
+    output_dir: str  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
     prot_dataset_name: str = "macwiatrak/bacbench-essential-genes-protein-sequences"
     dna_dataset_name: str = "macwiatrak/bacbench-essential-genes-dna"
     model_path: str = "tattabio/gLM2_650M"
     max_seq_len: int = 4096
     save_every_n_rows: int = 20000  # for saving the dataframe every n rows, only works for iterable datasets
-    output_dir: str = "/projects/u5ah/public/benchmarks/tasks/essential-genes/glm2"  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
 
 
 if __name__ == "__main__":
