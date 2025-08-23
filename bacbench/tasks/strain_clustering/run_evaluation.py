@@ -134,15 +134,15 @@ def run(
 
     df = pd.read_parquet(input_df_file_path)
     embeds = np.stack(df[input_col].tolist())
-    for resolution in tqdm(leiden_resolutions):
+    for res in tqdm(leiden_resolutions):
         for k in k_neighbors:
-            print(f"Running {model_name} with leiden resolution {resolution} and k neighbors {k}")
+            print(f"Running {model_name} with leiden resolution {res} and k neighbors {k}")
 
             _, ari, nmi, sil = compute_leiden_clustering_metrics(
                 embeddings=embeds,
                 metadata=df,
                 n_neighbors=k,
-                resolution=resolution,
+                resolution=res,
                 label_key="species",
             )
             output.append(
@@ -151,7 +151,7 @@ def run(
                     "NMI": nmi,
                     "ASW": sil,
                     "Model": model_name,
-                    "resolution": resolution,
+                    "resolution": res,
                     "k_neighbors": k,
                     "taxa_level": "species",
                 }
@@ -161,7 +161,7 @@ def run(
                 embeddings=embeds,
                 metadata=df,
                 n_neighbors=k,
-                resolution=resolution,
+                resolution=res,
                 label_key="genus",
             )
             output.append(
@@ -170,7 +170,7 @@ def run(
                     "NMI": nmi,
                     "ASW": sil,
                     "Model": model_name,
-                    "resolution": resolution,
+                    "resolution": res,
                     "k_neighbors": k,
                     "taxa_level": "genus",
                 }
@@ -180,7 +180,7 @@ def run(
                 embeddings=embeds,
                 metadata=df,
                 n_neighbors=k,
-                resolution=resolution,
+                resolution=res,
                 label_key="family",
             )
             output.append(
@@ -189,13 +189,14 @@ def run(
                     "NMI": nmi,
                     "ASW": sil,
                     "Model": model_name,
-                    "resolution": resolution,
+                    "resolution": res,
                     "k_neighbors": k,
                     "taxa_level": "family",
                 }
             )
 
-        output_df = pd.DataFrame(output)
+    output_df = pd.DataFrame(output)
+    if output_dir is not None:
         output_df.to_parquet(os.path.join(output_dir, f"results_{model_name}.parquet"))
 
 
@@ -207,7 +208,7 @@ class ArgumentParser(Tap):
 
     # file paths for loading data
     input_df_filepath: str
-    output_dir: str
+    output_dir: str = None
     model_name: str = "Unknown_model"
     leiden_resolutions: list[float] = [0.1, 0.25, 0.5, 1.0]
     k_neighbors: list[int] = [5, 10, 15]
@@ -220,7 +221,7 @@ if __name__ == "__main__":
         input_df_file_path=args.input_df_filepath,
         output_dir=args.output_dir,
         model_name=args.model_name,
-        leiden_resolutions=args.leiden_resolutions,
+        leiden_resolutions=[0.1, 0.25, 0.5, 1.0],
         k_neighbors=args.k_neighbors,
         input_col=args.input_col,
     )

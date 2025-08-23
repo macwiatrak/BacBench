@@ -28,18 +28,18 @@ dependencies = [
   "dataclasses>=0.6",
   "dataclasses-json>=0.6.1",
   # "captum~=0.7.0",
-  "datasets~=2.18.0",
-  "hf-xet~=1.0.5",
-  "igraph~=0.11.8",
-  "leidenalg~=0.10.2",
+  "datasets>=2.18",
+  "hf-xet>=1.0.5",
+  "igraph>=0.11.8",
+  "leidenalg>=0.10.2",
   "pandas>=2.2.3",
   "pyarrow>=19.0.1",
-  "pytorch-lightning~=2.5.1",
+  "pytorch-lightning>=2.5.1",
   "scanpy>=1.11.1",
   # for debug logging (referenced from the issue template)
   "session-info",
   "tensorboardx>=2.6.2",
-  "torch~=2.5.1",
+  "torch>=2.5.1",
   "torchmetrics>=1.7.1",
   "transformers>=4.38.2",
   "typed-argument-parser>=1.8.1",
@@ -69,6 +69,9 @@ optional-dependencies.doc = [
 optional-dependencies.faesm = [
   "faesm[flash-attn]>=0.1.1",
   "flash-attn>=0.2",          # If you need the direct flash-attn package
+]
+optional-dependencies.pyrodigal = [
+  "pyrodigal>=3.6.3",
 ]
 optional-dependencies.test = [
   "coverage",
@@ -126,6 +129,7 @@ lint.ignore = [
   "D107", # Missing docstring in __init__
   # Disable one in each pair of mutually incompatible rules
   "D203", # We don’t want a blank line before a class docstring
+  "D205", # We want a blank line before a class docstring
   "D213", # <> We want docstrings to start immediately after the opening triple quote
   "D400", # first line should end with a period [Bug: doesn’t work with single-line docstrings]
   "D401", # First line should be in imperative mood; try rephrasing

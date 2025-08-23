@@ -1,87 +1,25 @@
-import logging
-import re
 from collections.abc import Callable
 from typing import Literal
-
-from transformers import AutoModel, AutoTokenizer
-
-from bacbench.modeling.utils import protein_embeddings_to_inputs
-
-try:
-    from faesm.esm import FAEsmForMaskedLM
-    from faesm.esmc import ESMC
-
-    faesm_installed = True
-except ImportError:
-    faesm_installed = False
-    logging.warning(
-        "faESM (fast ESM) not installed, this will lead to significant slowdown. "
-        "Defaulting to use HuggingFace implementation. "
-        "Please consider installing faESM: https://github.com/pengzhangzhi/faplm"
-    )
-
 
 import numpy as np
 import pandas as pd
 import torch
 
-
-def average_unpadded(
-    embeddings: torch.Tensor,
-    attention_mask: torch.Tensor,
-) -> torch.Tensor:
-    """Average unpadded token embeddings across sequences. Built for ESMC.
-
-    Args:
-      embeddings: (N, D) unpadded token embeddings concatenated across B sequences
-      attention_mask: (B, T) indicating which tokens in each sequence are real (1) vs pad (0).
-                     The total number of real tokens across all B sequences should be N.
-
-    Returns
-    -------
-      (B, D) tensor of per-sequence average embeddings (excluding pad).
-    """
-    B, T = attention_mask.shape  # e.g. (2, 24)
-
-    # 1) Compute unpadded lengths for each sequence
-    #    e.g. if attention_mask[1] has 21 tokens == 1, it means 21 unpadded tokens for seq #1
-    lengths = attention_mask.sum(dim=1)  # (B,)
-
-    # 2) Slice the embeddings for each sequence
-    #    We assume the embeddings have been "unpadded" and concatenated in order:
-    #    first all tokens from seq 0, then seq 1, etc.
-    results = []
-    start_idx = 0
-    for i in range(B):
-        # number of tokens in sequence i
-        seq_len = lengths[i].item()
-
-        # slice out embeddings for sequence i
-        seq_emb = embeddings[start_idx : start_idx + seq_len]  # shape (seq_len, D)
-        start_idx += seq_len
-
-        # average across tokens
-        seq_avg = seq_emb.mean(dim=0)  # (D,)
-        results.append(seq_avg)
-
-    # 3) Stack results -> (B, D)
-    return torch.stack(results, dim=0)
+from bacbench.modeling.embedder import SeqEmbedder
+from bacbench.modeling.utils import protein_embeddings_to_inputs
 
 
 def generate_protein_embeddings(
-    model: Callable,
-    tokenizer: Callable,
+    embedder: SeqEmbedder,
     protein_sequences: list[str],
-    model_type: Literal["esm2", "esmc", "protbert"],
     batch_size: int = 64,
     max_seq_len: int = 1024,
 ) -> list[np.ndarray]:
     """Generate protein embeddings using pretrained models.
 
     Args:
-        model (Callable): The pretrained model to use for generating embeddings.
+        embedder (SeqEmbedder): object to embed the protein sequences with a pLM model.
         protein_sequences (List[str]): List of protein sequences to generate embeddings for.
-        model_type (str): Type of the model, either "esm2" or "esmc".
         batch_size (int): Batch size for processing sequences.
         max_seq_len (int): Maximum sequence length for the model.
     :return: List[np.ndarray]: List of protein embeddings.
@@ -89,61 +27,27 @@ def generate_protein_embeddings(
     # Initialize an empty list to store the protein embeddings
     mean_protein_embeddings = []
 
-    # get model device
-    device = model.device
-
     # Process the protein sequences in batches
     for i in range(0, len(protein_sequences), batch_size):
         batch_sequences = protein_sequences[i : i + batch_size]
 
-        if model_type == "protbert":
-            # process the sequences into protbert format
-            batch_sequences = [" ".join(list(re.sub(r"[UZOB]", "X", sequence))) for sequence in batch_sequences]
-
-        # Generate embeddings for the current batch
-        inputs = tokenizer(
-            batch_sequences,
-            add_special_tokens=True,
-            return_tensors="pt",
-            padding="longest",
-            truncation=True,
-            max_length=max_seq_len,
-        )
-        # move inputs to the same device as the model
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-
-        # Get the last hidden state from the model
         with torch.no_grad():
-            if model_type == "esm2":
-                last_hidden_state = model(**inputs)["last_hidden_state"]
-                # Get protein representations from amino acid token representations
-                protein_representations = torch.einsum(
-                    "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
-                ) / inputs["attention_mask"].sum(1).unsqueeze(1)
-            elif model_type == "esmc":
-                last_hidden_state = model(inputs["input_ids"]).embeddings
-                # Get protein representations from amino acid token representations
-                protein_representations = average_unpadded(last_hidden_state, inputs["attention_mask"])
-            elif model_type == "protbert":
-                last_hidden_state = model(
-                    input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]
-                ).last_hidden_state
-                protein_representations = torch.einsum(
-                    "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
-                ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+            protein_representations = embedder(
+                batch_sequences,
+                max_seq_len=max_seq_len,
+                pooling="mean",
+            )
 
         # Append the generated embeddings to the list, moving them to CPU and converting to numpy
-        mean_protein_embeddings += list(protein_representations.cpu().numpy())
+        mean_protein_embeddings += protein_representations
 
     return mean_protein_embeddings
 
 
 def compute_genome_protein_embeddings(
-    model: Callable,
-    tokenizer: Callable,
+    embedder: SeqEmbedder,
     protein_sequences: list[str] | list[list[str]],
     contig_ids: list[str] = None,
-    model_type: Literal["esm2", "esmc", "protbert"] = "esm2",
     batch_size: int = 64,
     max_prot_seq_len: int = 1024,
     genome_pooling_method: Literal["mean", "max"] = None,
@@ -151,8 +55,8 @@ def compute_genome_protein_embeddings(
     """Embed genome protein sequences using pretrained models.
 
     Args:
+        embedder (SeqEmbedder): object to embed the protein sequences with a pLM model.
         protein_sequences (List[str]): List or list of lists of protein sequences to generate embeddings for.
-        model_type (str): Type of the model, either "esm2" or "esmc".
         batch_size (int): Batch size for processing sequences.
         max_seq_len (int): Maximum sequence length for the model.
         protein_pooling_method (str): Pooling method to use on protein level, either "mean" or "cls".
@@ -190,10 +94,8 @@ def compute_genome_protein_embeddings(
 
     # embed protein sequences
     protein_embeddings = generate_protein_embeddings(
-        model=model,
-        tokenizer=tokenizer,
+        embedder=embedder,
         protein_sequences=prot_seqs_df["protein_sequence"].tolist(),
-        model_type=model_type,
         batch_size=batch_size,
         max_seq_len=max_prot_seq_len,
     )
@@ -221,36 +123,6 @@ def compute_genome_protein_embeddings(
     return protein_embeddings
 
 
-def load_plm(
-    model_path: str = "facebook/esm2_t12_35M_UR50D", model_type: Literal["esm2", "esmc", "protbert"] = "esm2"
-) -> tuple[Callable, Callable]:
-    """Load specified pLM."""
-    if model_type.lower() not in ["esm2", "esmc", "protbert"]:
-        raise ValueError("Model currently not supported, please choose out of available models: ['esm2', 'esmc']")
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    if model_type.lower() == "esm2":
-        if faesm_installed:
-            model = FAEsmForMaskedLM.from_pretrained(model_path).to(device).eval().to(torch.float16)
-            tokenizer = model.tokenizer
-        else:
-            model = AutoModel.from_pretrained(model_path).to(device).eval()
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-    elif model_type.lower() == "esmc":
-        if not faesm_installed:
-            raise ValueError(
-                "ESMC only supported with faESM. Please consider installing faESM: https://github.com/pengzhangzhi/faplm"
-            )
-        model = ESMC.from_pretrained(model_path, use_flash_attn=True).to(device).eval().to(torch.float16)
-        tokenizer = model.tokenizer
-    else:
-        # load protbert
-        model = AutoModel.from_pretrained(model_path, torch_dtype=torch.float16).to(device).eval()
-        tokenizer = AutoTokenizer.from_pretrained(model_path, do_lower_case=False)
-
-    return model, tokenizer
-
-
 def compute_bacformer_embeddings(
     model: Callable,
     protein_embeddings: list[list[np.ndarray]] | list[np.ndarray],
@@ -265,9 +137,11 @@ def compute_bacformer_embeddings(
     Args:
         model (BacformerModel): The Bacformer model to use for embedding.
         protein_embeddings (List[List[np.ndarray]]): The protein embeddings to compute the Bacformer embeddings for.
+        contig_ids: (List[str]): List of contig ids (names) the protein embeddings belong to.
         max_n_proteins (int): The maximum number of proteins to use for each genome.
         max_n_contigs (int): The maximum number of contigs to use for each genome.
         genome_pooling_method (str): The pooling method to use for the genome level embedding.
+        prot_emb_idx (int): protein embedding token idx for Bacformer (default to 4).
 
     Returns
     -------

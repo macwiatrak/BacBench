@@ -1,40 +1,13 @@
 import itertools
-from collections.abc import Callable
 from typing import Literal
 
 import numpy as np
 import pandas as pd
 import torch
-from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
 
-
-def load_dna_lm(
-    model_path: str, model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"]
-) -> tuple[Callable, Callable]:
-    """Load a pretrained DNA model.
-
-    Args:
-        model_path (str): The path to the pretrained model.
-        model_type (str): The type of model to load.
-
-    Returns
-    -------
-        Callable: The loaded model.
-    """
-    if model_type.lower() not in ["nucleotide_transformer", "mistral_dna", "dnabert2"]:
-        raise ValueError(
-            "Model currently not supported, please choose out of available models: ['nucleotide_transformer', 'mistral_dna']"
-        )
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    if model_type.lower() == "nucleotide_transformer":
-        model = (
-            AutoModelForMaskedLM.from_pretrained(model_path, trust_remote_code=True).to(device).eval().to(torch.float16)
-        )
-    elif model_type.lower() in ["mistral_dna", "dnabert2"]:
-        model = AutoModel.from_pretrained(model_path, trust_remote_code=True).to(device).eval()
-
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    return model, tokenizer
+from bacbench.modeling.embedder import SeqEmbedder
+from bacbench.modeling.utils.utils_evo import prepare_gene_seqs_for_evo
+from bacbench.modeling.utils.utils_glm2 import preprocess_whole_genome_for_glm2
 
 
 def get_dna_seq(
@@ -52,6 +25,8 @@ def get_dna_seq(
         end (int): The end position of the sequence.
         strand (float | None): The strand of the sequence. If None, the sequence is not reversed.
         promoter_len (int): The length of the promoter region to include.
+        add_extra_context (bool): If True, adds extra context to the sequence, used for models like Evo with very long context size.
+        max_seq_len (int): The maximum length of the sequence to extract, used only when add_extra_context is True.
 
     Returns
     -------
@@ -138,7 +113,7 @@ def chunk_genes_dna_seqs(
     promoter_len: int = 128,
     dna_seq_overlap: int = 32,
     min_seq_len: int = 32,
-):
+) -> tuple[list[str], list[int]]:
     """Chunk genes DNA sequences from a genome.
 
     Args:
@@ -146,6 +121,11 @@ def chunk_genes_dna_seqs(
         start (List[int]): List of start positions for each gene.
         end (List[int]): List of end positions for each gene.
         strand (List[float] | None): List of strands for each gene. If None, the sequence is not reversed.
+        max_seq_len (int): Maximum length of each sequence.
+        promoter_len (int): Length of the promoter region to include.
+        dna_seq_overlap (int): The overlap between chunks of the DNA sequence.
+        min_seq_len (int): Minimum length of the sequence to keep after chunking.
+        add_extra_context (bool): If True, adds extra context to the sequence, used for models like Evo with very long context size.
 
     Returns
     -------
@@ -181,83 +161,42 @@ def chunk_genes_dna_seqs(
 
 
 def generate_dna_embeddings(
-    model: Callable,
-    tokenizer: Callable,
+    embedder: SeqEmbedder,
     dna_sequence: list[str],
-    model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"],
     batch_size: int = 128,
     max_seq_len: int = 2048,
+    gene_mask: list[list[int]] | None = None,
 ) -> list[np.ndarray]:
     """Generate DNA embeddings using pretrained models.
 
     Args:
-        model (Callable): The pretrained model to use for embedding.
-        tokenizer (Callable): The tokenizer to use for embedding.
+        embedder: SeqEmbedder object to embed the sequence data.
         dna_sequence (str): The DNA sequence to embed.
-        model_type (str): The type of model to use for embedding.
         batch_size (int): The batch size to use for embedding.
         max_seq_len (int): The maximum sequence length for the model.
-        dna_seq_overlap (int): The overlap between chunks of the DNA sequence.
 
     Returns
     -------
         list[np.ndarray]: The generated DNA embeddings.
     """
     # Initialize an empty list to store the protein embeddings
-    mean_dna_embeddings = []
-
-    # get model device
-    device = model.device
+    dna_embeddings_arr = []
 
     # Process the DNA sequences in batches
     for i in range(0, len(dna_sequence), batch_size):
         batch_sequences = dna_sequence[i : i + batch_size]
-
-        # tokenize the input
-        inputs = tokenizer.batch_encode_plus(
-            batch_sequences, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
-        )
-        # move inputs to the same device as the model
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-
-        # Get the last hidden state from the model
         with torch.no_grad():
-            if model_type == "nucleotide_transformer":
-                # Get the last hidden state from the model
-                last_hidden_state = model(
-                    inputs["input_ids"],
-                    attention_mask=inputs["attention_mask"],
-                    encoder_attention_mask=inputs["attention_mask"],
-                    output_hidden_states=True,
-                )["hidden_states"][-1]
-            elif model_type == "mistral_dna":
-                last_hidden_state = model(
-                    input_ids=inputs["input_ids"],
-                    token_type_ids=inputs["token_type_ids"],
-                    attention_mask=inputs["attention_mask"],
-                ).last_hidden_state
-            elif model_type == "dnabert2":
-                last_hidden_state = model(
-                    input_ids=inputs["input_ids"],
-                    token_type_ids=inputs["token_type_ids"],
-                    attention_mask=inputs["attention_mask"],
-                )[0]
+            dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean", gene_mask=gene_mask)
 
-            dna_representations = torch.einsum(
-                "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
-            ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        # Append the generated embeddings to the list
+        dna_embeddings_arr += dna_representations
 
-        # Append the generated embeddings to the list, moving them to CPU and converting to numpy
-        mean_dna_embeddings += list(dna_representations.cpu().numpy())
-
-    return mean_dna_embeddings
+    return dna_embeddings_arr
 
 
 def embed_genome_dna_sequences(
-    model: Callable,
-    tokenizer: Callable,
+    embedder: SeqEmbedder,
     dna: str,
-    model_type: Literal["nucleotide_transformer", "mistral_dna", "dnabert2"],
     start: list[int] | None = None,
     end: list[int] | None = None,
     strand: list[float] | None = None,
@@ -270,10 +209,8 @@ def embed_genome_dna_sequences(
     """Embed genome DNA sequences using pretrained models.
 
     Args:
-        model (Callable): The pretrained model to use for embedding.
-        tokenizer (Callable): The tokenizer to use for embedding.
+        embedder: SeqEmbedder object to embed the sequence data.
         dna (str): The DNA sequence to embed.
-        model_type (str): The type of model to use for embedding.
         start (List[int] | None): List of start positions for each gene. If None, the whole genome is embedded.
         end (List[int] | None): List of end positions for each gene. If None, the whole genome is embedded.
         strand (List[float] | None): List of strands for each gene. If None, the sequence is not reversed.
@@ -289,28 +226,43 @@ def embed_genome_dna_sequences(
 
     # if start and end are not provided, we assume we want to embed the whole genome
     if start is None or end is None:
-        dna = chunk_whole_genome_dna_seq(dna_sequence=dna, max_seq_len=max_seq_len, overlap=dna_seq_overlap)
+        if embedder.model_type == "glm2":
+            # GLM2 model requires the whole genome to be embedded in a specific manner
+            dna = preprocess_whole_genome_for_glm2(dna_sequence=dna, max_seq_len=max_seq_len, n_overlap=dna_seq_overlap)
+        else:
+            dna = chunk_whole_genome_dna_seq(dna_sequence=dna, max_seq_len=max_seq_len, overlap=dna_seq_overlap)
         gene_indices = None
+        gene_mask = None
     # embed the dna sequence for each gene
     else:
-        dna, gene_indices = chunk_genes_dna_seqs(
-            dna=dna,
-            start=start,
-            end=end,
-            strand=strand,
-            promoter_len=promoter_len,
-            max_seq_len=max_seq_len,
-            dna_seq_overlap=dna_seq_overlap,
-        )
+        if embedder.model_type == "evo":
+            dna, gene_mask = prepare_gene_seqs_for_evo(
+                dna=dna,
+                start=start,
+                end=end,
+                strand=strand,
+                max_seq_len=max_seq_len,
+            )
+            gene_indices = list(range(len(dna)))  # indices of genes in the original sequence
+        else:
+            dna, gene_indices = chunk_genes_dna_seqs(
+                dna=dna,
+                start=start,
+                end=end,
+                strand=strand,
+                promoter_len=promoter_len,
+                max_seq_len=max_seq_len,
+                dna_seq_overlap=dna_seq_overlap,
+            )
+            gene_mask = None  # only used for Evo model
 
     # embed protein sequences
     dna_embeddings = generate_dna_embeddings(
-        model=model,
-        tokenizer=tokenizer,
+        embedder=embedder,
         dna_sequence=dna,
-        model_type=model_type,
         batch_size=batch_size,
         max_seq_len=max_seq_len,
+        gene_mask=gene_mask,
     )
 
     # if we pool all the embeddings at genome level, we don't care about the order and we just

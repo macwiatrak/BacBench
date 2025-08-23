@@ -15,6 +15,20 @@ from torchmetrics.functional import auroc, average_precision, f1_score
 from tqdm import tqdm
 from transformers import set_seed
 
+# learnigng rates for different models after tuning on the validation set
+MODEL2LR = {
+    "gLM2": 0.001,  # Unknown yet
+    "evo": 0.0005,  # Unknown yet
+    "ProkBERT": 0.01,  # DONE
+    "esm2": 0.01,  # DONE
+    "bacformer": 0.01,  # DONE
+    "dnabert": 0.001,  # DONE
+    "esmc": 0.001,  # DONE
+    "mistral_dna": 0.005,  # DONE
+    "nucleotide_transformer": 0.001,  # DONE
+    "protbert": 0.005,  # DONE
+}
+
 
 def calculate_metrics_per_genome(df: pd.DataFrame):
     """Calculate metrics per genome."""
@@ -44,7 +58,11 @@ class LinearModel(pl.LightningModule):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         self.lr = lr
-        self.cls = nn.Linear(dim, 1)
+        self.net = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Dropout(dropout),
+            nn.Linear(dim, 1),  # <— always 1 output
+        )
         self.save_hyperparameters(logger=False)
 
         # Buffers to store predictions/labels across an epoch
@@ -58,7 +76,7 @@ class LinearModel(pl.LightningModule):
     def forward(self, x: torch.Tensor):
         """Forward pass."""
         x = self.dropout(x)
-        return self.cls(x).squeeze()
+        return self.net(x).squeeze()
 
     def training_step(self, batch, batch_idx):
         """Training step."""
@@ -184,7 +202,10 @@ class LinearModel(pl.LightningModule):
 
 def prepare_essential_genes_df(df: pd.DataFrame, embeddings_col: str) -> pd.DataFrame:
     """Prepare the essential genes DataFrame."""
-    # currently the embeddings is List[List[np.ndarray]], we need to make it List[np.ndarray]
+    # check if the embeddings column is already in the correct format
+    if isinstance(df[embeddings_col].iloc[0], np.ndarray):
+        return df
+    # if embeddings is List[List[np.ndarray]], we need to make it List[np.ndarray]
     if isinstance(df[embeddings_col].iloc[0], list):
         df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
     # explode the DF
@@ -224,6 +245,8 @@ def main(
     # split the data
     train_df = df[df["split"] == "train"]
     val_df = df[df["split"] == "validation"]
+    if len(val_df) == 0:
+        val_df = df[df["split"] == "val"]
     test_df = df[df["split"] == "test"]
 
     # create datasets
@@ -310,6 +333,15 @@ def main(
     print("Best model path:", trainer.checkpoint_callback.best_model_path)
     model.eval()
 
+    print("Val metrics:")
+    trainer.test(model, val_dataloader)
+    output = []
+    with torch.no_grad():
+        for batch in val_dataloader:
+            output.append(model(batch[0]))
+    val_df["logits"] = torch.cat(output).cpu().numpy()
+    _ = calculate_metrics_per_genome(val_df)
+
     print("Test metrics:")
     trainer.test(model, test_dataloader)
     output = []
@@ -331,14 +363,14 @@ class ArgumentParser(Tap):
     # file paths for loading data
     input_df_file_path: str
     output_dir: str
-    lr: float = 0.005
+    lr: float
     dropout: float = 0.2
     max_epochs: int = 100
-    batch_size: int = 128
+    batch_size: int = 256
     num_workers: int = 4
     test: bool = True
     embeddings_col: str = "embeddings"
-    model_name: str = "Unknown"
+    model_name: str = None
 
 
 if __name__ == "__main__":

@@ -9,7 +9,8 @@ from datasets import Dataset, IterableDataset, load_dataset
 from tap import Tap
 from transformers import AutoModel
 
-from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, compute_genome_protein_embeddings, load_plm
+from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, compute_genome_protein_embeddings
+from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
 from bacbench.modeling.utils import _iterable_to_dataframe, _slice_split, get_prot_seq_col_name
 
 
@@ -17,9 +18,7 @@ def add_protein_embeddings(
     row: dict[str, Any],
     prot_seq_col: str,
     output_col: str,
-    model: Callable,
-    tokenizer: Callable,
-    model_type: Literal["esm2", "esmc", "protbert"] = "esm2",
+    embedder: SeqEmbedder,
     batch_size: int = 64,
     max_prot_seq_len: int = 1024,
     genome_pooling_method: Literal["mean", "max"] = None,
@@ -27,11 +26,9 @@ def add_protein_embeddings(
     """Helper function to add protein embeddings to a row."""
     return {
         output_col: compute_genome_protein_embeddings(
-            model=model,
-            tokenizer=tokenizer,
+            embedder=embedder,
             protein_sequences=row[prot_seq_col],
             contig_ids=row.get("contig_name", None),
-            model_type=model_type,
             batch_size=batch_size,
             max_prot_seq_len=max_prot_seq_len,
             genome_pooling_method=genome_pooling_method,
@@ -64,7 +61,6 @@ def add_bacformer_embeddings(
 def run(
     dataset: Dataset | None,
     model_path: str,
-    model_type: Literal["esm2", "esmc", "protbert", "bacformer"],
     batch_size: int = 64,
     max_prot_seq_len: int = 1024,
     device: str = None,
@@ -80,8 +76,7 @@ def run(
     """Run script to embed protein sequences with various models.
 
     :param dataset: BacBench dataset
-    :param model_path: sHuggingFace model name or path to model
-    :param model_type: the used embedding model one of ["esm2", "esmc", "protbert", "bacformer"]
+    :param model_path: model path to a HuggingFace model.
     :param batch_size: batch size for embedding pLMs
     :param max_prot_seq_len: max protein sequence length for embedding pLMs
     :param device: device to use for embedding pLMs, if None, will use cuda if available
@@ -102,16 +97,15 @@ def run(
 
     # check if the model is Bacformer and adjust accordingly
     bacformer_model = None
-    if model_type == "bacformer":
+    if "bacformer" in model_path.lower():
         logging.info("Bacformer model used, loading Bacformer model and its ESM-2 base model.")
         bacformer_model = (
             AutoModel.from_pretrained(model_path, trust_remote_code=True).eval().to(torch.bfloat16).to(device)
         )
-        model_type = "esm2"
         model_path = "facebook/esm2_t12_35M_UR50D"
 
-    # load pLM
-    model, tokenizer = load_plm(model_path, model_type)
+    # load pLM embedder
+    embedder = load_seq_embedder(model_path)
 
     # embed protein sequences across splits
     dfs = []
@@ -127,9 +121,7 @@ def run(
                 row=row,
                 prot_seq_col=prot_col,  # noqa
                 output_col=output_col,
-                model=model,
-                tokenizer=tokenizer,
-                model_type=model_type,
+                embedder=embedder,
                 batch_size=batch_size,
                 max_prot_seq_len=max_prot_seq_len,
                 genome_pooling_method=genome_pooling_method if bacformer_model is None else None,
@@ -196,7 +188,6 @@ class ArgumentParser(Tap):
     streaming: bool = False
     output_filepath: str = None
     model_path: str
-    model_type: Literal["esm2", "esmc", "protbert", "bacformer"]
     batch_size: int = 64
     max_prot_seq_len: int = 1024
     device: str = None
@@ -247,7 +238,6 @@ if __name__ == "__main__":
     df = run(
         dataset=dataset,
         model_path=args.model_path,
-        model_type=args.model_type,
         batch_size=args.batch_size,
         max_prot_seq_len=args.max_prot_seq_len,
         device=args.device,
@@ -261,6 +251,10 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
     )
     # if save_every_n_rows is set, we already saved the dataframe in chunks
-    if args.save_every_n_rows is None:
+    if args.save_every_n_rows is None or args.input_parquet_path is not None:
         # save the dataframe to parquet
-        df.to_parquet(args.output_filepath)
+        if args.output_filepath is not None:
+            df.to_parquet(args.output_filepath)
+        elif args.output_dir is not None:
+            output_filepath = os.path.join(args.output_dir, f"chunk_{str(args.start_idx)}_{str(args.end_idx)}.parquet")
+            df.to_parquet(output_filepath)
