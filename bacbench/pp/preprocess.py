@@ -201,8 +201,9 @@ def extract_protein_info_from_gff(filepath: str) -> pd.DataFrame:
             rows.append(
                 {
                     "accession_id": accession_id,
-                    "gene_name": attrs.get("gene"),
-                    "locus_tag": attrs.get("locus_tag"),
+                    "gene_name": attrs.get("gene", None),
+                    "locus_tag": attrs.get("locus_tag", None),
+                    "old_locus_tag": attrs.get("old_locus_tag", None),
                     "product": attrs.get("product"),
                     "start": int(start),
                     "end": int(end),
