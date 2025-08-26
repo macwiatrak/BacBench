@@ -11,7 +11,7 @@ from transformers import AutoModel
 
 from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, compute_genome_protein_embeddings
 from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
-from bacbench.modeling.utils import _iterable_to_dataframe, _slice_split, get_prot_seq_col_name
+from bacbench.modeling.utils.utils import _iterable_to_dataframe, _slice_split, get_prot_seq_col_name
 
 
 def add_protein_embeddings(
