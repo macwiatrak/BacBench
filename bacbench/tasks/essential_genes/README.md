@@ -20,7 +20,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_esmc_embeddings.parquet \
     --model-path esmc_300m \
-    --model-type esmc \
     --batch-size 64
 
 # embed and save the genomes using the Bacformer model
@@ -28,7 +27,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
-    --model-type bacformer \
     --batch-size 64 \
     --max-n-proteins 9000  # max nr of proteins in a genome
 
@@ -37,7 +35,6 @@ python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-essential-genes-dna \
     --output-filepath <output-dir>/essential_genes_nt_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
-    --model-type nucleotide_transformer \
     --batch-size 128 \
     --max-seq-len 2048 \
     --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value

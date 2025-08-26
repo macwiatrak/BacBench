@@ -22,7 +22,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
     --output-filepath <output-dir>/strain_clustering_esm2_embeddings.parquet \
     --model-path facebook/esm2_t12_35M_UR50D \
-    --model-type esm2 \
     --batch-size 64 \
     --genome-pooling-method mean \
     --streaming
@@ -32,7 +31,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
     --output-filepath <output-dir>/strain_clustering_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
-    --model-type bacformer \
     --batch-size 64 \
     --genome-pooling-method mean \
     --streaming \
@@ -44,7 +42,6 @@ python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-dna \
     --output-filepath <output-dir>/strain_clustering_nucleotide_transformer_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
-    --model-type nucleotide_transformer \
     --batch-size 128 \
     --max-seq-len 2048 \
     --dna-seq-overlap 32 \
