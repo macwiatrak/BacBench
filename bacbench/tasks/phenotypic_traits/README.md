@@ -21,7 +21,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-phenotypic-traits-protein-sequences \
     --output-filepath <output-dir>/pheno_esmc_genome_embeddings.parquet \
     --model-path esmc_300m \
-    --model-type esmc \
     --batch-size 64 \
     --genome-pooling-method mean \
     --streaming # use streaming to avoid memory issues
@@ -31,7 +30,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-phenotypic-traits-protein-sequences \
     --output-filepath <output-dir>/pheno_bacformer_genome_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
-    --model-type bacformer \
     --batch-size 64 \
     --genome-pooling-method mean \
     --streaming \
@@ -41,7 +39,6 @@ python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-phenotypic-traits-dna \
     --output-filepath <output-dir>/pheno_nucleotide_transformer_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
-    --model-type nucleotide_transformer \
     --batch-size 128 \
     --max-seq-len 2048 \
     --dna-seq-overlap 32 \

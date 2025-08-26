@@ -22,7 +22,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_protbert_embeddings.parquet \
     --model-path Rostlab/prot_bert  \
-    --model-type protbert \
     --batch-size 64
 
 # embed and save the genomes using the Bacformer model
@@ -30,7 +29,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
-    --model-type bacformer \
     --batch-size 64 \
     --max-n-proteins 9000  # max nr of proteins in a genome, default value
 
@@ -40,7 +38,6 @@ python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-operon-identification-dna \  # name of the dataset
     --output-filepath <output-dir>/operon_identification_mistral_embeddings.parquet \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
-    --model-type mistral_dna \
     --batch-size 256 \
     --max-seq-len 512 \
     --dna-seq-overlap 16

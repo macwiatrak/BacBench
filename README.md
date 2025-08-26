@@ -168,7 +168,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_esmc_embeddings.parquet \
     --model-path esmc_300m \
-    --model-type esmc \
     --batch-size 64
 
 # embed and save the genomes using the Bacformer model
@@ -176,7 +175,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
-    --model-type bacformer \
     --batch-size 64 \
     --max-n-proteins 9000  # max nr of proteins in a genome
 
@@ -185,7 +183,6 @@ python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-essential-genes-dna \
     --output-filepath <output-dir>/essential_genes_nt_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
-    --model-type nucleotide_transformer \
     --batch-size 128 \
     --max-seq-len 2048 \
     --dna-seq-overlap 32  # overlap between the sequences when the gene length is higher than --max-seq-len, default value
@@ -198,7 +195,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_protbert_embeddings.parquet \
     --model-path Rostlab/prot_bert  \
-    --model-type protbert \
     --batch-size 64
 
 # embed and save the genomes using the Bacformer model
@@ -206,7 +202,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
-    --model-type bacformer \
     --batch-size 64 \
     --max-n-proteins 9000  # max nr of proteins in a genome, default value
 
@@ -216,7 +211,6 @@ python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-operon-identification-dna \  # name of the dataset
     --output-filepath <output-dir>/operon_identification_mistral_embeddings.parquet \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
-    --model-type mistral_dna \
     --batch-size 256 \
     --max-seq-len 512 \
     --dna-seq-overlap 16
@@ -229,7 +223,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
     --output-filepath <output-dir>/strain_clustering_esm2_embeddings.parquet \
     --model-path facebook/esm2_t12_35M_UR50D \
-    --model-type esm2 \
     --batch-size 64 \
     --genome-pooling-method mean \
     --streaming
@@ -239,7 +232,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
     --output-filepath <output-dir>/strain_clustering_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
-    --model-type bacformer \
     --batch-size 64 \
     --genome-pooling-method mean \
     --streaming \
@@ -251,7 +243,6 @@ python bacbench/modeling/run_embed_dna.py \
     --dataset-name macwiatrak/bacbench-strain-clustering-dna \
     --output-filepath <output-dir>/strain_clustering_nucleotide_transformer_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
-    --model-type nucleotide_transformer \
     --batch-size 128 \
     --max-seq-len 2048 \
     --dna-seq-overlap 32 \

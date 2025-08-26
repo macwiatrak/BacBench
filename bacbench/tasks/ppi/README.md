@@ -24,7 +24,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-ppi-stringdb-protein-sequences \
     --output-dir <prot-embeds-output-dir> \
     --model-path esmc_300m \
-    --model-type esmc \
     --batch-size 64 \
     --save-every-n-rows 500 \
     --streaming # use streaming to avoid memory issues
@@ -34,7 +33,6 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-ppi-stringdb-protein-sequences \
     --output-dir <prot-embeds-output-dir> \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
-    --model-type bacformer \
     --batch-size 64 \
     --save-every-n-rows 500 \
     --streaming \
