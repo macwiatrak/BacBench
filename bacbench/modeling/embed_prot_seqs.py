@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 
 from bacbench.modeling.embedder import SeqEmbedder
-from bacbench.modeling.utils import protein_embeddings_to_inputs
+from bacbench.modeling.utils.utils import protein_embeddings_to_inputs
 
 
 def generate_protein_embeddings(
