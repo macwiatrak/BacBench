@@ -161,6 +161,25 @@ class ESMCEmbedder(SeqEmbedder):
         return protein_representations
 
 
+class ESMPlusPlusEmbedder(SeqEmbedder):
+    """Embedder for ESMPlusPlus models from Synthyra."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = self.model.tokenizer
+        self.model_type = "esmplusplus"
+
+    def _forward_batch(self, inputs, pooling: Literal["cls", "mean"] = "mean") -> torch.Tensor:
+        last_hidden_state = self.model(**inputs).last_hidden_state
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        # mean over valid tokens
+        protein_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return protein_representations
+
+
 class ProtBERTEmbedder(SeqEmbedder):
     """Embedder for ProtBERT models from HuggingFace."""
 
@@ -457,6 +476,9 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
     if "esmc" in model_name_or_path:
         return ESMCEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
+    if "esmplusplus" in model_name_or_path.lower():
+        return ESMPlusPlusEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+
     if "prot_bert" in model_name_or_path:
         return ProtBERTEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
@@ -485,7 +507,7 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
 
     raise ValueError(
         f"Unknown model name or path: {model_name_or_path},"
-        f" supported models are: ESM-2, ESMC, ProtBert, "
-        "Nucleotide Transformer, Mistral-DNA, DNABERT-2 "
+        f" supported models are: ESM-2, ESMC, ESMPlusPlus, ProtBert, ProGen "
+        "Nucleotide Transformer, Mistral-DNA, DNABERT-2, ProkBERT, gLM2 and Evo models "
         f"available at HuggingFace."
     )
