@@ -73,6 +73,7 @@ def run(
         # save the dataframe
         output_file = os.path.join(output_dir, f)
         df.to_parquet(output_file, engine="pyarrow")
+        print("Finished processing file:", f)
 
 
 class ArgumentParser(Tap):
