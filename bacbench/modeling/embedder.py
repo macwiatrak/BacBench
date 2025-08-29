@@ -477,7 +477,7 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
         return ESMCEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
     if "esmplusplus" in model_name_or_path.lower():
-        return ESMPlusPlusEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+        return ESMPlusPlusEmbedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
     if "prot_bert" in model_name_or_path:
         return ProtBERTEmbedder(model_name_or_path, dtype=torch.float16, device=device)
