@@ -66,6 +66,8 @@ def run(
     # for each file in the input_dir
     for f in tqdm(files):
         df = pd.read_parquet(os.path.join(input_dir, f))
+        if output_col in df.columns:
+            continue
         df[output_col] = df["protein_sequence"].progress_apply(lambda x: compute_protein_embeddings_fn(x))
 
         # save the dataframe
