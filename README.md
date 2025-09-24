@@ -21,9 +21,10 @@ as well as preprocessing bacterial genomes.
 
 ![BacBench](imgs/bacbench.png)
 
-## News
+[//]: # (## News)
 
-- **2025-05-15**: BacBench datasets are now available on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
+[//]: # ()
+[//]: # (- **2025-05-15**: BacBench datasets are now available on [HuggingFace]&#40;https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81&#41;.)
 
 ## Contents
 
@@ -31,7 +32,6 @@ as well as preprocessing bacterial genomes.
   - [Requirements](#requirements)
   - [installation](#installation)
 - [Usage](#usage)
-  - [Datasets](#datasets)
   - [Embedding genomes](#embedding-genomes)
   - [Model evaluation](#model-evaluation)
   - [Download and preprocess genomes](#download-and-preprocess-genomes)
@@ -95,59 +95,96 @@ Below we describe how to access and use BacBench to:
 3) Evaluate the models on distinct tasks.
 4) Download and preprocess bacterial genomes.
 
-### Datasets
-All of the datasets are available on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
+[//]: # (### Datasets)
 
-The datasets for essential genes prediction, operon identification, strain clustering, antibiotic resistance prediction
-and phenotypic traits prediction are available in both `DNA` and `protein sequence` modalities. Due to the size of the
-datasets, we recommend `streaming` the datasets unless you have a lot of disk space available. See examples below.
+[//]: # (All of the datasets are available on [HuggingFace]&#40;https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81&#41;.)
 
-```python
-from datasets import load_dataset
+[//]: # ()
+[//]: # (The datasets for essential genes prediction, operon identification, strain clustering, antibiotic resistance prediction)
 
+[//]: # (and phenotypic traits prediction are available in both `DNA` and `protein sequence` modalities. Due to the size of the)
 
-# essential genes prediction task
-# protein sequences, size=59.2MB
-essential_genes_prot_seqs_ds = load_dataset("macwiatrak/bacbench-essential-genes-protein-sequences")
-# DNA sequences, size=92.2MB
-essential_genes_dna_seqs_ds = load_dataset("macwiatrak/bacbench-essential-genes-dna")
+[//]: # (datasets, we recommend `streaming` the datasets unless you have a lot of disk space available. See examples below.)
 
+[//]: # ()
+[//]: # (```python)
 
-# operon identification task
-# protein sequences, size=15.3MB
-operon_identification_prot_seqs_ds = load_dataset("macwiatrak/bacbench-operon-identification-protein-sequences")
-# DNA sequences, size=24MB
-operon_identification_dna_ds = load_dataset("macwiatrak/bacbench-operon-identification-dna")
+[//]: # (from datasets import load_dataset)
 
+[//]: # ()
+[//]: # ()
+[//]: # (# essential genes prediction task)
 
-# protein-protein interaction (PPI) task
-# protein sequences, size=58.1GB
-# NOTE: as the labels are based on protein-protein interactions, we only include the protein sequences
-ppi_ds = load_dataset("macwiatrak/bacbench-ppi-stringdb-protein-sequences", streaming=True)
+[//]: # (# protein sequences, size=59.2MB)
 
+[//]: # (essential_genes_prot_seqs_ds = load_dataset&#40;"macwiatrak/bacbench-essential-genes-protein-sequences"&#41;)
 
-# strain clustering task
-# protein sequences, size=54.4GB
-strain_clustering_prot_seqs_ds = load_dataset("macwiatrak/bacbench-strain-clustering-protein-sequences", streaming=True)
-# DNA sequences, size=81GB
-strain_clustering_dna_ds = load_dataset("macwiatrak/bacbench-strain-clustering-dna", streaming=True)
+[//]: # (# DNA sequences, size=92.2MB)
 
+[//]: # (essential_genes_dna_seqs_ds = load_dataset&#40;"macwiatrak/bacbench-essential-genes-dna"&#41;)
 
-# antibiotic resistance prediction task
-# protein sequences, size=38.8GB
-ar_prot_seqs_ds = load_dataset("macwiatrak/bacbench-antibiotic-resistance-protein-sequences", streaming=True)
-# DNA sequences, size=54.9GB
-ar_dna_ds = load_dataset("macwiatrak/bacbench-antibiotic-resistance-dna", streaming=True)
+[//]: # ()
+[//]: # ()
+[//]: # (# operon identification task)
 
+[//]: # (# protein sequences, size=15.3MB)
 
-# phenotypic traits prediction task
-# protein sequences, size=36GB
-pheno_traits_prot_seqs_ds = load_dataset("macwiatrak/bacbench-phenotypic-traits-protein-sequences", streaming=True)
-# DNA sequences, size=51.1GB
-pheno_traits_dna_ds = load_dataset("macwiatrak/bacbench-phenotypic-traits-dna", streaming=True)
-```
+[//]: # (operon_identification_prot_seqs_ds = load_dataset&#40;"macwiatrak/bacbench-operon-identification-protein-sequences"&#41;)
 
-Dataset details including nr of genomes and more are available in the datasets cards on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
+[//]: # (# DNA sequences, size=24MB)
+
+[//]: # (operon_identification_dna_ds = load_dataset&#40;"macwiatrak/bacbench-operon-identification-dna"&#41;)
+
+[//]: # ()
+[//]: # ()
+[//]: # (# protein-protein interaction &#40;PPI&#41; task)
+
+[//]: # (# protein sequences, size=58.1GB)
+
+[//]: # (# NOTE: as the labels are based on protein-protein interactions, we only include the protein sequences)
+
+[//]: # (ppi_ds = load_dataset&#40;"macwiatrak/bacbench-ppi-stringdb-protein-sequences", streaming=True&#41;)
+
+[//]: # ()
+[//]: # ()
+[//]: # (# strain clustering task)
+
+[//]: # (# protein sequences, size=54.4GB)
+
+[//]: # (strain_clustering_prot_seqs_ds = load_dataset&#40;"macwiatrak/bacbench-strain-clustering-protein-sequences", streaming=True&#41;)
+
+[//]: # (# DNA sequences, size=81GB)
+
+[//]: # (strain_clustering_dna_ds = load_dataset&#40;"macwiatrak/bacbench-strain-clustering-dna", streaming=True&#41;)
+
+[//]: # ()
+[//]: # ()
+[//]: # (# antibiotic resistance prediction task)
+
+[//]: # (# protein sequences, size=38.8GB)
+
+[//]: # (ar_prot_seqs_ds = load_dataset&#40;"macwiatrak/bacbench-antibiotic-resistance-protein-sequences", streaming=True&#41;)
+
+[//]: # (# DNA sequences, size=54.9GB)
+
+[//]: # (ar_dna_ds = load_dataset&#40;"macwiatrak/bacbench-antibiotic-resistance-dna", streaming=True&#41;)
+
+[//]: # ()
+[//]: # ()
+[//]: # (# phenotypic traits prediction task)
+
+[//]: # (# protein sequences, size=36GB)
+
+[//]: # (pheno_traits_prot_seqs_ds = load_dataset&#40;"macwiatrak/bacbench-phenotypic-traits-protein-sequences", streaming=True&#41;)
+
+[//]: # (# DNA sequences, size=51.1GB)
+
+[//]: # (pheno_traits_dna_ds = load_dataset&#40;"macwiatrak/bacbench-phenotypic-traits-dna", streaming=True&#41;)
+
+[//]: # (```)
+
+[//]: # ()
+[//]: # (Dataset details including nr of genomes and more are available in the datasets cards on [HuggingFace]&#40;https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81&#41;.)
 
 
 ### Embedding genomes
@@ -335,22 +372,20 @@ assembly_id_df = download_and_process_genome_by_assembly_id(
 
 We currently support the following models:
 
-| Model                  | Input                 | Variant / Checkpoint                                                                                                            | Objective      | Params | dim  | Max context |
-|------------------------|-----------------------|---------------------------------------------------------------------------------------------------------------------------------|----------------|--------|------|-------------|
-| Mistral-DNA            | DNA                   | [Mistral-DNA-v1-138M-bacteria](https://huggingface.co/RaphaelMourad/Mistral-DNA-v1-138M-bacteria)                               | Autoregressive | 138 M | 768  | 512         |
-| DNABERT-2*             | DNA                   | [DNABERT-2-117M](https://huggingface.co/zhihan1996/DNABERT-2-117M)                                                              | Masked         | 117 M | 768  | 512         |
-| Nucleotide Transformer | DNA                   | [nucleotide-transformer-v2-250m-multi-species](https://huggingface.co/InstaDeepAI/nucleotide-transformer-v2-250m-multi-species) | Masked         | 250 M | 768  | 2 048       |
-| Evo**                  | DNA                   | [evo-1-8k-base (1.1_fix)](https://huggingface.co/togethercomputer/evo-1-8k-base)                                                | Autoregressive | 6.5 B | 4 096| 8 192       |
-| ESM-2                  | Single protein seq.   | [esm2_t12_35M_UR50D](https://huggingface.co/facebook/esm2_t12_35M_UR50D)                                                        | Masked         | 35 M  | 480  | 1 024       |
-| ESM-C                  | Single protein seq.   | [esmc_300m](https://huggingface.co/EvolutionaryScale/esmc-300m-2024-12)                                                         | Masked         | 300 M | 960  | 1 024       |
-| ProtBert               | Single protein seq.   | [prot_bert](https://huggingface.co/Rostlab/prot_bert)                                                                           | Masked         | 420 M | 1 024| 1 024       |
-| Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)***                     | Masked         | 27 M  | 480  | 6 000       |
+| Model                  | Input                               | Variant / Checkpoint                                                                                                            | Objective      | Params | dim   | Max context |
+|------------------------|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|----------------|--------|-------|-------------|
+| Mistral-DNA            | DNA                                 | [Mistral-DNA-v1-138M-bacteria](https://huggingface.co/RaphaelMourad/Mistral-DNA-v1-138M-bacteria)                               | Autoregressive | 138 M  | 768   | 512         |
+| DNABERT-2*             | DNA                                 | [DNABERT-2-117M](https://huggingface.co/zhihan1996/DNABERT-2-117M)                                                              | Masked         | 117 M  | 768   | 512         |
+| Nucleotide Transformer | DNA                                 | [nucleotide-transformer-v2-250m-multi-species](https://huggingface.co/InstaDeepAI/nucleotide-transformer-v2-250m-multi-species) | Masked         | 27 M   |       | 2 048       |
+| ProkBERT               | DNA                                 | [prokbert-mini-long](https://huggingface.co/neuralbioinfo/prokbert-mini-long)                                                   | Masked         | 250 M  | 384   | 4 096       |
+| Evo                    | DNA                                 | [evo-1-8k-base (1.1_fix)](https://huggingface.co/togethercomputer/evo-1-8k-base)                                                | Autoregressive | 6.5 B  | 4 096 | 8 192       |
+| ESM-2                  | Single protein seq.                 | [esm2_t12_35M_UR50D](https://huggingface.co/facebook/esm2_t12_35M_UR50D)                                                        | Masked         | 35 M   | 480   | 1 024       |
+| ESM-C                  | Single protein seq.                 | [esmc_300m](https://huggingface.co/EvolutionaryScale/esmc-300m-2024-12)                                                         | Masked         | 300 M  | 960   | 1 024       |
+| ProtBert               | Single protein seq.                 | [prot_bert](https://huggingface.co/Rostlab/prot_bert)                                                                           | Masked         | 420 M  | 1 024 | 1 024       |
+| gLM2                   | Mixed modality (DNA & protein seq.) | [gLM2 650M](https://huggingface.co/tattabio/gLM2_650M)                                                                           | Masked         | 650 M  | 1 280 | 4 096       |
+| Bacformer              | Multiple protein seq.               | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)***                     | Masked         | 27 M   | 480   | 6 000       |
 
 `*` DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
-
-`**` We adapt Evo to extract sequence embeddings from the last layer of the model. The implementation is available in [bacbench/modeling/evo/](bacbench/modeling/evo).
-We benchmarked Evo on only two tasks, `essential genes prediction` and `operon identification`, the smallest in `BacBench` due to the
-large computational cost of the model.
 
 `***` For strain clustering we used [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-MAG) as the input are
 metagenome-assembled genomes (MAGs), rather than complete genomes.
