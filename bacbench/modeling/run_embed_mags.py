@@ -171,7 +171,6 @@ def run(
     output = []
     chunk_idx = 0
     for f in tqdm(filepaths):
-        print(f"Processing file: {f}")
         try:
             prot_seqs_df = extract_protein_info_from_gbff_any(f)
             prot_seqs_df["protein_sequence"] = prot_seqs_df["protein_sequence"].apply(lambda x: x.replace("*", ""))
@@ -202,7 +201,9 @@ def run(
         # sort by protein index
         prot_seqs_df = prot_seqs_df.sort_values(by="protein_index")
         prot_seqs_df["genome_id"] = os.path.basename(f).split(".")[0]
-        prot_seqs_df = prot_seqs_df.groupby("genome_id").agg(list).reset_index()
+        prot_seqs_df = (
+            prot_seqs_df.groupby("genome_id").agg(list).reset_index().drop(columns=["protein_index", "prot_len"])
+        )
         output.append(prot_seqs_df)
 
         if len(output) >= chunk_size:
