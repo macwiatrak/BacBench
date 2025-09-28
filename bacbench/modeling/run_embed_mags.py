@@ -151,10 +151,15 @@ def run(
     batch_size: int = 64,
     max_prot_seq_len: int = 1024,
     chunk_size: int = 50,
+    genome_metadata_fp: str = None,
 ):
     """Run the embedding process for all genomes in the input directory."""
     os.makedirs(output_dir, exist_ok=True)
     filepaths = extract_all_filepaths(input_dir)
+    if genome_metadata_fp is not None:
+        metadata_df = pd.read_csv(genome_metadata_fp, sep="\t")
+        valid_genome_ids = set(metadata_df["genome_id"].tolist())
+        filepaths = [f for f in filepaths if os.path.basename(f).split(".")[0] in valid_genome_ids]
     print(f"Found {len(filepaths)} files in {input_dir}")
     random.seed(1)
     random.shuffle(filepaths)
@@ -232,6 +237,7 @@ class ArgumentParser(Tap):
     batch_size: int = 64
     max_prot_seq_len: int = 1024
     chunk_size: int = 50
+    genome_metadata_fp: str = None
 
 
 if __name__ == "__main__":
@@ -244,4 +250,5 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         max_prot_seq_len=args.max_prot_seq_len,
         chunk_size=args.chunk_size,
+        genome_metadata_fp=args.genome_metadata_fp,
     )
