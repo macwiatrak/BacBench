@@ -9,6 +9,7 @@ import pandas as pd
 import torch
 from Bio import SeqIO
 from tap import Tap
+from tqdm import tqdm
 
 from bacbench.modeling.embed_prot_seqs import generate_protein_embeddings
 from bacbench.modeling.embedder import load_seq_embedder
@@ -169,7 +170,7 @@ def run(
 
     output = []
     chunk_idx = 0
-    for f in filepaths:
+    for f in tqdm(filepaths):
         print(f"Processing file: {f}")
         try:
             prot_seqs_df = extract_protein_info_from_gbff_any(f)
