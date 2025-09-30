@@ -37,9 +37,6 @@ def run(
             "end",
             "protein_sequence",
             "strand",
-            "locus_tag",
-            "old_locus_tag",
-            "protein_name",
             "dna_sequence",
             "contig_len",
             "labels",
@@ -62,7 +59,7 @@ def run(
                 elements=elements,
                 gene_idx_to_elem_idx=gene_idx_to_elem_idx,
                 gene_idx=gene_idx,  # Assuming start is the gene index here
-                max_seq_len=4096,
+                max_seq_len=max_seq_len,
             )
             with torch.no_grad():
                 dna_representations = embedder([seq_str], max_seq_len, pooling="mean", gene_mask=[gene_mask])
