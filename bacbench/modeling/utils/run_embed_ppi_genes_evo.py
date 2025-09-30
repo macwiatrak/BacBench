@@ -45,15 +45,13 @@ def run(
             "end",
             "protein_sequence",
             "strand",
-            "locus_tag",
-            "old_locus_tag",
-            "protein_name",
             "dna_sequence",
             "contig_len",
             "labels",
             "protein_names",
         ]
     )
+    df["contig_idx"] = list(range(len(df)))
 
     output = []
     for _, row in df.iterrows():
@@ -72,14 +70,16 @@ def run(
             output.append(
                 {
                     "strain_name": row["strain_name"],
-                    "contig_name": row["contig_name"],
+                    "contig_idx": row["contig_idx"],
                     "embeddings": dna_representations[0],
                 }
             )
 
-    output = pd.DataFrame(output).groupby(["strain_name", "contig_name"])[["embeddings"]].agg(list).reset_index()
-    output = pd.merge(df, output, on=["strain_name", "contig_name"], how="inner")
-    output = output.groupby("strain_name").agg(list).reset_index()
+    output = pd.DataFrame(output)
+
+    # .groupby("strain_name")[["embeddings"]].agg(list).reset_index()
+    # output = pd.merge(df, output, on=["strain_name"], how="inner")
+    # output = output.groupby("strain_name").agg(list).reset_index()
 
     output.to_parquet(
         os.path.join(output_dir, f"evo_{str(start_idx)}_{str(end_idx)}.parquet"),
