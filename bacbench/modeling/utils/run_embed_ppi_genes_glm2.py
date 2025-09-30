@@ -45,7 +45,7 @@ def run(
     )
 
     output = []
-    for _, row in df.iterrows():
+    for _, row in tqdm(df.iterrows()):
         elements, gene_idx_to_elem_idx = precompute_glm2_elements(
             prot_seqs=row["protein_sequence"],
             dna_seq=row["dna_sequence"],
@@ -54,7 +54,7 @@ def run(
             strand=row["strand"],
         )
 
-        for gene_idx in tqdm(range(len(row["start"]))):
+        for gene_idx in range(len(row["start"])):
             seq_str, gene_mask = preprocess_glm2_gene_seq(
                 elements=elements,
                 gene_idx_to_elem_idx=gene_idx_to_elem_idx,
