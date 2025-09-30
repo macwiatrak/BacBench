@@ -66,13 +66,12 @@ def run(
             output.append(
                 {
                     "strain_name": row["strain_name"],
-                    "contig_name": row["contig_name"],
                     "embeddings": dna_representations[0],
                 }
             )
 
-    output = pd.DataFrame(output).groupby(["strain_name", "contig_name"])[["embeddings"]].agg(list).reset_index()
-    output = pd.merge(df, output, on=["strain_name", "contig_name"], how="inner")
+    output = pd.DataFrame(output).groupby(["strain_name"])[["embeddings"]].agg(list).reset_index()
+    output = pd.merge(df, output, on=["strain_name"], how="inner")
     output = output.groupby("strain_name").agg(list).reset_index()
 
     output.to_parquet(
