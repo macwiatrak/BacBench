@@ -95,6 +95,7 @@ class ArgumentParser(Tap):
 
     # ──────────────────────────────────────────────────────────
     output_dir: str
+    model_path: str = "togethercomputer/evo-1-8k-base"
     dataset_filepath: str = "/projects/u5ah/public/benchmarks/tasks/ppi/ppi_sample_combined.parquet"
     max_seq_len: int = 8192
     start_idx: int = None
