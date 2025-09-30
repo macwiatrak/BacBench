@@ -54,9 +54,9 @@ def run(
     df["contig_idx"] = list(range(len(df)))
 
     output = []
-    for _, row in df.iterrows():
+    for _, row in tqdm(df.iterrows()):
         # iterate through each gene in the row
-        for start, end, strand in tqdm(zip(row["start"], row["end"], row["strand"], strict=False)):
+        for start, end, strand in zip(row["start"], row["end"], row["strand"], strict=False):
             gene_seq, gene_mask = preprocess_gene_seq_for_evo(
                 dna=row["dna_sequence"],
                 start=start,
