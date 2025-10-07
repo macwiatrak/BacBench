@@ -199,7 +199,9 @@ def compute_bacformer_embeddings(
     # make it into a list
     bacformer_embeddings = list(bacformer_embeddings.type(torch.float32).cpu().numpy())
 
-    # sort the embeddings by the protein index
+    # if the number of embeddings is less than the number of proteins, pad with None
+    if len(bacformer_embeddings) != len(prot_embs_df):
+        bacformer_embeddings += [None] * (len(prot_embs_df) - len(bacformer_embeddings))
     prot_embs_df["protein_embedding"] = bacformer_embeddings
     # group by contig id and get the list of protein embeddings
     prot_embs_df = prot_embs_df.groupby(["contig_id", "contig_idx"])["protein_embedding"].apply(list).reset_index()
