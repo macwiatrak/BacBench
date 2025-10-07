@@ -15,6 +15,7 @@ def run(
         strain2split = json.load(f)
 
     files = [f for f in os.listdir(input_dir) if f.endswith(".parquet")]
+    files = [f for f in files if f not in ["train.parquet", "val.parquet", "test.parquet"]]
 
     train_df = []
     val_df = []
