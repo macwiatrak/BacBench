@@ -127,7 +127,7 @@ def run(
                 genome_pooling_method=genome_pooling_method if bacformer_model is None else None,
             ),
             batched=False,
-            remove_columns=[prot_col],
+            remove_columns=[prot_col, "dna_sequence"],
         )
 
         # 2) (optional) pass through Bacformer
