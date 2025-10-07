@@ -26,7 +26,7 @@ def run(
         )
         df = df.explode(["gene_name", "locus_tag", "labels", "start", "end", "strand", "protein_id", "embeddings"])
         df = df.dropna(subset=["labels"]).rename(columns={"labels": "label"})
-        df["split"] = df["strain_name"].map(strain2split)
+        df["split"] = df["strain_name"].apply(lambda x: strain2split.get(x, None))
         train_df.append(df[df["split"] == "train"])
         val_df.append(df[df["split"] == "val"])
         test_df.append(df[df["split"] == "test"])
