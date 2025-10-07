@@ -250,9 +250,8 @@ if __name__ == "__main__":
         save_every_n_rows=args.save_every_n_rows,
         output_dir=args.output_dir,
     )
-    # if save_every_n_rows is set, we already saved the dataframe in chunks
-    if args.save_every_n_rows is None or args.input_parquet_path is not None:
-        # save the dataframe to parquet
+    # save the dataframe if returned (i.e. if save_every_n_rows is not set)
+    if df is not None:
         if args.output_filepath is not None:
             df.to_parquet(args.output_filepath)
         elif args.output_dir is not None:
