@@ -33,6 +33,8 @@ def run(
     embedder = load_seq_embedder(model_path)
 
     files = sorted([f for f in os.listdir(input_dir) if f.endswith(".parquet")])
+    existing_files = [f for f in os.listdir(output_dir) if f.endswith(".parquet")]
+    files = [f for f in files if f not in existing_files]
     start_idx = start_idx if start_idx is not None else 0
     end_idx = end_idx if end_idx is not None else len(files)
     files = files[start_idx:end_idx]
