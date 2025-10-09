@@ -9,6 +9,11 @@ from datasets import Dataset, IterableDataset, load_dataset
 from tap import Tap
 from transformers import AutoModel
 
+try:
+    from bacformer.modeling.modeling_updated import BacformerCGForMaskedGM
+except ImportError:
+    pass
+
 from bacbench.modeling.embed_prot_seqs import compute_bacformer_embeddings, compute_genome_protein_embeddings
 from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
 from bacbench.modeling.utils.utils import _iterable_to_dataframe, _slice_split, get_prot_seq_col_name
@@ -43,6 +48,7 @@ def add_bacformer_embeddings(
     model: Callable,
     max_n_proteins: int = 6000,
     max_n_contigs: int = 1000,
+    bacformer_model_type: Literal["base", "large"] = "base",
     genome_pooling_method: Literal["mean", "max"] = None,
 ) -> dict[str, Any]:
     """Helper function to add Bacformer embeddings to a row."""
@@ -53,6 +59,7 @@ def add_bacformer_embeddings(
             contig_ids=row.get("contig_name", None),
             max_n_proteins=max_n_proteins,
             max_n_contigs=max_n_contigs,
+            bacformer_model_type=bacformer_model_type,
             genome_pooling_method=genome_pooling_method,
         )
     }
@@ -66,7 +73,7 @@ def run(
     device: str = None,
     output_col: str = "embeddings",
     genome_pooling_method: Literal["mean", "max"] = None,
-    max_n_proteins: int = 6000,  # for Bacformer
+    max_n_proteins: int = 9000,  # for Bacformer
     max_n_contigs: int = 1000,  # for Bacformer
     start_idx: int | None = None,  # for slicing the dataset
     end_idx: int | None = None,  # for slicing the dataset
@@ -97,12 +104,21 @@ def run(
 
     # check if the model is Bacformer and adjust accordingly
     bacformer_model = None
-    if "bacformer" in model_path.lower():
+    if "bacformer-300M" in model_path.lower():
+        logging.info("Bacformer-300M model used, loading Bacformer-300M model and its ESM-C base model.")
+        bacformer_model = (
+            BacformerCGForMaskedGM.from_pretrained(model_path).bacformer.eval().to(torch.bfloat16).to(device)
+        )
+        model_path = "Synthyra/ESMplusplus_small"
+        bacformer_model_type = "large"
+
+    elif "bacformer" in model_path.lower():
         logging.info("Bacformer model used, loading Bacformer model and its ESM-2 base model.")
         bacformer_model = (
             AutoModel.from_pretrained(model_path, trust_remote_code=True).eval().to(torch.bfloat16).to(device)
         )
         model_path = "facebook/esm2_t12_35M_UR50D"
+        bacformer_model_type = "base"
 
     # load pLM embedder
     embedder = load_seq_embedder(model_path)
@@ -127,7 +143,7 @@ def run(
                 genome_pooling_method=genome_pooling_method if bacformer_model is None else None,
             ),
             batched=False,
-            remove_columns=[prot_col, "dna_sequence"],
+            remove_columns=[prot_col],
         )
 
         # 2) (optional) pass through Bacformer
@@ -140,6 +156,7 @@ def run(
                     model=bacformer_model,
                     max_n_proteins=max_n_proteins,
                     max_n_contigs=max_n_contigs,
+                    bacformer_model_type=bacformer_model_type,
                     genome_pooling_method=genome_pooling_method,
                 ),
                 batched=False,

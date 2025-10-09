@@ -127,6 +127,7 @@ def compute_bacformer_embeddings(
     model: Callable,
     protein_embeddings: list[list[np.ndarray]] | list[np.ndarray],
     contig_ids: list[str] = None,
+    bacformer_model_type: Literal["base", "large"] = "base",
     max_n_proteins: int = 6000,
     max_n_contigs: int = 1000,
     genome_pooling_method: Literal["mean", "max"] = None,
@@ -138,6 +139,7 @@ def compute_bacformer_embeddings(
         model (BacformerModel): The Bacformer model to use for embedding.
         protein_embeddings (List[List[np.ndarray]]): The protein embeddings to compute the Bacformer embeddings for.
         contig_ids: (List[str]): List of contig ids (names) the protein embeddings belong to.
+        bacformer_model_type (str): The type of Bacformer model, either "base" (26M) or "large" (300M).
         max_n_proteins (int): The maximum number of proteins to use for each genome.
         max_n_contigs (int): The maximum number of contigs to use for each genome.
         genome_pooling_method (str): The pooling method to use for the genome level embedding.
@@ -176,17 +178,29 @@ def compute_bacformer_embeddings(
         protein_embeddings=protein_embeddings,
         max_n_proteins=max_n_proteins,
         max_n_contigs=max_n_contigs,
+        contig_ids=prot_embs_df["contig_idx"].tolist(),
+        bacformer_model_type=bacformer_model_type,
     )
     inputs = {k: v.to(device) for k, v in inputs.items()}
     # Compute Bacformer embeddings
     with torch.no_grad():
-        bacformer_embeddings = model(
-            protein_embeddings=inputs["protein_embeddings"].type(model.dtype),
-            special_tokens_mask=inputs["special_tokens_mask"],
-            token_type_ids=inputs["token_type_ids"],
-            attention_mask=inputs["attention_mask"],
-            return_dict=True,
-        ).last_hidden_state
+        if bacformer_model_type == "base":
+            bacformer_embeddings = model(
+                protein_embeddings=inputs["protein_embeddings"].type(model.dtype),
+                special_tokens_mask=inputs["special_tokens_mask"],
+                token_type_ids=inputs["token_type_ids"],
+                attention_mask=inputs["attention_mask"],
+                return_dict=True,
+            ).last_hidden_state
+            # only keep the protein embeddings and not special tokens
+            bacformer_embeddings = bacformer_embeddings[inputs["special_tokens_mask"] == prot_emb_idx]
+        else:
+            bacformer_embeddings = model(
+                protein_embeddings=inputs["protein_embeddings"].type(model.dtype),
+                attention_mask=inputs["attention_mask"],
+                contig_ids=inputs["contig_ids"],
+                return_dict=True,
+            ).last_hidden_state
 
     # perform genome pooling
     if genome_pooling_method == "mean":
@@ -194,8 +208,6 @@ def compute_bacformer_embeddings(
     elif genome_pooling_method == "max":
         return bacformer_embeddings.max(dim=1).values.type(torch.float32).cpu().squeeze().numpy()
 
-    # only keep the protein embeddings and not special tokens
-    bacformer_embeddings = bacformer_embeddings[inputs["special_tokens_mask"] == prot_emb_idx]
     # make it into a list
     bacformer_embeddings = list(bacformer_embeddings.type(torch.float32).cpu().numpy())
 

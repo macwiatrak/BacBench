@@ -125,8 +125,10 @@ def _slice_split(
 
 def protein_embeddings_to_inputs(
     protein_embeddings: list[list[np.ndarray]] | list[np.ndarray],
-    max_n_proteins: int = 6000,
+    max_n_proteins: int = 9000,
     max_n_contigs: int = 1000,
+    contig_ids: list[int] | None = None,  # only for bacformer large model
+    bacformer_model_type: Literal["base", "large"] = "base",
     cls_token_id: int = BACFORMER_SPECIAL_TOKENS_DICT["CLS"],
     sep_token_id: int = BACFORMER_SPECIAL_TOKENS_DICT["CLS"],
     prot_emb_token_id: int = BACFORMER_SPECIAL_TOKENS_DICT["PROT_EMB"],
@@ -139,6 +141,8 @@ def protein_embeddings_to_inputs(
         protein_embeddings (List[List[np.ndarray]]): The protein embeddings to convert.
         max_n_proteins (int): The maximum number of proteins to use for each genome.
         max_n_contigs (int): The maximum number of contigs to use for each genome.
+        contig_ids (List[int], optional): The contig IDs for each protein. Only used for Bacformer large model.
+        bacformer_model_type (Literal["base", "large"]): The type of Bacformer model.
         cls_token_id (int): The ID of the CLS token.
         sep_token_id (int): The ID of the SEP token.
         prot_emb_token_id (int): The ID of the protein embedding token.
@@ -149,10 +153,26 @@ def protein_embeddings_to_inputs(
         dict: The inputs for the Bacformer model.
     """
     assert len(protein_embeddings) > 0, "protein_embeddings should not be empty"
+    print("contig_ids length:", len(contig_ids) if contig_ids is not None else "None")
 
     # check if protein_embeddings is a list of lists, if not, make it one
     if not isinstance(protein_embeddings[0], list):
         protein_embeddings = [protein_embeddings]
+
+    if bacformer_model_type == "large":
+        # concatenate all contigs into one array of shape N x D
+        protein_embeddings = torch.tensor(
+            np.concatenate([np.stack(pe) for pe in protein_embeddings], axis=0), dtype=torch_dtype
+        )[:max_n_proteins, :]
+        contig_ids = torch.tensor(contig_ids, dtype=torch.long)[:max_n_proteins]
+        # clamp contig ids to max_n_contigs - 1
+        contig_ids = torch.clamp(contig_ids, max=max_n_contigs - 1)
+        attention_mask = torch.ones_like(contig_ids)
+        return {
+            "protein_embeddings": protein_embeddings.unsqueeze(0),
+            "contig_ids": contig_ids.unsqueeze(0),
+            "attention_mask": attention_mask.unsqueeze(0),
+        }
 
     # preprocess protein embeddings
     dim = len(protein_embeddings[0][0])

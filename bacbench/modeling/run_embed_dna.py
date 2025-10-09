@@ -151,7 +151,7 @@ def run(
                 agg_whole_genome=agg_whole_genome,
             ),
             batched=False,
-            remove_columns=[dna_col, "protein_sequence"],
+            remove_columns=[dna_col],
         )
 
         if isinstance(split_ds, IterableDataset):
