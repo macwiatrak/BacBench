@@ -104,7 +104,7 @@ def run(
 
     # check if the model is Bacformer and adjust accordingly
     bacformer_model = None
-    if "bacformer-300M" in model_path.lower():
+    if "bacformer-300m" in model_path.lower():
         logging.info("Bacformer-300M model used, loading Bacformer-300M model and its ESM-C base model.")
         bacformer_model = (
             BacformerCGForMaskedGM.from_pretrained(model_path).bacformer.eval().to(torch.bfloat16).to(device)
