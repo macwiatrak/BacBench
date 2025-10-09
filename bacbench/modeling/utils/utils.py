@@ -153,7 +153,6 @@ def protein_embeddings_to_inputs(
         dict: The inputs for the Bacformer model.
     """
     assert len(protein_embeddings) > 0, "protein_embeddings should not be empty"
-    print("contig_ids length:", len(contig_ids) if contig_ids is not None else "None")
 
     # check if protein_embeddings is a list of lists, if not, make it one
     if not isinstance(protein_embeddings[0], list):
