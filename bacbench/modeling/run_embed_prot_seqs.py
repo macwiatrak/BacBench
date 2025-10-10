@@ -168,7 +168,7 @@ def run(
                 split_ds,
                 save_every_n_rows=save_every_n_rows,
                 output_dir=output_dir,
-                prefix=f"{split_name}_",
+                prefix=f"{split_name}_{start_idx}_{end_idx}_",
             )
         else:  # regular in-memory Dataset
             df = split_ds.to_pandas()
