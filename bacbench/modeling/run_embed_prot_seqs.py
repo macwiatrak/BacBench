@@ -241,12 +241,16 @@ if __name__ == "__main__":
             print(f"Loading {len(data_files)} parquet files from {args.input_parquet_path}")
         else:
             data_files = args.input_parquet_path
-        dataset = load_dataset(
-            "parquet",
-            data_files=data_files,
-            streaming=args.streaming,
-            cache_dir=None,
-        )
+        if "strain-clustering/prot-seqs-sample" in args.input_parquet_path:
+            # read with fastparquet engine to avoid arrow issues
+            dataset = Dataset.from_pandas(pd.read_parquet(data_files, engine="fastparquet"), preserve_index=False)
+        else:
+            dataset = load_dataset(
+                "parquet",
+                data_files=data_files,
+                streaming=args.streaming,
+                cache_dir=None,
+            )
 
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
