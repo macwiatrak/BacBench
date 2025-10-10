@@ -201,13 +201,12 @@ def compute_bacformer_embeddings(
                 contig_ids=inputs["contig_ids"],
                 return_dict=True,
             ).last_hidden_state[0]
-    print(bacformer_embeddings.shape)
 
     # perform genome pooling
     if genome_pooling_method == "mean":
-        return bacformer_embeddings.mean(dim=1).type(torch.float32).cpu().squeeze().numpy()
+        return bacformer_embeddings.mean(dim=0).type(torch.float32).cpu().squeeze().numpy()
     elif genome_pooling_method == "max":
-        return bacformer_embeddings.max(dim=1).values.type(torch.float32).cpu().squeeze().numpy()
+        return bacformer_embeddings.max(dim=0).values.type(torch.float32).cpu().squeeze().numpy()
 
     # make it into a list
     bacformer_embeddings = list(bacformer_embeddings.type(torch.float32).cpu().numpy())
