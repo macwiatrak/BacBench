@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 import pandas as pd
 import torch
-from datasets import Dataset, IterableDataset, load_dataset
+from datasets import Dataset, DatasetDict, IterableDataset, load_dataset
 from tap import Tap
 from transformers import AutoModel
 
@@ -243,7 +243,9 @@ if __name__ == "__main__":
             data_files = args.input_parquet_path
         if "strain-clustering/prot-seqs-sample" in args.input_parquet_path:
             # read with fastparquet engine to avoid arrow issues
-            dataset = Dataset.from_pandas(pd.read_parquet(data_files, engine="fastparquet"), preserve_index=False)
+            dataset = DatasetDict(
+                {"train": Dataset.from_pandas(pd.read_parquet(data_files, engine="fastparquet"), preserve_index=False)}
+            )
         else:
             dataset = load_dataset(
                 "parquet",
