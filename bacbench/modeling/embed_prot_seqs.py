@@ -201,6 +201,7 @@ def compute_bacformer_embeddings(
                 contig_ids=inputs["contig_ids"],
                 return_dict=True,
             ).last_hidden_state[0]
+    print(bacformer_embeddings.shape)
 
     # perform genome pooling
     if genome_pooling_method == "mean":
