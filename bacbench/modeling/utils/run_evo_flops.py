@@ -77,18 +77,18 @@ def flops_evo_forward(seq_len: int) -> tuple[int, int, int]:
     }
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device).eval()
-    inputs = {k: v.to(device) for k, v in inputs.items()}
 
     # calflops executes a forward pass and counts ops; keep it quiet and fast
-    fwd_flops, fwd_macs, params = calculate_flops(
-        model=model,
-        kwargs=inputs,
-        include_backPropagation=False,  # forward only
-        print_results=False,
-        print_detailed=False,
-        output_as_string=False,
-    )
-    return fwd_flops, fwd_macs, params
+    with torch.no_grad():
+        fwd_flops, fwd_macs, params = calculate_flops(
+            model=model,
+            kwargs={k: v.to(device) for k, v in inputs.items()},
+            include_backPropagation=False,  # forward only
+            print_results=False,
+            print_detailed=False,
+            output_as_string=False,
+        )
+        return fwd_flops, fwd_macs, params
 
 
 def humanize(n: float) -> str:
