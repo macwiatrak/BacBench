@@ -470,7 +470,7 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
 
     # protein LMs
     if "facebook/esm2" in model_name_or_path:
-        dtype = torch.float16 if faesm_installed else torch.float32
+        dtype = torch.float16 if faesm_installed else torch.bfloat16
         return ESM2Embedder(model_name_or_path, dtype=dtype, device=device)
 
     if "esmc" in model_name_or_path:

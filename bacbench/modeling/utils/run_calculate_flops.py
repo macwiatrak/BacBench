@@ -121,7 +121,7 @@ def run(
     out = []
     for _, row in df.iterrows():
         if model_type in ["protein", "bacformer"]:
-            input_seqs = row["protein_sequence"]
+            input_seqs = row["protein_sequences"]
         elif model_type == "dna":
             input_seqs = " ".join(row["dna_sequence"])
             input_seqs = chunk_whole_genome_dna_seq(
