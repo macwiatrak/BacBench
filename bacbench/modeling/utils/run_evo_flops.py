@@ -58,7 +58,7 @@ def load_evo_model():
         config=cfg,
         trust_remote_code=True,
         revision=REVISION,
-        torch_dtype=torch.float32,  # dtype doesn’t affect FLOP count
+        torch_dtype=torch.bfloat16,  # dtype doesn’t affect FLOP count
         low_cpu_mem_usage=True,
     ).eval()  # keep on CPU; we only count FLOPs
     _patch_hyena_fir_callable(model)
