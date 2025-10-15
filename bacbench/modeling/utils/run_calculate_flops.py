@@ -22,7 +22,7 @@ def calculate_genome_flops(
     output = []
     for seq in tqdm(input_seqs):
         seqs = embedder._preprocess_seqs([seq])
-        inputs = embedder._tokenizer(seqs, max_seq_len=max_seq_len)
+        inputs = embedder._tokenize(seqs, max_seq_len=max_seq_len)
         with torch.no_grad():
             fwd_flops, fwd_macs, params = calculate_flops(
                 model=embedder.model,
