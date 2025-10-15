@@ -11,6 +11,7 @@ from transformers import AutoModel
 
 from bacbench.modeling.embed_dna import chunk_whole_genome_dna_seq
 from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
+from bacbench.modeling.utils.run_evo_flops_2 import forward_flops_deepspeed_evo
 from bacbench.modeling.utils.utils_glm2 import preprocess_whole_genome_for_glm2
 
 try:
@@ -38,14 +39,17 @@ def calculate_genome_flops(
         if embedder.model_type in ["glm2"]:
             inputs = {"input_ids": inputs["input_ids"].to(embedder.device)}
         with torch.no_grad():
-            fwd_flops, fwd_macs, params = calculate_flops(
-                model=embedder.model,
-                kwargs=inputs,  # your inputs dict
-                include_backPropagation=False,  # forward only
-                print_results=False,
-                print_detailed=False,
-                output_as_string=False,
-            )
+            if embedder.model_type == "evo":
+                fwd_flops, fwd_macs, params = forward_flops_deepspeed_evo(inputs["input_ids"].shape[-1])
+            else:
+                fwd_flops, fwd_macs, params = calculate_flops(
+                    model=embedder.model,
+                    kwargs=inputs,  # your inputs dict
+                    include_backPropagation=False,  # forward only
+                    print_results=False,
+                    print_detailed=False,
+                    output_as_string=False,
+                )
         train_flops = fwd_flops * (1.0 + bp_factor)
         train_macs = fwd_macs * (1.0 + bp_factor)
         output.append(

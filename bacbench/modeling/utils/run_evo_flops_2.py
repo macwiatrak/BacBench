@@ -55,7 +55,7 @@ def load_evo(revision=REVISION, device="cuda", dtype=torch.bfloat16):
     return model, cfg
 
 
-def forward_flops_deepspeed(L: int) -> tuple[int, int, int]:
+def forward_flops_deepspeed_evo(L: int) -> tuple[int, int, int]:
     """Calculate forward pass FLOPs, MACs, and params for Evo model at sequence length L."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model, cfg = load_evo(device=device)
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--L", type=int, default=8192, help="sequence length (context size)")
     args = parser.parse_args()
-    flops, macs, params = forward_flops_deepspeed(args.L)
+    flops, macs, params = forward_flops_deepspeed_evo(args.L)
     print(f"Params: {params:,}")
     print(f"Forward MACs:  {macs / 1e12:.3f} TMACs")
     print(f"Forward FLOPs: {flops / 1e12:.3f} TFLOPs")
