@@ -74,7 +74,6 @@ def flops_evo_forward(seq_len: int) -> tuple[int, int, int]:
     B = 1
     inputs = {
         "input_ids": torch.randint(0, vocab, (B, seq_len), dtype=torch.long),
-        "attention_mask": torch.ones(B, seq_len, dtype=torch.long),
     }
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device).eval()
