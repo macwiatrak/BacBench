@@ -152,6 +152,8 @@ def run(
 
         if model_type != "bacformer":
             embedder = load_seq_embedder(model_name_or_path)
+            if embedder.model_type == "evo":
+                embedder.model = None  # free up memory
             stats = calculate_genome_flops(
                 input_seqs=input_seqs,
                 embedder=embedder,
