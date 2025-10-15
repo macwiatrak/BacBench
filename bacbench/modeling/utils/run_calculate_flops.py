@@ -11,6 +11,7 @@ from transformers import AutoModel
 
 from bacbench.modeling.embed_dna import chunk_whole_genome_dna_seq
 from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
+from bacbench.modeling.utils.utils_glm2 import preprocess_whole_genome_for_glm2
 
 try:
     from bacformer.modeling.modeling_updated import BacformerCGForMaskedGM
@@ -138,9 +139,9 @@ def run(
             )
         else:
             # process the data into gLM2 format
-            input_seqs = " ".join(df["dna_sequence"])
-            input_seqs = chunk_whole_genome_dna_seq(
-                dna_sequence=input_seqs, max_seq_len=max_seq_len, overlap=dna_seq_overlap
+            input_seqs = " ".join(row["dna_sequence"])
+            input_seqs = preprocess_whole_genome_for_glm2(
+                dna_sequence=input_seqs, max_seq_len=max_seq_len, n_overlap=dna_seq_overlap
             )
 
         if model_type != "bacformer":
