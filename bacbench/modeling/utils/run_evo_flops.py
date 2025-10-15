@@ -76,6 +76,9 @@ def flops_evo_forward(seq_len: int) -> tuple[int, int, int]:
         "input_ids": torch.randint(0, vocab, (B, seq_len), dtype=torch.long),
         "attention_mask": torch.ones(B, seq_len, dtype=torch.long),
     }
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device).eval()
+    inputs = {k: v.to(device) for k, v in inputs.items()}
 
     # calflops executes a forward pass and counts ops; keep it quiet and fast
     fwd_flops, fwd_macs, params = calculate_flops(
