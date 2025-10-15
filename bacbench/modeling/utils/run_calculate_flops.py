@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import Literal
 
 import pandas as pd
@@ -6,9 +7,15 @@ from calflops import calculate_flops
 from tap import Tap
 from torch import nn
 from tqdm import tqdm
+from transformers import AutoModel
 
 from bacbench.modeling.embed_dna import chunk_whole_genome_dna_seq
 from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
+
+try:
+    from bacformer.modeling.modeling_updated import BacformerCGForMaskedGM
+except ImportError:
+    pass
 
 
 def calculate_genome_flops(
@@ -18,9 +25,13 @@ def calculate_genome_flops(
     bp_factor: float = 2.0,  # backprop factor (2.0 for Adam, 1.0 for SGD)
 ):
     """Calculate flops for a model on a list of protein or DNA sequences."""
-    # calculate input_seqs lens
+    # to speed up calculation, do a counter of sequence lens
+    input_seqs_counter = Counter([len(seq) for seq in input_seqs])
+    # for each len in the counter, get a representative sequence from input_seqs
+    input_seqs = {len(seq): seq for seq in input_seqs}
+
     output = []
-    for seq in tqdm(input_seqs):
+    for seq_len, seq in tqdm(input_seqs.items()):
         seqs = embedder._preprocess_seqs([seq])
         inputs = embedder._tokenize(seqs, max_seq_len=max_seq_len)
         with torch.no_grad():
@@ -37,10 +48,10 @@ def calculate_genome_flops(
         output.append(
             {
                 "n_training_params": params,
-                "fwd_MACs": fwd_macs,
-                "fwd_FLOPs": fwd_flops,
-                "fwd+bwd_MACs": train_macs,
-                "fwd+bwd_FLOPs": train_flops,
+                "fwd_MACs": fwd_macs * input_seqs_counter[seq_len],
+                "fwd_FLOPs": fwd_flops * input_seqs_counter[seq_len],
+                "fwd+bwd_MACs": train_macs * input_seqs_counter[seq_len],
+                "fwd+bwd_FLOPs": train_flops * input_seqs_counter[seq_len],
             }
         )
     output = pd.DataFrame(output)
@@ -114,8 +125,6 @@ def run(
     dna_seq_overlap: int = None,
 ):
     """Run flops calculation on a full genome."""
-    embedder = load_seq_embedder(model_name_or_path)
-
     # load the data
     df = pd.read_parquet(input_df_path)
     out = []
@@ -134,22 +143,49 @@ def run(
                 dna_sequence=input_seqs, max_seq_len=max_seq_len, overlap=dna_seq_overlap
             )
 
-        stats = calculate_genome_flops(
-            input_seqs=input_seqs,
-            embedder=embedder,
-            max_seq_len=max_seq_len,
-        )
-        if model_type == "bacformer":
+        if model_type != "bacformer":
+            embedder = load_seq_embedder(model_name_or_path)
+            stats = calculate_genome_flops(
+                input_seqs=input_seqs,
+                embedder=embedder,
+                max_seq_len=max_seq_len,
+            )
+        else:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            if "bacformer-300m" in model_name_or_path.lower():
+                bacformer_model = (
+                    BacformerCGForMaskedGM.from_pretrained(model_name_or_path)
+                    .bacformer.eval()
+                    .to(torch.bfloat16)
+                    .to(device)
+                )
+                prot_model_path = "Synthyra/ESMplusplus_small"
+                bacformer_model_type = "large"
+            else:
+                bacformer_model = (
+                    AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+                    .eval()
+                    .to(torch.bfloat16)
+                    .to(device)
+                )
+                prot_model_path = "facebook/esm2_t12_35M_UR50D"
+                bacformer_model_type = "base"
+            embedder = load_seq_embedder(prot_model_path)
+            stats = calculate_genome_flops(
+                input_seqs=input_seqs,
+                embedder=embedder,
+                max_seq_len=max_seq_len,
+            )
             bacformer_stats = calculate_genome_bacformer(
                 input_seqs=input_seqs,
-                model=embedder.model,
+                model=bacformer_model,
                 max_n_proteins=max_n_proteins,
-                bacformer_model_type="large" if "bacformer-300m" in model_name_or_path.lower() else "base",
+                bacformer_model_type=bacformer_model_type,
             )
+            stats["total_flops_fwd+bwd"] = stats["total_flops_fwd"] + bacformer_stats["total_flops_fwd+bwd"]
             stats["total_flops_fwd"] += bacformer_stats["total_flops_fwd"]
-            stats["total_flops_fwd+bwd"] += bacformer_stats["total_flops_fwd+bwd"]
+            stats["total_macs_fwd+bwd"] = stats["total_macs_fwd"] + bacformer_stats["total_macs_fwd+bwd"]
             stats["total_macs_fwd"] += bacformer_stats["total_macs_fwd"]
-            stats["total_macs_fwd+bwd"] += bacformer_stats["total_macs_fwd+bwd"]
             stats["n_params"] = bacformer_stats["n_params"]
         print(f"{model_name_or_path} on {row['strain_name']} statistics:", stats)
         stats["strain_name"] = row["strain_name"]
