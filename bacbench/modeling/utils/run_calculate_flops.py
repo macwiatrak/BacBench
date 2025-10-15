@@ -34,14 +34,14 @@ def calculate_genome_flops(
 
     output = []
     for seq_len, seq in tqdm(input_seqs.items()):
-        seqs = embedder._preprocess_seqs([seq])
-        inputs = embedder._tokenize(seqs, max_seq_len=max_seq_len)
-        if embedder.model_type in ["glm2"]:
-            inputs = {"input_ids": inputs["input_ids"].to(embedder.device)}
-        with torch.no_grad():
-            if embedder.model_type == "evo":
-                fwd_flops, fwd_macs, params = forward_flops_deepspeed_evo(inputs["input_ids"].shape[-1])
-            else:
+        if embedder.model_type == "evo":
+            fwd_flops, fwd_macs, params = forward_flops_deepspeed_evo(len(seq))
+        else:
+            seqs = embedder._preprocess_seqs([seq])
+            inputs = embedder._tokenize(seqs, max_seq_len=max_seq_len)
+            if embedder.model_type in ["glm2"]:
+                inputs = {"input_ids": inputs["input_ids"].to(embedder.device)}
+            with torch.no_grad():
                 fwd_flops, fwd_macs, params = calculate_flops(
                     model=embedder.model,
                     kwargs=inputs,  # your inputs dict
