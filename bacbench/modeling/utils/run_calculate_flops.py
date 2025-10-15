@@ -35,7 +35,7 @@ def calculate_genome_flops(
     for seq_len, seq in tqdm(input_seqs.items()):
         seqs = embedder._preprocess_seqs([seq])
         inputs = embedder._tokenize(seqs, max_seq_len=max_seq_len)
-        if embedder.model_type in ["glm2", "evo"]:
+        if embedder.model_type in ["glm2"]:
             inputs = {"input_ids": inputs["input_ids"].to(embedder.device)}
         with torch.no_grad():
             fwd_flops, fwd_macs, params = calculate_flops(
