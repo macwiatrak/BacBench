@@ -53,6 +53,7 @@ def _patch_hyena_fir_callable(model):
 def load_evo_model():
     """Load Evo model from Hugging Face with necessary patches."""
     cfg = AutoConfig.from_pretrained(MODEL_ID, trust_remote_code=True, revision=REVISION)
+    cfg.inference_mode = True  # disable training-only features
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
         config=cfg,
