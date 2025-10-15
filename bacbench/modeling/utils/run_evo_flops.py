@@ -59,7 +59,7 @@ def load_evo_model():
         config=cfg,
         trust_remote_code=True,
         revision=REVISION,
-        torch_dtype=torch.bfloat16,  # dtype doesn’t affect FLOP count
+        torch_dtype=torch.float16,  # dtype doesn’t affect FLOP count
         low_cpu_mem_usage=True,
     ).eval()  # keep on CPU; we only count FLOPs
     _patch_hyena_fir_callable(model)
@@ -77,7 +77,7 @@ def flops_evo_forward(seq_len: int) -> tuple[int, int, int]:
         "input_ids": torch.randint(0, vocab, (B, seq_len), dtype=torch.long),
     }
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = model.to(device).eval()
+    model = model.to(device)
 
     # calflops executes a forward pass and counts ops; keep it quiet and fast
     with torch.no_grad():
