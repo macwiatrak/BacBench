@@ -123,6 +123,37 @@ def activations_bytes_flash(
     return per_layer_tokens * saved_layers * bytes_per_elem
 
 
+def activations_bytes_naive_segments(
+    lengths: list[int],
+    shape: TransformerShape,
+    *,
+    bytes_per_elem: int = 2,
+    checkpoint_ratio: float = 1.0,
+    save_residual: bool = True,
+    save_qkv: bool = True,
+    save_mlp_act: bool = True,
+) -> int:
+    """
+    Naïve attention: if attention is ONLY within proteins, the quadratic term is sum_i (H * L_i^2).
+    This corrects the earlier (sum L_i)^2 assumption.
+    Saved activations per layer ≈ [residual/QKV/MLP (linear in sum L_i)] + [attention probs/scores (∑ L_i^2)].
+    """
+    L, D, F, H = shape.layers, shape.d_model, shape.d_ff, shape.n_heads
+    T = int(sum(lengths))
+    sum_sq = int(sum(li * li for li in lengths))
+    per_layer_elems = 0
+    if save_residual:
+        per_layer_elems += T * D
+    if save_qkv:
+        per_layer_elems += 3 * T * D
+    if save_mlp_act:
+        per_layer_elems += T * F
+    # attention matrices per head (scores/probs) — ONLY if you’re actually saving them (non-Flash)
+    per_layer_elems += H * sum_sq
+    saved_layers = max(1, int(round(L * checkpoint_ratio)))
+    return per_layer_elems * saved_layers * bytes_per_elem
+
+
 def human_bytes(n: int) -> str:
     """Convert bytes to a human-readable string."""
     units = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]
@@ -144,9 +175,10 @@ def calculate_genome_flops(
 ):
     """Calculate flops for a model on a list of protein or DNA sequences."""
     # Treat the genome as one long example: T = sum(lengths)
-    total_tokens = sum(len(s) for s in input_seqs)
+    # total_tokens = sum(len(s) for s in input_seqs)
 
     # to speed up calculation, do a counter of sequence lens
+    input_seq_counts = [len(seq) for seq in input_seqs]
     input_seqs_counter = Counter([len(seq) for seq in input_seqs])
     # for each len in the counter, get a representative sequence from input_seqs
     input_seqs = {len(seq): seq for seq in input_seqs}
@@ -203,19 +235,29 @@ def calculate_genome_flops(
     P = overall_stats["n_params"]
     states = model_states_bytes(
         P, weight_bytes=2, grad_bytes=2, master_weight_bytes=4, adam_state_bytes=8
-    )  # bf16 everywhere; Adam states in fp32 (8 bytes/param). :contentReference[oaicite:3]{index=3}
+    )  # bf16 everywhere; Adam states in fp32 (8 bytes/param).
 
     # FlashAttention: no O(T^2) saved activations. For Evo (Hyena) we can skip QKV saves.
     save_qkv = embedder.model_type != "evo"
-    acts = activations_bytes_flash(
-        total_tokens,
+    # acts = activations_bytes_flash(
+    #     total_tokens,
+    #     shape,
+    #     bytes_per_elem=2,
+    #     checkpoint_ratio=checkpoint_ratio,
+    #     save_residual=True,
+    #     save_qkv=save_qkv,
+    #     save_mlp_act=True,
+    # )  # FA reduces saved-activation memory to ~O(T·D), not O(T^2).
+
+    acts = activations_bytes_naive_segments(
+        input_seq_counts,
         shape,
         bytes_per_elem=2,
         checkpoint_ratio=checkpoint_ratio,
         save_residual=True,
         save_qkv=save_qkv,
         save_mlp_act=True,
-    )  # FA reduces saved-activation memory to ~O(T·D), not O(T^2). :contentReference[oaicite:4]{index=4}
+    )  # FA reduces saved-activation memory to ~O(T·D), not O(T^2).
 
     peak_train_bytes = int(acts + sum(states.values()))
     overall_stats.update(
