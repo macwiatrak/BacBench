@@ -321,7 +321,7 @@ def run(
     # load the data
     df = pd.read_parquet(input_df_path)
     out = []
-    for _, row in df[0:].iterrows():
+    for _, row in df[2:].iterrows():
         if model_type in ["protein", "bacformer"]:
             input_seqs = row["protein_sequences"]
         elif model_type == "dna":
