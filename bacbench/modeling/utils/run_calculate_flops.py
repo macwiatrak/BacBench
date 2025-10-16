@@ -32,14 +32,48 @@ class TransformerShape:
     vocab: int  # may be 0 for models like Bacformer aggregators
 
 
+def _swiglu_ffn_dim_from_cfg(cfg) -> int | None:
+    # gLM2 uses SwiGLU with hidden size ~= (2/3)*4d, rounded up to multiple_of
+    # https://huggingface.co/tattabio/gLM2_650M (config/impl shows swiglu_multiple_of & ffn_dim_multiplier)
+    multiple_of = getattr(cfg, "swiglu_multiple_of", None)
+    d = getattr(cfg, "dim", None)
+    mult = getattr(cfg, "ffn_dim_multiplier", None)
+    if d is None or multiple_of is None:
+        return None
+    hidden = int((8 * d) / 3)  # (2/3)*4d
+    if mult is not None:
+        hidden = int(hidden * mult)
+    # round up to multiple_of
+    hidden = multiple_of * ((hidden + multiple_of - 1) // multiple_of)
+    return hidden
+
+
 def extract_shape_from_config(cfg) -> TransformerShape:
-    """Extract Transformer shape from a Hugging Face config object."""
-    # Standard HF names
-    L = int(cfg.num_hidden_layers)
-    D = int(cfg.hidden_size)
-    F = int(getattr(cfg, "intermediate_size", 4 * D))
-    H = int(cfg.num_attention_heads)
-    V = int(getattr(cfg, "vocab_size", 0) or 0)  # 0 for Bacformer (no vocab head)
+    """Extract Transformer shape parameters from a Hugging Face config object."""
+    # Standard names (BERT/ESM/most): num_hidden_layers, hidden_size, intermediate_size, num_attention_heads, vocab_size
+    if hasattr(cfg, "num_hidden_layers"):
+        L = int(cfg.num_hidden_layers)
+        D = int(cfg.hidden_size)
+        F = int(getattr(cfg, "intermediate_size", 4 * D))
+        H = int(cfg.num_attention_heads)
+        V = int(getattr(cfg, "vocab_size", 0) or 0)
+        return TransformerShape(L, D, F, H, V)
+
+    # GLM2-style configs ("dim","depth","heads", SwiGLU FFN dims)
+    if hasattr(cfg, "depth") and hasattr(cfg, "dim") and hasattr(cfg, "heads"):
+        L = int(cfg.depth)
+        D = int(cfg.dim)
+        H = int(cfg.heads)
+        F = _swiglu_ffn_dim_from_cfg(cfg) or (4 * D)  # fallback
+        V = int(getattr(cfg, "vocab_size", 0) or 0)
+        return TransformerShape(L, D, F, H, V)
+
+    # Fallbacks (try common aliases)
+    L = int(getattr(cfg, "n_layer", 0) or getattr(cfg, "num_layers", 0))
+    D = int(getattr(cfg, "d_model", 0) or getattr(cfg, "hidden_size", 0))
+    F = int(getattr(cfg, "intermediate_size", 4 * D) or (4 * D))
+    H = int(getattr(cfg, "n_head", 0) or getattr(cfg, "num_attention_heads", 0))
+    V = int(getattr(cfg, "vocab_size", 0) or 0)
     return TransformerShape(L, D, F, H, V)
 
 
@@ -245,7 +279,7 @@ def calculate_genome_bacformer(
     P = int(params)
     states = model_states_bytes(
         P, weight_bytes=2, grad_bytes=2, master_weight_bytes=4, adam_state_bytes=8
-    )  # bf16 + Adam states in fp32. :contentReference[oaicite:5]{index=5}
+    )  # bf16 + Adam states in fp32.
 
     acts = activations_bytes_flash(
         n_proteins,
