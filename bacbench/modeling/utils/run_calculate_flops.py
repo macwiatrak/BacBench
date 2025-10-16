@@ -12,7 +12,8 @@ from transformers import AutoConfig, AutoModel
 
 from bacbench.modeling.embed_dna import chunk_whole_genome_dna_seq
 from bacbench.modeling.embedder import SeqEmbedder, load_seq_embedder
-from bacbench.modeling.utils.run_evo_flops_2 import forward_flops_deepspeed_evo
+
+# from bacbench.modeling.utils.run_evo_flops_2 import forward_flops_deepspeed_evo
 from bacbench.modeling.utils.utils_glm2 import preprocess_whole_genome_for_glm2
 
 try:
@@ -187,7 +188,8 @@ def calculate_genome_flops(
     output = []
     for seq_len, seq in tqdm(input_seqs.items()):
         if embedder.model_type == "evo":
-            fwd_flops, fwd_macs, params = forward_flops_deepspeed_evo(len(seq))
+            # fwd_flops, fwd_macs, params = forward_flops_deepspeed_evo(len(seq))
+            pass
         else:
             seqs = embedder._preprocess_seqs([seq])
             inputs = embedder._tokenize(seqs, max_seq_len=max_seq_len)
