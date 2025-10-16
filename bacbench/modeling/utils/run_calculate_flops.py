@@ -368,25 +368,25 @@ def run(
                 prot_model_path = "facebook/esm2_t12_35M_UR50D"
                 bacformer_model_type = "base"
             embedder = load_seq_embedder(prot_model_path)
-            stats = calculate_genome_flops(
+            plm_stats = calculate_genome_flops(
                 input_seqs=input_seqs,
                 embedder=embedder,
                 max_seq_len=max_seq_len,
                 model_name_or_path=model_name_or_path,
                 checkpoint_ratio=1.0,
             )
-            bacformer_stats = calculate_genome_bacformer(
+            stats = calculate_genome_bacformer(
                 input_seqs=input_seqs,
                 model=bacformer_model,
                 max_n_proteins=max_n_proteins,
                 bacformer_model_type=bacformer_model_type,
                 checkpoint_ratio=1.0,
             )
-            stats["total_flops_fwd+bwd"] = stats["total_flops_fwd"] + bacformer_stats["total_flops_fwd+bwd"]
-            stats["total_flops_fwd"] += bacformer_stats["total_flops_fwd"]
-            stats["total_macs_fwd+bwd"] = stats["total_macs_fwd"] + bacformer_stats["total_macs_fwd+bwd"]
-            stats["total_macs_fwd"] += bacformer_stats["total_macs_fwd"]
-            stats["n_params"] = bacformer_stats["n_params"]
+            stats["total_flops_fwd+bwd"] = stats["total_flops_fwd"] + plm_stats["total_flops_fwd+bwd"]
+            stats["total_flops_fwd"] += plm_stats["total_flops_fwd"]
+            stats["total_macs_fwd+bwd"] = stats["total_macs_fwd"] + plm_stats["total_macs_fwd+bwd"]
+            stats["total_macs_fwd"] += plm_stats["total_macs_fwd"]
+            stats["n_params"] = plm_stats["n_params"]
         print(f"{model_name_or_path} on {row['strain_name']} statistics:", stats)
         stats["strain_name"] = row["strain_name"]
         out.append(stats)
