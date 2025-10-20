@@ -17,16 +17,17 @@ from transformers import set_seed
 
 # learnigng rates for different models after tuning on the validation set
 MODEL2LR = {
-    "gLM2": 0.001,  # Unknown yet
+    "gLM2": 0.0005,  # Unknown yet
     "evo": 0.0005,  # Unknown yet
     "ProkBERT": 0.01,  # DONE
     "esm2": 0.01,  # DONE
-    "bacformer": 0.01,  # DONE
+    "bacformer": 0.001,  # DONE
+    "bacformer_large": 0.001,  # DONE
     "dnabert": 0.001,  # DONE
     "esmc": 0.001,  # DONE
     "mistral_dna": 0.005,  # DONE
     "nucleotide_transformer": 0.001,  # DONE
-    "protbert": 0.005,  # DONE
+    "protbert": 0.001,  # DONE
 }
 
 
@@ -203,11 +204,11 @@ class LinearModel(pl.LightningModule):
 def prepare_essential_genes_df(df: pd.DataFrame, embeddings_col: str) -> pd.DataFrame:
     """Prepare the essential genes DataFrame."""
     # check if the embeddings column is already in the correct format
-    if isinstance(df[embeddings_col].iloc[0], np.ndarray):
+    if not isinstance(df[embeddings_col].iloc[0][0], np.ndarray):
         return df
-    # if embeddings is List[List[np.ndarray]], we need to make it List[np.ndarray]
-    if isinstance(df[embeddings_col].iloc[0], list):
-        df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
+    # convert list of lists to just list as there is only one contig per genome
+    df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
+    df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
     # explode the DF
     df = df.explode([embeddings_col, "essential", "protein_id", "product", "start", "end"])
     return df
@@ -223,6 +224,7 @@ def main(
     output_dir: str = "/tmp/evo-output/",
     random_state: int = 1,
     embeddings_col: str = "embeddings",
+    # genome2split_file_path: str | None = None,
     test: bool = False,
 ):
     """Run the training of the Linear model."""
@@ -234,6 +236,13 @@ def main(
 
     # read input file
     df = pd.read_parquet(input_df_dile_path)
+
+    # add the split column given the genome2split mapping if it exists
+    # if genome2split_file_path is not None:
+    #     with open(genome2split_file_path, "r") as f:
+    #         genome2split = json.load(f)
+    #     df['split'] = df['genome_name'].map(genome2split)
+
     # explode the embeddings column as after embedding it is a list of lists
     df = prepare_essential_genes_df(df, embeddings_col=embeddings_col)
     # process the DF
@@ -244,10 +253,10 @@ def main(
 
     # split the data
     train_df = df[df["split"] == "train"]
-    val_df = df[df["split"] == "validation"]
-    if len(val_df) == 0:
-        val_df = df[df["split"] == "val"]
-    test_df = df[df["split"] == "test"]
+    test_df = df[df["split"] == "val"]
+    if len(test_df) == 0:
+        test_df = df[df["split"] == "validation"]
+    val_df = df[df["split"] == "test"]
 
     # create datasets
     train_dataset = TensorDataset(
@@ -361,16 +370,16 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str
-    output_dir: str
-    lr: float
+    input_df_file_path: str = "/Users/maciejwiatrak/Downloads/evo_embeds_all.parquet"
+    output_dir: str = "/tmp/eg-ft"
+    lr: float = 0.0005
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 256
     num_workers: int = 4
     test: bool = True
-    embeddings_col: str = "embeddings"
-    model_name: str = None
+    embeddings_col: str = "gene_embedding"
+    model_name: str = "evo"
 
 
 if __name__ == "__main__":
@@ -380,6 +389,7 @@ if __name__ == "__main__":
         test_df = main(
             input_df_dile_path=args.input_df_file_path,
             lr=args.lr,
+            # genome2split_file_path=args.genome2split_file_path,
             dropout=args.dropout,
             max_epochs=args.max_epochs,
             batch_size=args.batch_size,
