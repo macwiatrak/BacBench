@@ -146,6 +146,7 @@ def extract_all_filepaths(input_dir: str) -> list[str]:
 def run(
     input_dir: str,
     output_dir: str,
+    model_path: str,
     start_idx: int = None,
     end_idx: int = None,
     batch_size: int = 64,
@@ -171,7 +172,7 @@ def run(
 
     # create SeqEmbedder
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    embedder = load_seq_embedder("Synthyra/ESMplusplus_small", device=device)
+    embedder = load_seq_embedder(model_path, device=device)
 
     output = []
     chunk_idx = 0
@@ -232,6 +233,7 @@ class ArgumentParser(Tap):
 
     input_dir: str
     output_dir: str
+    model_path: str
     start_idx: int = None
     end_idx: int = None
     batch_size: int = 64
@@ -245,6 +247,7 @@ if __name__ == "__main__":
     run(
         input_dir=args.input_dir,
         output_dir=args.output_dir,
+        model_path=args.model_path,
         start_idx=args.start_idx,
         end_idx=args.end_idx,
         batch_size=args.batch_size,
