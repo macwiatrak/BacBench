@@ -158,7 +158,7 @@ def run(
     os.makedirs(output_dir, exist_ok=True)
     filepaths = extract_all_filepaths(input_dir)
     if genome_metadata_fp is not None:
-        metadata_df = pd.read_csv(genome_metadata_fp, sep="\t")
+        metadata_df = pd.read_parquet(genome_metadata_fp)
         valid_genome_ids = set(metadata_df["genome_id"].tolist())
         filepaths = [f for f in filepaths if os.path.basename(f).split(".")[0] in valid_genome_ids]
     print(f"Found {len(filepaths)} files in {input_dir}")
