@@ -86,7 +86,8 @@ def run(
         del prot_seqs
         # add the embeddings to the dataframe
         embeddings_arr = torch.cat(embeddings_arr, dim=0)
-        df = add_vector_column(embeddings_arr, df, col=col)
+        df[col] = list(embeddings_arr.numpy())
+        # df = add_vector_column(embeddings_arr, df, col=col)
         # sort the dataframe by the original order
         df = df.sort_values(by="prot_idx").drop(columns=["seq_len", "prot_idx"])
         # save the dataframe to the output_dir
