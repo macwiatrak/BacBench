@@ -54,7 +54,6 @@ def run(
 
     # for each file in the input_dir
     for f in tqdm(files):
-        print(f"Processing file {f}...")
         df = pd.read_parquet(os.path.join(input_dir, f))
 
         # check if the dataframe has the embeddings column
@@ -82,7 +81,7 @@ def run(
 
         # batch the sequences
         embeddings_arr = []
-        for i in tqdm(range(0, len(prot_seqs), batch_size)):
+        for i in range(0, len(prot_seqs), batch_size):
             batch_seqs = prot_seqs[i : i + batch_size]
             # embed the sequences
             with torch.no_grad():
@@ -132,4 +131,5 @@ if __name__ == "__main__":
         model_path=args.model_path,
         start_idx=args.start_idx,
         end_idx=args.end_idx,
+        col=args.col,
     )
