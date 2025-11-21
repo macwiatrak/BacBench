@@ -54,12 +54,13 @@ def run(
 
     # for each file in the input_dir
     for f in tqdm(files):
+        print(f"Processing file {f}...")
         df = pd.read_parquet(os.path.join(input_dir, f))
 
         # check if the dataframe has the embeddings column
-        if "embeddings" in df.columns:
-            print(f"Skipping {f}, already has embeddings.")
-            continue
+        # if "embeddings" in df.columns:
+        #     print(f"Skipping {f}, already has embeddings.")
+        #     continue
 
         # get the sequence column and sort by len to speed up
         # the processing
