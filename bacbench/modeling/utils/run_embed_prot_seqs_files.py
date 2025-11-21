@@ -96,7 +96,7 @@ def run(
             embeddings_arr.append(batch_embeddings)
         del prot_seqs
         # add the embeddings to the dataframe
-        embeddings_arr = torch.cat(embeddings_arr, dim=0)
+        embeddings_arr = torch.cat(embeddings_arr, dim=0).type(torch.float32)
         prot_seqs_df[col] = list(embeddings_arr.numpy())
         # df = add_vector_column(embeddings_arr, df, col=col)
         # sort the dataframe by the original order
