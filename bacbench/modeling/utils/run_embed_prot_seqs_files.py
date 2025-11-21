@@ -58,17 +58,27 @@ def run(
         df = pd.read_parquet(os.path.join(input_dir, f))
 
         # check if the dataframe has the embeddings column
-        # if "embeddings" in df.columns:
-        #     print(f"Skipping {f}, already has embeddings.")
-        #     continue
+        redundant_cols = [
+            "embeddings",
+            "prot_cluster_id",
+            "indices",
+            "distances",
+            "indices_esmp_50k",
+            "distances_esmp_50k",
+            "protein_embedding",
+        ]
+        cols_to_remove = [col for col in redundant_cols if col in df.columns]
+        if cols_to_remove:
+            df = df.drop(columns=cols_to_remove)
 
         # get the sequence column and sort by len to speed up
         # the processing
-        df["seq_len"] = df["protein_sequence"].str.len()
-        df["prot_idx"] = range(len(df))
-        df = df.sort_values(by="seq_len", ascending=False)
+        prot_seqs_df = df[["genome_name", "protein_sequence"]].explode("protein_sequence")
+        prot_seqs_df["seq_len"] = prot_seqs_df["protein_sequence"].str.len()
+        prot_seqs_df["prot_idx"] = range(len(prot_seqs_df))
+        prot_seqs_df = prot_seqs_df.sort_values(by="seq_len", ascending=False)
 
-        prot_seqs = df["protein_sequence"].tolist()
+        prot_seqs = prot_seqs_df["protein_sequence"].tolist()
 
         # batch the sequences
         embeddings_arr = []
@@ -87,10 +97,12 @@ def run(
         del prot_seqs
         # add the embeddings to the dataframe
         embeddings_arr = torch.cat(embeddings_arr, dim=0)
-        df[col] = list(embeddings_arr.numpy())
+        prot_seqs_df[col] = list(embeddings_arr.numpy())
         # df = add_vector_column(embeddings_arr, df, col=col)
         # sort the dataframe by the original order
-        df = df.sort_values(by="prot_idx").drop(columns=["seq_len", "prot_idx"])
+        prot_seqs_df = prot_seqs_df.sort_values(by="prot_idx").drop(columns=["seq_len", "prot_idx"])
+        prot_seqs_df = prot_seqs_df.groupby("genome_name")[[col]].agg(list).reset_index()
+        df = pd.merge(df, prot_seqs_df, on="genome_name", how="left")
         # save the dataframe to the output_dir
         output_file = os.path.join(output_dir, f)
         df.to_parquet(output_file, engine="pyarrow")
