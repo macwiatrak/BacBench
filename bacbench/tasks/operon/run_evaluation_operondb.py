@@ -45,7 +45,7 @@ def run(
     input_df_filepath: str,
     output_dir: str,
     embedding_col: str = "embeddings",
-    model_name: str = None,
+    model_name: str | None = None,
     n_negatives: int = 10,
 ):
     """Run zero-shot operon identification evaluation"""
@@ -102,6 +102,7 @@ def run(
             output["taxid"].append(row["taxid"])
             output["contig_name"].append(row["contig_name"])
             output["operon_size"].append(operon_size)
+            output["operon_name"].append(row["operon_names"])
             output["operon_protein_indices"].append(operon_gene_indices)
             output["auroc"].append(auroc_val)
             output["auprc"].append(auprc_val)
@@ -122,7 +123,7 @@ class ArgParser(Tap):
     # file paths for loading data
     input_df_filepath: str
     output_dir: str
-    model_name: str = None
+    model_name: str | None = None
     n_negatives: int = 10
     embedding_col: str = "embeddings"
 

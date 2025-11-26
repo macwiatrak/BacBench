@@ -61,17 +61,19 @@ The antibiotic resistance labels file is available to download from the [Hugging
 
 ```bash
 # Binary classification task
-python bacbench/tasks/antibiotic_resistance/run_train_mlp.py \
+python bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py \
     --input-genomes-df-filepath <output-dir>/amr_esmc_genome_embeddings.parquet \
     --labels-df-filepath <input-dir>/binary_labels.csv \
     --output-dir <output-dir> \
-    --model-name esmc
+    --model-name esmc \
+    --lr 0.005
 
 # Regression minimum inhibtion concentration (MIC) task
-python bacbench/tasks/antibiotic_resistance/run_train_mlp.py \
+python bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py \
     --input-genomes-df-filepath <output-dir>/amr_esmc_genome_embeddings.parquet \
     --labels-df-filepath <input-dir>/mic_regression_labels.csv \
     --output-dir <output-dir> \
     --model-name esmc \
+    --lr 0.005 \
     --regression
 ```
