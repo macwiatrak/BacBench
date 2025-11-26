@@ -62,7 +62,7 @@ python bacbench/tasks/phenotypic_traits/train_and_predict_linear.py \
     --labels-df-filepath <input-dir>/labels.csv \
     --output-dir <output-dir> \
     --model-name bacformer \
-    --lr 0.001
+    --lr 0.01
 ```
 
 ## References

@@ -66,7 +66,7 @@ python bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py \
     --labels-df-filepath <input-dir>/binary_labels.csv \
     --output-dir <output-dir> \
     --model-name esmc \
-    --lr 0.001
+    --lr 0.005
 
 # Regression minimum inhibtion concentration (MIC) task
 python bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py \
@@ -74,6 +74,6 @@ python bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py \
     --labels-df-filepath <input-dir>/mic_regression_labels.csv \
     --output-dir <output-dir> \
     --model-name esmc \
-    --lr 0.001 \
+    --lr 0.005 \
     --regression
 ```
