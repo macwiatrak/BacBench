@@ -65,6 +65,12 @@ python bacbench/tasks/phenotypic_traits/train_and_predict_linear.py \
     --lr 0.01
 ```
 
+## Evaluation
+
+The `phenotypic_traits_grouppings.csv` file groups phenotypes into a set of phenotype groups which can be used for evaluation analysis.
+
+**Note**: Some of the phenotypic traits are quantitative traits (for example `madin_quantitative_d1_up`). For consistency of evaluation we treat them as categorical traits, excluding rare classes (<50 samples).
+
 ## References
 ```
 [1] Madin, Joshua S., et al. "A synthesis of bacterial and archaeal phenotypic trait data." Scientific data 7.1 (2020): 170.
