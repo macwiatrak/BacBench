@@ -57,11 +57,12 @@ This script should be executed in the root directory of the repository.
 The phenotypic traits labels file is available to download from the [Hugging Face dataset repository](https://huggingface.co/datasets/macwiatrak/bacbench-phenotypic-traits-protein-sequences/tree/main).
 
 ```bash
-python bacbench/tasks/phenotypic_traits/run_train_mlp.py \
+python bacbench/tasks/phenotypic_traits/train_and_predict_linear.py \
     --input-genomes-df-filepath <output-dir>/pheno_bacformer_genome_embeddings.parquet \
     --labels-df-filepath <input-dir>/labels.csv \
     --output-dir <output-dir> \
-    --model-name bacformer
+    --model-name bacformer \
+    --lr 0.001
 ```
 
 ## References
