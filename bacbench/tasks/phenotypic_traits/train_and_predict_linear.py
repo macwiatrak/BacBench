@@ -772,9 +772,9 @@ if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
     df = pd.read_parquet(args.input_genomes_df_filepath)
-    labels_df = pd.read_parquet(args.labels_df_filepath)
+    labels_df = pd.read_csv(args.labels_df_filepath)
     n_before_merge = len(df)
-    df = df.merge(labels_df, on="genome_id", how="inner")
+    df = df.merge(labels_df, on="genome_name", how="inner")
     n_after_merge = len(df)
     assert n_before_merge == n_after_merge, "Merging with labels changed number of genomes! Investigate it."
 
