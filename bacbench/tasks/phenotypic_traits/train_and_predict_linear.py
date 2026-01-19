@@ -66,6 +66,10 @@ def _to_numpy_matrix(series) -> np.ndarray:
 def _encode_labels(y: pd.Series) -> tuple[np.ndarray, dict]:
     """Factorize labels -> {class: idx} and return y_int, mapping.
 
+    For binary classification, ensures the positive class is always mapped to 1
+    and the negative class to 0. This is important for metrics like AUROC and
+    average precision that assume the positive class has label 1.
+
     Parameters
     ----------
     y : pd.Series
@@ -77,9 +81,41 @@ def _encode_labels(y: pd.Series) -> tuple[np.ndarray, dict]:
         y_int: Integer-encoded labels as a numpy array.
         cls2id: Dictionary mapping class names to integer IDs.
     """
+    # Get unique classes as strings for consistent handling
     classes = sorted(pd.Series(y.unique()).astype(str).tolist())
-    cls2id = {c: i for i, c in enumerate(classes)}
-    # map via string, to be robust to mixed dtypes; ensure plain numpy ndarray
+    num_classes = len(classes)
+
+    if num_classes == 2:
+        # Binary classification: ensure positive class maps to 1, negative to 0
+        # Define known negative labels (case-insensitive)
+        negative_labels = {"no", "0", "-", "false", "negative", "neg", "n"}
+        # Define known positive labels (case-insensitive)
+        positive_labels = {"yes", "1", "+", "true", "positive", "pos", "y"}
+
+        # Identify which class is negative and which is positive
+        class_lower = [c.lower() for c in classes]
+
+        # Check if first class (alphabetically) is a known negative label
+        first_is_negative = class_lower[0] in negative_labels
+        first_is_positive = class_lower[0] in positive_labels
+        second_is_negative = class_lower[1] in negative_labels
+        second_is_positive = class_lower[1] in positive_labels
+
+        if first_is_negative or second_is_positive:
+            # First class is negative -> map to 0, second class -> 1 (default order works)
+            cls2id = {classes[0]: 0, classes[1]: 1}
+        elif first_is_positive or second_is_negative:
+            # First class is positive -> swap: first class -> 1, second class -> 0
+            cls2id = {classes[0]: 1, classes[1]: 0}
+        else:
+            # Unknown labels: fall back to alphabetical order (first=0, second=1)
+            # This maintains backward compatibility
+            cls2id = {c: i for i, c in enumerate(classes)}
+    else:
+        # Multi-class: use alphabetical ordering
+        cls2id = {c: i for i, c in enumerate(classes)}
+
+    # Map labels via string to be robust to mixed dtypes; ensure plain numpy ndarray
     y_int = y.astype(str).map(cls2id).to_numpy(dtype=np.int64)
     return y_int, cls2id
 
