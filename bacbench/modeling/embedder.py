@@ -459,7 +459,7 @@ class Evo2Embedder(SeqEmbedder):
         self.model = Evo2("evo2_1b_base")
         # make sure the model is in eval mode
         self.device = "cuda:0"
-        self.model.model.eval().to(self.device)
+        self.model.model.eval().to("cuda:0")
 
         self.tokenizer = self.model.tokenizer
         self.model_type = "evo2"
@@ -472,10 +472,10 @@ class Evo2Embedder(SeqEmbedder):
         # pad with self.pad_id and create attention mask
         input_ids = torch.stack(
             [torch.tensor(ids + [self.pad_id] * (max_seq_len - len(ids)), dtype=torch.long) for ids in input_ids]
-        ).to(self.device)
+        ).to("cuda:0")
         attention_mask = torch.stack(
             [torch.tensor([1] * len(ids) + [0] * (max_seq_len - len(ids)), dtype=torch.long) for ids in input_ids]
-        ).to(self.device)
+        ).to("cuda:0")
         # move inputs to the same device as the model
         return {"input_ids": input_ids, "attention_mask": attention_mask}
 
