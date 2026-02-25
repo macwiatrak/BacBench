@@ -457,9 +457,8 @@ class Evo2Embedder(SeqEmbedder):
         from evo2 import Evo2
 
         self.model = Evo2("evo2_1b_base")
-        # make sure the model is in eval mode
-        self.device = "cuda:0"
-        self.model.model.eval().to("cuda:0")
+        # make sure the model is in eval mode and on the correct device
+        self.model.model.eval()
 
         self.tokenizer = self.model.tokenizer
         self.model_type = "evo2"
