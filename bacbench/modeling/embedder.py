@@ -471,10 +471,10 @@ class Evo2Embedder(SeqEmbedder):
         # pad with self.pad_id and create attention mask
         input_ids = torch.stack(
             [torch.tensor(ids + [self.pad_id] * (max_seq_len - len(ids)), dtype=torch.long) for ids in input_ids]
-        ).to("cuda:0")
+        ).to(self.device)
         attention_mask = torch.stack(
             [torch.tensor([1] * len(ids) + [0] * (max_seq_len - len(ids)), dtype=torch.long) for ids in input_ids]
-        ).to("cuda:0")
+        ).to(self.device)
         # move inputs to the same device as the model
         return {"input_ids": input_ids, "attention_mask": attention_mask}
 
