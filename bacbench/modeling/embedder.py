@@ -541,9 +541,6 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
     if "gLM2" in model_name_or_path:
         return gLM2Embedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
-    if "evo" in model_name_or_path:
-        return EvoEmbedder(model_name_or_path, device=device, dtype=torch.bfloat16)
-
     if "evo2" in model_name_or_path:
         print(
             "Loading Evo2 embedder, this requires Evo2 dependencies.\n"
@@ -551,6 +548,9 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
             "Using evo2_1b_base model and extracting embeddings from the last layer before the output head (blocks.24.mlp.l3)."
         )
         return Evo2Embedder(model_name_or_path, device=device)
+
+    if "evo" in model_name_or_path:
+        return EvoEmbedder(model_name_or_path, device=device, dtype=torch.bfloat16)
 
     raise ValueError(
         f"Unknown model name or path: {model_name_or_path},"
