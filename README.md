@@ -23,6 +23,7 @@ as well as preprocessing bacterial genomes.
 
 ## News
 
+- **2026-02-26**: Added more embedding models, including Evo2 (recommended to run inside Evo2 container), ProkBERT, ESMPlusPlus and gLM2
 - **2025-05-15**: BacBench datasets are now available on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
 
 ## Contents
