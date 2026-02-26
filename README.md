@@ -340,19 +340,22 @@ We currently support the following models:
 | Mistral-DNA            | DNA                   | [Mistral-DNA-v1-138M-bacteria](https://huggingface.co/RaphaelMourad/Mistral-DNA-v1-138M-bacteria)                               | Autoregressive | 138 M | 768  | 512         |
 | DNABERT-2*             | DNA                   | [DNABERT-2-117M](https://huggingface.co/zhihan1996/DNABERT-2-117M)                                                              | Masked         | 117 M | 768  | 512         |
 | Nucleotide Transformer | DNA                   | [nucleotide-transformer-v2-250m-multi-species](https://huggingface.co/InstaDeepAI/nucleotide-transformer-v2-250m-multi-species) | Masked         | 250 M | 768  | 2 048       |
-| Evo**                  | DNA                   | [evo-1-8k-base (1.1_fix)](https://huggingface.co/togethercomputer/evo-1-8k-base)                                                | Autoregressive | 6.5 B | 4 096| 8 192       |
+| ProkBERT | DNA                   | [neuralbioinfo/prokbert-mini-long](https://huggingface.co/neuralbioinfo/prokbert-mini-long) | Masked         | 27 M | 384  | 4 096       |
+| Evo                  | DNA                   | [evo-1-8k-base (1.1_fix)](https://huggingface.co/togethercomputer/evo-1-8k-base)                                                | Autoregressive | 6.5 B | 4 096| 8 192       |
+| Evo2**           | DNA                   | [evo_1b_base](https://huggingface.co/arcinstitute/savanna_evo2_1b_base)                                                | Autoregressive |1 B | 1920| 8 192       |
 | ESM-2                  | Single protein seq.   | [esm2_t12_35M_UR50D](https://huggingface.co/facebook/esm2_t12_35M_UR50D)                                                        | Masked         | 35 M  | 480  | 1 024       |
-| ESM-C                  | Single protein seq.   | [esmc_300m](https://huggingface.co/EvolutionaryScale/esmc-300m-2024-12)                                                         | Masked         | 300 M | 960  | 1 024       |
+| ESM-C                  | Single protein seq.   | [esmc_300m](https://huggingface.co/EvolutionaryScale/esmc-300m-2024-12)                                                         | Masked         | 300 M | 960  | 2 048       |
+| ESMPlusPlus (reimplementation of ESMC)                  | Single protein seq.   | [Synthyra/ESMplusplus_small](https://huggingface.co/Synthyra/ESMplusplus_small)                                                         | Masked         | 300 M | 960  | 2 048       |
 | ProtBert               | Single protein seq.   | [prot_bert](https://huggingface.co/Rostlab/prot_bert)                                                                           | Masked         | 420 M | 1 024| 1 024       |
-| Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)***                     | Masked         | 27 M  | 480  | 6 000       |
+| gLM2 | Mixed modality (DNA & protein)                   | [tattabio/gLM2_650M](https://huggingface.co/tattabio/gLM2_650M) | Masked         | 650 M | 1 280  | 4 096       |
+| Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)<sup>†</sup>                     | Masked         | 27 M  | 480  | 6 000       |
+
 
 `*` DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
 
-`**` We adapt Evo to extract sequence embeddings from the last layer of the model. The implementation is available in [bacbench/modeling/evo/](bacbench/modeling/evo).
-We benchmarked Evo on only two tasks, `essential genes prediction` and `operon identification`, the smallest in `BacBench` due to the
-large computational cost of the model.
+`**` Evo2 requires specific requirements, to install them please refer to the [Evo2 github](https://github.com/ArcInstitute/evo2). We recommend running Evo2 in a container.
 
-`***` For strain clustering we used [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-MAG) as the input are
+`†` For strain clustering we used [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-MAG) as the input are
 metagenome-assembled genomes (MAGs), rather than complete genomes.
 
 
