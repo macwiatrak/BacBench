@@ -57,7 +57,8 @@ class SeqEmbedder(nn.Module):
         self._load(model_name_or_path)  # implemented by child
         if compile_model:  # optional torch.compile
             self.model = torch.compile(self.model)
-        self.model.to(self.device, dtype=self.dtype).eval()
+        if self.model_type != "evo2":  # Evo2 already moves the model to the device in its _load()
+            self.model.to(self.device, dtype=self.dtype).eval()
 
     # ---------- mandatory interface for child classes -------------------
     def _load(self, model_name_or_path: str):  # pragma: no cover
@@ -439,6 +440,66 @@ class EvoEmbedder(SeqEmbedder):
         return seq_representations
 
 
+class Evo2Embedder(SeqEmbedder):
+    """Embedder for Evo2 models.
+
+    Note: Evo2 requires transformer engine and other dependencies, see https://github.com/ArcInstitute/evo2 for more info
+    """
+
+    def _load(self, model_name_or_path: str, layer_name: str = "blocks.24.mlp.l3"):
+        """Load Evo2 model and tokenizer.
+
+        :param model_name_or_path: path to the Evo2 model
+        :param layer_name: name of the layer to extract embeddings from, default is 'blocks.24.mlp.l3' which is the last layer before the output head for evo2_1b_base.
+        For other Evo2 models, the layer name might be different, please check the model architecture and adjust accordingly.
+        """
+        # import evo2
+        from evo2 import Evo2
+
+        self.model = Evo2("evo2_1b_base")
+        # make sure the model is in eval mode and on the correct device
+        self.model.model.eval()
+
+        self.tokenizer = self.model.tokenizer
+        self.model_type = "evo2"
+        self.layer_name = layer_name
+        self.pad_id = self.tokenizer.pad_id
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        input_ids = [self.tokenizer.tokenize(s) for s in seqs]
+        max_seq_len = max(len(ids) for ids in input_ids)
+        # pad with self.pad_id and create attention mask
+        input_ids = torch.stack(
+            [torch.tensor(ids + [self.pad_id] * (max_seq_len - len(ids)), dtype=torch.long) for ids in input_ids]
+        ).to(self.device)
+        attention_mask = torch.stack(
+            [torch.tensor([1] * len(ids) + [0] * (max_seq_len - len(ids)), dtype=torch.long) for ids in input_ids]
+        ).to(self.device)
+        # move inputs to the same device as the model
+        return {"input_ids": input_ids, "attention_mask": attention_mask}
+
+    def _forward_batch(
+        self, inputs, pooling: Literal["cls", "mean"] = "mean", gene_mask: list[np.array] = None
+    ) -> torch.Tensor:
+        _, last_hidden_state = self.model(inputs["input_ids"], return_embeddings=True, layer_names=[self.layer_name])
+        last_hidden_state = last_hidden_state[self.layer_name]
+
+        if gene_mask is not None:
+            # apply gene mask to the last hidden state
+            gene_mask = torch.from_numpy(np.stack(gene_mask, axis=0)).to(
+                device=last_hidden_state.device, dtype=last_hidden_state.dtype
+            )
+            # multiply last_hidden_state with gene_mask
+            last_hidden_state = last_hidden_state * gene_mask.unsqueeze(-1)
+            pooling = "mean"  # force mean pooling if gene_mask is provided
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        seq_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return seq_representations
+
+
 def load_seq_embedder(model_name_or_path: str, device: str = None):
     """Helper function to load a sequence embedder object based on model name or path
 
@@ -480,12 +541,21 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
     if "gLM2" in model_name_or_path:
         return gLM2Embedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
+    if "evo2" in model_name_or_path:
+        print(
+            "Loading Evo2 embedder, this requires Evo2 dependencies.\n"
+            "For more information, please check the Evo2 repository: https://github.com/ArcInstitute/evo2"
+            "Using evo2_1b_base model and extracting embeddings from the last layer before the output head (blocks.24.mlp.l3)."
+        )
+        return Evo2Embedder(model_name_or_path, device=device)
+
     if "evo" in model_name_or_path:
         return EvoEmbedder(model_name_or_path, device=device, dtype=torch.bfloat16)
 
     raise ValueError(
         f"Unknown model name or path: {model_name_or_path},"
-        f" supported models are: ESM-2, ESMC, ProtBert, "
-        "Nucleotide Transformer, Mistral-DNA, DNABERT-2 "
-        f"available at HuggingFace."
+        f" supported models are: ESM-2, ESMC, ProtBert, ProGen, "
+        "Nucleotide Transformer, Mistral-DNA, DNABERT-2, "
+        "ProkBERT, gLM2, Evo, Evo2 "
+        "available via HuggingFace."
     )
