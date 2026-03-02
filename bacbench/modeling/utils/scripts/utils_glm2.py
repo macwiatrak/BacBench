@@ -4,7 +4,6 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-
 from bacbench.pp import dna_seq_to_cds_and_intergenic
 
 

@@ -2,11 +2,10 @@ import os
 
 import pandas as pd
 import torch
-from datasets import load_dataset, tqdm
-from tap import Tap
-
 from bacbench.modeling.embedder import load_seq_embedder
 from bacbench.modeling.utils.utils_evo import preprocess_gene_seq_for_evo
+from datasets import load_dataset, tqdm
+from tap import Tap
 
 
 def run(

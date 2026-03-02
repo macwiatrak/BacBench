@@ -43,6 +43,7 @@ def add_bacformer_embeddings(
     model: Callable,
     max_n_proteins: int = 6000,
     max_n_contigs: int = 1000,
+    bacformer_model_type: Literal["base", "large"] = "base",
     genome_pooling_method: Literal["mean", "max"] = None,
 ) -> dict[str, Any]:
     """Helper function to add Bacformer embeddings to a row."""
@@ -53,6 +54,7 @@ def add_bacformer_embeddings(
             contig_ids=row.get("contig_name", None),
             max_n_proteins=max_n_proteins,
             max_n_contigs=max_n_contigs,
+            bacformer_model_type=bacformer_model_type,
             genome_pooling_method=genome_pooling_method,
         )
     }
@@ -66,7 +68,7 @@ def run(
     device: str = None,
     output_col: str = "embeddings",
     genome_pooling_method: Literal["mean", "max"] = None,
-    max_n_proteins: int = 6000,  # for Bacformer
+    max_n_proteins: int = 9000,  # for Bacformer
     max_n_contigs: int = 1000,  # for Bacformer
     start_idx: int | None = None,  # for slicing the dataset
     end_idx: int | None = None,  # for slicing the dataset
@@ -97,18 +99,30 @@ def run(
 
     # check if the model is Bacformer and adjust accordingly
     bacformer_model = None
-    if "bacformer" in model_path.lower():
+    if "bacformer-large" in model_path.lower():
+        logging.info("Bacformer large model used, loading Bacformer large model and its ESM-2 large model.")
+        bacformer_model = (
+            AutoModel.from_pretrained(model_path, trust_remote_code=True).eval().to(torch.bfloat16).to(device)
+        )
+        model_path = "Synthyra/ESMplusplus_small"
+        bacformer_model_type = "large"
+    elif "bacformer" in model_path.lower():
         logging.info("Bacformer model used, loading Bacformer model and its ESM-2 base model.")
         bacformer_model = (
             AutoModel.from_pretrained(model_path, trust_remote_code=True).eval().to(torch.bfloat16).to(device)
         )
         model_path = "facebook/esm2_t12_35M_UR50D"
+        bacformer_model_type = "base"
 
     # load pLM embedder
     embedder = load_seq_embedder(model_path)
 
     # embed protein sequences across splits
     dfs = []
+
+    # if dataset is a dict of splits, keep it as is, otherwise make it a dict with a single split named "full"
+    if not isinstance(Dataset, dict):
+        dataset = {"full": dataset}
     for split_name, split_ds in dataset.items():  # split_ds is a `Dataset`
         # slice the split
         split_ds = _slice_split(split_ds, start_idx, end_idx)
@@ -140,6 +154,7 @@ def run(
                     model=bacformer_model,
                     max_n_proteins=max_n_proteins,
                     max_n_contigs=max_n_contigs,
+                    bacformer_model_type=bacformer_model_type,
                     genome_pooling_method=genome_pooling_method,
                 ),
                 batched=False,
@@ -151,7 +166,7 @@ def run(
                 split_ds,
                 save_every_n_rows=save_every_n_rows,
                 output_dir=output_dir,
-                prefix=f"{split_name}_",
+                prefix=f"{split_name}_{start_idx}_{end_idx}_",
             )
         else:  # regular in-memory Dataset
             df = split_ds.to_pandas()
@@ -199,6 +214,8 @@ class ArgumentParser(Tap):
     end_idx: int | None = None  # for slicing the dataset
     save_every_n_rows: int = None  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = None  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
+    split: str | None = None  # if set, will only process this split of the dataset
+    cache_dir: str | None = None  # cache dir for loading the dataset
 
 
 if __name__ == "__main__":
@@ -211,7 +228,8 @@ if __name__ == "__main__":
         dataset = load_dataset(
             args.dataset_name,
             streaming=args.streaming,
-            cache_dir=None,
+            split=args.split,
+            cache_dir=args.cache_dir,
         )
     else:  # parquet file chosen
         if os.path.isdir(args.input_parquet_path):
@@ -228,7 +246,7 @@ if __name__ == "__main__":
             "parquet",
             data_files=data_files,
             streaming=args.streaming,
-            cache_dir=None,
+            cache_dir=args.cache_dir,
         )
 
     if args.output_dir is not None:
@@ -250,9 +268,8 @@ if __name__ == "__main__":
         save_every_n_rows=args.save_every_n_rows,
         output_dir=args.output_dir,
     )
-    # if save_every_n_rows is set, we already saved the dataframe in chunks
-    if args.save_every_n_rows is None or args.input_parquet_path is not None:
-        # save the dataframe to parquet
+    # save the dataframe if returned (i.e. if save_every_n_rows is not set)
+    if df is not None:
         if args.output_filepath is not None:
             df.to_parquet(args.output_filepath)
         elif args.output_dir is not None:

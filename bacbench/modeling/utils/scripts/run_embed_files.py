@@ -3,10 +3,9 @@ import os.path
 import pandas as pd
 import pyarrow as pa
 import torch
+from bacbench.modeling.embedder import load_seq_embedder
 from datasets import tqdm
 from tap import Tap
-
-from bacbench.modeling.embedder import load_seq_embedder
 
 
 def add_vector_column(
