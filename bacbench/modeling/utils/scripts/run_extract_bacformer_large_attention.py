@@ -29,13 +29,12 @@ import os
 
 import numpy as np
 import torch
-from datasets import load_dataset
-from tap import Tap
-from transformers import AutoModel
-
 from bacbench.modeling.embed_prot_seqs import compute_genome_protein_embeddings
 from bacbench.modeling.embedder import load_seq_embedder
 from bacbench.modeling.utils.utils import get_prot_seq_col_name, protein_embeddings_to_inputs
+from datasets import load_dataset
+from tap import Tap
+from transformers import AutoModel
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
