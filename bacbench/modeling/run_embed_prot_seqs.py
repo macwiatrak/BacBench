@@ -119,6 +119,10 @@ def run(
 
     # embed protein sequences across splits
     dfs = []
+
+    # if dataset is a dict of splits, keep it as is, otherwise make it a dict with a single split named "full"
+    if not isinstance(Dataset, dict):
+        dataset = {"full": dataset}
     for split_name, split_ds in dataset.items():  # split_ds is a `Dataset`
         # slice the split
         split_ds = _slice_split(split_ds, start_idx, end_idx)
@@ -210,6 +214,8 @@ class ArgumentParser(Tap):
     end_idx: int | None = None  # for slicing the dataset
     save_every_n_rows: int = None  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = None  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
+    split: str | None = None  # if set, will only process this split of the dataset
+    cache_dir: str | None = None  # cache dir for loading the dataset
 
 
 if __name__ == "__main__":
@@ -222,7 +228,8 @@ if __name__ == "__main__":
         dataset = load_dataset(
             args.dataset_name,
             streaming=args.streaming,
-            cache_dir=None,
+            split=args.split,
+            cache_dir=args.cache_dir,
         )
     else:  # parquet file chosen
         if os.path.isdir(args.input_parquet_path):
@@ -239,7 +246,7 @@ if __name__ == "__main__":
             "parquet",
             data_files=data_files,
             streaming=args.streaming,
-            cache_dir=None,
+            cache_dir=args.cache_dir,
         )
 
     if args.output_dir is not None:
