@@ -350,13 +350,14 @@ We currently support the following models:
 | ProtBert               | Single protein seq.   | [prot_bert](https://huggingface.co/Rostlab/prot_bert)                                                                           | Masked         | 420 M | 1 024| 1 024       |
 | gLM2 | Mixed modality (DNA & protein)                   | [tattabio/gLM2_650M](https://huggingface.co/tattabio/gLM2_650M) | Masked         | 650 M | 1 280  | 4 096       |
 | Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)<sup>†</sup>                     | Masked         | 27 M  | 480  | 6 000       |
+| Bacformer Large             | Multiple protein seq. | [bacformer-large-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-large-masked-complete-genomes)<sup>†</sup>                     | Masked         | 27 M  | 960  | 6 000       |
 
 
 `*` DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
 
 `**` Evo2 requires specific requirements, to install them please refer to the [Evo2 github](https://github.com/ArcInstitute/evo2). We recommend running Evo2 in a container.
 
-`†` For strain clustering we used [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-MAG) as the input are
+`†` For strain clustering we used the MAG version of the Bacformer model ([bacformer-masked-MAG](https://huggingface.co/macwiatrak/bacformer-masked-MAG) and [bacformer-large-masked-MAG](https://huggingface.co/macwiatrak/bacformer-large-masked-MAG)) as the input are
 metagenome-assembled genomes (MAGs), rather than complete genomes.
 
 
