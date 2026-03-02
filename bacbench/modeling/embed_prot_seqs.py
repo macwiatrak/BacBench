@@ -185,8 +185,6 @@ def compute_bacformer_embeddings(
     # Compute Bacformer embeddings
     with torch.no_grad():
         if bacformer_model_type == "base":
-            print("protein embeddings shape before bacformer:", inputs["protein_embeddings"].shape)
-            print("special tokens mask shape before bacformer:", inputs["special_tokens_mask"].shape)
             bacformer_embeddings = model(
                 protein_embeddings=inputs["protein_embeddings"].type(model.dtype),
                 special_tokens_mask=inputs["special_tokens_mask"],
@@ -209,11 +207,6 @@ def compute_bacformer_embeddings(
         return bacformer_embeddings.mean(dim=0).type(torch.float32).cpu().squeeze().numpy()
     elif genome_pooling_method == "max":
         return bacformer_embeddings.max(dim=0).values.type(torch.float32).cpu().squeeze().numpy()
-
-    # only keep the protein embeddings and not special tokens
-    if bacformer_model_type == "base":
-        print("bacformer embeddings shape after bacformer before filtering special tokens:", bacformer_embeddings.shape)
-        bacformer_embeddings = bacformer_embeddings[inputs["special_tokens_mask"] == prot_emb_idx]
 
     # make it into a list
     bacformer_embeddings = list(bacformer_embeddings.type(torch.float32).cpu().numpy())
