@@ -4,6 +4,7 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 import torch
+from tqdm.auto import tqdm
 
 from bacbench.modeling.embedder import SeqEmbedder
 from bacbench.modeling.utils.scripts.utils_evo import prepare_gene_seqs_for_evo
@@ -166,6 +167,8 @@ def generate_dna_embeddings(
     batch_size: int = 128,
     max_seq_len: int = 2048,
     gene_mask: list[list[int]] | None = None,
+    show_progress: bool = False,
+    progress_desc: str | None = None,
 ) -> list[np.ndarray]:
     """Generate DNA embeddings using pretrained models.
 
@@ -183,6 +186,10 @@ def generate_dna_embeddings(
     dna_embeddings_arr = []
 
     # Process the DNA sequences in batches
+    pbar = None
+    if show_progress:
+        pbar = tqdm(total=len(dna_sequence), desc=progress_desc or "Embedding DNA sequences", unit="seq", leave=False)
+
     for i in range(0, len(dna_sequence), batch_size):
         batch_sequences = dna_sequence[i : i + batch_size]
         batch_gene_mask = gene_mask[i : i + batch_size] if gene_mask is not None else None
@@ -191,6 +198,11 @@ def generate_dna_embeddings(
 
         # Append the generated embeddings to the list
         dna_embeddings_arr += dna_representations
+        if pbar is not None:
+            pbar.update(len(batch_sequences))
+
+    if pbar is not None:
+        pbar.close()
 
     return dna_embeddings_arr
 
@@ -258,12 +270,16 @@ def embed_genome_dna_sequences(
             gene_mask = None  # only used for Evo/Evo2 models
 
     # embed protein sequences
+    show_progress = embedder.model_type in {"evo", "evo2"} and start is not None and end is not None
+
     dna_embeddings = generate_dna_embeddings(
         embedder=embedder,
         dna_sequence=dna,
         batch_size=batch_size,
         max_seq_len=max_seq_len,
         gene_mask=gene_mask,
+        show_progress=show_progress,
+        progress_desc="Embedding genes/seqs (Evo/Evo2)",
     )
 
     # if we pool all the embeddings at genome level, we don't care about the order and we just
