@@ -6,8 +6,8 @@ import pandas as pd
 import torch
 
 from bacbench.modeling.embedder import SeqEmbedder
-from bacbench.modeling.utils.utils_evo import prepare_gene_seqs_for_evo
-from bacbench.modeling.utils.utils_glm2 import preprocess_whole_genome_for_glm2
+from bacbench.modeling.utils.scripts.utils_evo import prepare_gene_seqs_for_evo
+from bacbench.modeling.utils.scripts.utils_glm2 import preprocess_whole_genome_for_glm2
 
 
 def get_dna_seq(
@@ -185,8 +185,9 @@ def generate_dna_embeddings(
     # Process the DNA sequences in batches
     for i in range(0, len(dna_sequence), batch_size):
         batch_sequences = dna_sequence[i : i + batch_size]
-        with torch.no_grad():
-            dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean", gene_mask=gene_mask)
+        batch_gene_mask = gene_mask[i : i + batch_size] if gene_mask is not None else None
+        with torch.inference_mode():
+            dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean", gene_mask=batch_gene_mask)
 
         # Append the generated embeddings to the list
         dna_embeddings_arr += dna_representations
@@ -235,7 +236,7 @@ def embed_genome_dna_sequences(
         gene_mask = None
     # embed the dna sequence for each gene
     else:
-        if embedder.model_type == "evo":
+        if embedder.model_type in {"evo", "evo2"}:
             dna, gene_mask = prepare_gene_seqs_for_evo(
                 dna=dna,
                 start=start,
@@ -254,7 +255,7 @@ def embed_genome_dna_sequences(
                 max_seq_len=max_seq_len,
                 dna_seq_overlap=dna_seq_overlap,
             )
-            gene_mask = None  # only used for Evo model
+            gene_mask = None  # only used for Evo/Evo2 models
 
     # embed protein sequences
     dna_embeddings = generate_dna_embeddings(
