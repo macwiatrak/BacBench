@@ -8,7 +8,11 @@ from tqdm.auto import tqdm
 
 from bacbench.modeling.embedder import SeqEmbedder
 from bacbench.modeling.utils.scripts.utils_evo import prepare_gene_seqs_for_evo
-from bacbench.modeling.utils.scripts.utils_glm2 import preprocess_whole_genome_for_glm2
+
+try:
+    from bacbench.modeling.utils.scripts.utils_glm2 import preprocess_whole_genome_for_glm2
+except ImportError:
+    preprocess_whole_genome_for_glm2 = None
 
 
 def get_dna_seq(
