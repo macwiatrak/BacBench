@@ -296,6 +296,10 @@ def embed_genome_dna_sequences(
             return np.max(dna_embeddings, axis=0)
         raise ValueError(f"Unsupported genome pooling method: {genome_pooling_method}")
     else:
+        # Whole-genome mode has no gene indices; return chunk embeddings directly.
+        if gene_indices is None:
+            return dna_embeddings
+
         # if we don't pool, we return the list of embeddings and the gene indices
         gene_df = pd.DataFrame({"gene_idx": gene_indices, "dna_embedding": dna_embeddings})
         gene_df = gene_df.groupby("gene_idx")["dna_embedding"].apply(list)

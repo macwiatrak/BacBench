@@ -126,6 +126,10 @@ def run(
     :param output_dir: output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
     :return: A pandas dataframe with the DNA embeddings.
     """
+    # Whole-genome mode should default to a single genome-level vector.
+    if agg_whole_genome and genome_pooling_method is None:
+        genome_pooling_method = "mean"
+
     # load DNA LM
     embedder = load_seq_embedder(model_path)
 
