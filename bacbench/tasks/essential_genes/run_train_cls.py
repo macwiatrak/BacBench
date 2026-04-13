@@ -361,15 +361,15 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str = "/Users/maciejwiatrak/Downloads/baclm_causal_essential_genes_embeddings.parquet"
-    output_dir: str = "/tmp/"
-    lr: float = 0.001
+    input_df_file_path: str
+    output_dir: str
+    lr: float
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 256
     num_workers: int = 4
     test: bool = True
-    embeddings_col: str = "embedding"
+    embeddings_col: str = "embeddings"
     model_name: str = None
 
 
