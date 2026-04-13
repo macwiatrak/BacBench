@@ -235,7 +235,7 @@ def main(
     # read input file
     df = pd.read_parquet(input_df_dile_path)
     # explode the embeddings column as after embedding it is a list of lists
-    # df = prepare_essential_genes_df(df, embeddings_col=embeddings_col)
+    df = prepare_essential_genes_df(df, embeddings_col=embeddings_col)
     # process the DF
     genome2idx = {g: i for i, g in enumerate(df["genome_name"].unique())}
     df["genome_idx"] = df["genome_name"].map(genome2idx)
