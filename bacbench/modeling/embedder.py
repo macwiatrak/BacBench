@@ -89,7 +89,7 @@ class SeqEmbedder(nn.Module):
         return inputs
 
     # ---------- public method -------------------------------------------
-    @torch.no_grad()
+    @torch.inference_mode()
     def forward(
         self,
         sequences: list[str],
@@ -115,7 +115,7 @@ class SeqEmbedder(nn.Module):
         seqs = self._preprocess_seqs(sequences)
 
         inputs = self._tokenize(seqs, max_seq_len=max_seq_len)
-        if self.model_type in ["evo", "glm2"] and gene_mask is not None:
+        if self.model_type in {"evo", "evo2", "glm2"} and gene_mask is not None:
             rep = self._forward_batch(inputs, pooling, gene_mask=gene_mask)
         else:
             rep = self._forward_batch(inputs, pooling)  # (B,D)
@@ -475,7 +475,7 @@ class Evo2Embedder(SeqEmbedder):
         # import evo2
         from evo2 import Evo2
 
-        self.model = Evo2("evo2_1b_base")
+        self.model = Evo2(model_name_or_path)
         # make sure the model is in eval mode and on the correct device
         self.model.model.eval()
 
@@ -485,16 +485,24 @@ class Evo2Embedder(SeqEmbedder):
         self.pad_id = self.tokenizer.pad_id
 
     def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
-        input_ids = [self.tokenizer.tokenize(s) for s in seqs]
-        max_seq_len = max(len(ids) for ids in input_ids)
-        # pad with self.pad_id and create attention mask
-        input_ids = torch.stack(
-            [torch.tensor(ids + [self.pad_id] * (max_seq_len - len(ids)), dtype=torch.long) for ids in input_ids]
-        ).to(self.device)
-        attention_mask = torch.stack(
-            [torch.tensor([1] * len(ids) + [0] * (max_seq_len - len(ids)), dtype=torch.long) for ids in input_ids]
-        ).to(self.device)
-        # move inputs to the same device as the model
+        if not seqs:
+            raise ValueError("Evo2Embedder received an empty batch.")
+
+        tokenized_ids = [self.tokenizer.tokenize(s)[:max_seq_len] for s in seqs]
+        batch_max_len = max(1, max(len(ids) for ids in tokenized_ids))
+
+        # pad with self.pad_id and create attention mask based on true (unpadded) token lengths
+        input_ids = torch.full((len(tokenized_ids), batch_max_len), self.pad_id, dtype=torch.long, device=self.device)
+        attention_mask = torch.zeros((len(tokenized_ids), batch_max_len), dtype=torch.long, device=self.device)
+
+        for row_idx, ids in enumerate(tokenized_ids):
+            if not ids:
+                continue
+            token_tensor = torch.tensor(ids, dtype=torch.long, device=self.device)
+            seq_len = token_tensor.size(0)
+            input_ids[row_idx, :seq_len] = token_tensor
+            attention_mask[row_idx, :seq_len] = 1
+
         return {"input_ids": input_ids, "attention_mask": attention_mask}
 
     def _forward_batch(
@@ -529,49 +537,52 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    model_name_or_path_lower = model_name_or_path.lower()
+
     # protein LMs
-    if "facebook/esm2" in model_name_or_path:
+    if "facebook/esm2" in model_name_or_path_lower:
         dtype = torch.float16 if faesm_installed else torch.float32
         return ESM2Embedder(model_name_or_path, dtype=dtype, device=device)
 
-    if "esmc" in model_name_or_path:
+    if "esmc" in model_name_or_path_lower:
         return ESMCEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
-    if "esmplusplus" in model_name_or_path.lower():
+    if "esmplusplus" in model_name_or_path_lower:
         return ESMPlusPlusEmbedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
-    if "prot_bert" in model_name_or_path:
+    if "prot_bert" in model_name_or_path_lower:
         return ProtBERTEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
-    if "progen2" in model_name_or_path:
+    if "progen2" in model_name_or_path_lower:
         return ProGen2Embedder(model_name_or_path, dtype=torch.float32, device=device)
 
     # DNA LMs
-    if "nucleotide-transformer" in model_name_or_path:
+    if "nucleotide-transformer" in model_name_or_path_lower:
         return NucleotideTransformerEmbedder(model_name_or_path, dtype=torch.float16, device=device)
 
-    if "DNABERT-2" in model_name_or_path:
+    if "dnabert-2" in model_name_or_path_lower:
         return DNABERT2Embedder(model_name_or_path, dtype=torch.float32, device=device)
 
-    if "Mistral-DNA" in model_name_or_path:
+    if "mistral-dna" in model_name_or_path_lower:
         return MistralDNAEmbedder(model_name_or_path, dtype=torch.float32, device=device)
 
-    if "prokbert" in model_name_or_path:
+    if "prokbert" in model_name_or_path_lower:
         return ProkBERTEmbedder(model_name_or_path, dtype=torch.float32, device=device)
 
     # mixed modality LMs
-    if "gLM2" in model_name_or_path:
+    if "glm2" in model_name_or_path_lower:
         return gLM2Embedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
-    if "evo2" in model_name_or_path:
+    if "evo2" in model_name_or_path_lower:
         print(
             "Loading Evo2 embedder, this requires Evo2 dependencies.\n"
-            "For more information, please check the Evo2 repository: https://github.com/ArcInstitute/evo2"
-            "Using evo2_1b_base model and extracting embeddings from the last layer before the output head (blocks.24.mlp.l3)."
+            "For more information, please check the Evo2 repository: https://github.com/ArcInstitute/evo2.\n"
+            f"Using Evo2 model identifier: {model_name_or_path}.\n"
+            "Default embedding layer is blocks.24.mlp.l3 unless overridden in Evo2Embedder._load."
         )
         return Evo2Embedder(model_name_or_path, device=device)
 
-    if "evo" in model_name_or_path:
+    if "evo" in model_name_or_path_lower:
         return EvoEmbedder(model_name_or_path, device=device, dtype=torch.bfloat16)
 
     raise ValueError(

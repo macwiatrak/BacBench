@@ -68,6 +68,7 @@ def run(
     device: str = None,
     output_col: str = "embeddings",
     genome_pooling_method: Literal["mean", "max"] = None,
+    agg_whole_genome: bool = False,
     max_n_proteins: int = 9000,  # for Bacformer
     max_n_contigs: int = 1000,  # for Bacformer
     start_idx: int | None = None,  # for slicing the dataset
@@ -84,6 +85,7 @@ def run(
     :param device: device to use for embedding pLMs, if None, will use cuda if available
     :param output_col: name of the output column for the embeddings
     :param genome_pooling_method: pooling method for the genome level embedding, one of ["mean", "max"]
+    :param agg_whole_genome: if True and genome_pooling_method is None, defaults pooling to "mean"
     :param max_n_proteins: maximum number of proteins to use for each genome, only used for Bacformer
     :param max_n_contigs: maximum number of contigs to use for each genome, only used for Bacformer
     :param start_idx: start index for slicing the dataset, if None, will use the whole dataset
@@ -96,6 +98,10 @@ def run(
     # set device
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Whole-genome mode should default to a single genome-level vector.
+    if agg_whole_genome and genome_pooling_method is None:
+        genome_pooling_method = "mean"
 
     # check if the model is Bacformer and adjust accordingly
     bacformer_model = None
@@ -208,6 +214,7 @@ class ArgumentParser(Tap):
     device: str = None
     output_col: str = "embeddings"
     genome_pooling_method: Literal["mean", "max"] = None
+    agg_whole_genome: bool = False
     max_n_proteins: int = 9000  # for Bacformer
     max_n_contigs: int = 1000  # for Bacformer
     start_idx: int | None = None  # for slicing the dataset
@@ -261,6 +268,7 @@ if __name__ == "__main__":
         device=args.device,
         output_col=args.output_col,
         genome_pooling_method=args.genome_pooling_method,
+        agg_whole_genome=args.agg_whole_genome,
         max_n_proteins=args.max_n_proteins,
         max_n_contigs=args.max_n_contigs,
         start_idx=args.start_idx,

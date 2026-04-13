@@ -4,10 +4,15 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 import torch
+from tqdm.auto import tqdm
 
 from bacbench.modeling.embedder import SeqEmbedder
-from bacbench.modeling.utils.utils_evo import prepare_gene_seqs_for_evo
-from bacbench.modeling.utils.utils_glm2 import preprocess_whole_genome_for_glm2
+from bacbench.modeling.utils.scripts.utils_evo import prepare_gene_seqs_for_evo
+
+try:
+    from bacbench.modeling.utils.scripts.utils_glm2 import preprocess_whole_genome_for_glm2
+except ImportError:
+    preprocess_whole_genome_for_glm2 = None
 
 
 def get_dna_seq(
@@ -166,6 +171,8 @@ def generate_dna_embeddings(
     batch_size: int = 128,
     max_seq_len: int = 2048,
     gene_mask: list[list[int]] | None = None,
+    show_progress: bool = False,
+    progress_desc: str | None = None,
 ) -> list[np.ndarray]:
     """Generate DNA embeddings using pretrained models.
 
@@ -183,13 +190,23 @@ def generate_dna_embeddings(
     dna_embeddings_arr = []
 
     # Process the DNA sequences in batches
+    pbar = None
+    if show_progress:
+        pbar = tqdm(total=len(dna_sequence), desc=progress_desc or "Embedding DNA sequences", unit="seq", leave=False)
+
     for i in range(0, len(dna_sequence), batch_size):
         batch_sequences = dna_sequence[i : i + batch_size]
-        with torch.no_grad():
-            dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean", gene_mask=gene_mask)
+        batch_gene_mask = gene_mask[i : i + batch_size] if gene_mask is not None else None
+        with torch.inference_mode():
+            dna_representations = embedder(batch_sequences, max_seq_len, pooling="mean", gene_mask=batch_gene_mask)
 
         # Append the generated embeddings to the list
         dna_embeddings_arr += dna_representations
+        if pbar is not None:
+            pbar.update(len(batch_sequences))
+
+    if pbar is not None:
+        pbar.close()
 
     return dna_embeddings_arr
 
@@ -235,7 +252,7 @@ def embed_genome_dna_sequences(
         gene_mask = None
     # embed the dna sequence for each gene
     else:
-        if embedder.model_type == "evo":
+        if embedder.model_type in {"evo", "evo2"}:
             dna, gene_mask = prepare_gene_seqs_for_evo(
                 dna=dna,
                 start=start,
@@ -254,15 +271,19 @@ def embed_genome_dna_sequences(
                 max_seq_len=max_seq_len,
                 dna_seq_overlap=dna_seq_overlap,
             )
-            gene_mask = None  # only used for Evo model
+            gene_mask = None  # only used for Evo/Evo2 models
 
     # embed protein sequences
+    show_progress = embedder.model_type in {"evo", "evo2"} and start is not None and end is not None
+
     dna_embeddings = generate_dna_embeddings(
         embedder=embedder,
         dna_sequence=dna,
         batch_size=batch_size,
         max_seq_len=max_seq_len,
         gene_mask=gene_mask,
+        show_progress=show_progress,
+        progress_desc="Embedding genes/seqs (Evo/Evo2)",
     )
 
     # if we pool all the embeddings at genome level, we don't care about the order and we just
@@ -275,6 +296,10 @@ def embed_genome_dna_sequences(
             return np.max(dna_embeddings, axis=0)
         raise ValueError(f"Unsupported genome pooling method: {genome_pooling_method}")
     else:
+        # Whole-genome mode has no gene indices; return chunk embeddings directly.
+        if gene_indices is None:
+            return dna_embeddings
+
         # if we don't pool, we return the list of embeddings and the gene indices
         gene_df = pd.DataFrame({"gene_idx": gene_indices, "dna_embedding": dna_embeddings})
         gene_df = gene_df.groupby("gene_idx")["dna_embedding"].apply(list)

@@ -248,6 +248,7 @@ python bacbench/modeling/run_embed_dna.py \
     --max-seq-len 2048 \
     --dna-seq-overlap 32 \
     --agg-whole-genome \
+    --genome-pooling-method mean \
     --streaming
 ```
 
