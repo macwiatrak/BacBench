@@ -384,6 +384,41 @@ class gLM2Embedder(SeqEmbedder):
         return seq_representations
 
 
+class BacLMEmbedder(SeqEmbedder):
+    """Embedder for BacLM models from HuggingFace."""
+
+    def _load(self, model_name_or_path: str):
+        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.model_type = "baclm"
+
+    def _tokenize(self, seqs: list[str], max_seq_len: int) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer.batch_encode_plus(
+            seqs, return_tensors="pt", padding="longest", truncation=True, max_length=max_seq_len
+        )
+        # move inputs to the same device as the model
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        return inputs
+
+    def _forward_batch(
+        self,
+        inputs,
+        pooling: Literal["cls", "mean"] = "mean",
+    ) -> torch.Tensor:
+        last_hidden_state = self.model(
+            inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            token_type_ids=inputs["token_type_ids"],
+        ).last_hidden_state
+
+        if pooling == "cls":
+            return last_hidden_state[:, 0]  # (B,D)
+        seq_representations = torch.einsum(
+            "ijk,ij->ik", last_hidden_state, inputs["attention_mask"].type_as(last_hidden_state)
+        ) / inputs["attention_mask"].sum(1).unsqueeze(1)
+        return seq_representations
+
+
 class EvoEmbedder(SeqEmbedder):
     """Embedder for Evo models from HuggingFace."""
 
@@ -572,6 +607,9 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
     # mixed modality LMs
     if "glm2" in model_name_or_path_lower:
         return gLM2Embedder(model_name_or_path, dtype=torch.bfloat16, device=device)
+
+    if "baclm" in model_name_or_path_lower:
+        return BacLMEmbedder(model_name_or_path, dtype=torch.float32, device=device)
 
     if "evo2" in model_name_or_path_lower:
         print(
