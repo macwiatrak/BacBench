@@ -3,6 +3,7 @@ import os
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import torch
 import torch.nn.functional as F
 from datasets import tqdm
@@ -63,51 +64,63 @@ def run(
 ):
     """Evaluate the model on the PPI dataset in an unsupervised manner."""
     # read in the dataset, only load necessary columns to save memory
-    df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", "embeddings"])
+    # df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", "embeddings"])
 
     # read in the train/test split
     with open(train_test_split_filepath) as f:
         split = json.load(f)
 
-    # filter the dataset to only include test strains
-    df["split"] = df["strain_name"].map(split)
-    df = df[df["split"] == "test"]
+    # # filter the dataset to only include test strains
+    # df["split"] = df["strain_name"].map(split)
+    # df = df[df["split"] == "test"]
     os.makedirs(output_dir, exist_ok=True)
 
-    output = []
-    for item in tqdm(df.itertuples(index=False), total=len(df)):
-        genome_scores = []
-        genome_labels = []
-        for contig_labels, contig_embeddings in zip(item.labels, item.embeddings, strict=False):
-            contig_scores, contig_binary_labels = _evaluate_contig_pairs(
-                contig_labels=contig_labels,
-                contig_embeddings=contig_embeddings,
-                score_threshold=score_threshold,
-                max_n_proteins=max_n_proteins,
-                max_n_ppi_pairs=max_n_ppi_pairs,
-            )
-            if contig_scores is None or contig_binary_labels is None:
-                continue
-            genome_scores.append(contig_scores)
-            genome_labels.append(contig_binary_labels)
+    parquet_file = pq.ParquetFile(input_filepath)
 
-        # calculate genome-level AUROC and AUPRC
-        try:
-            genome_scores_tensor = torch.cat(genome_scores)
-            genome_labels_tensor = torch.cat(genome_labels)
-            genome_auroc = auroc(genome_scores_tensor, genome_labels_tensor, task="binary").item()
-            genome_auprc = average_precision(genome_scores_tensor, genome_labels_tensor, task="binary").item()
-            genome_metrics = {
-                "strain_name": item.strain_name,
-                "auroc": genome_auroc,
-                "auprc": genome_auprc,
-                "n_ppi_pairs": int(genome_scores_tensor.numel()),
-                "n_pos_ppi_pairs": int(genome_labels_tensor.sum().item()),
-            }
-            output.append(genome_metrics)
-        except Exception as e:  # noqa
-            print(f"Error in calculating genome-level metrics: {e}")
-            continue
+    output = []
+    # for item in tqdm(df.itertuples(index=False), total=len(df)):
+    for batch in tqdm(
+        parquet_file.iter_batches(
+            columns=["strain_name", "labels", "embeddings"],
+            batch_size=5,
+        )
+    ):
+        batch = batch.to_pandas()
+        for _, item in batch.iterrows():
+            if split.get(item["strain_name"], "train") != "test":
+                continue
+            genome_scores = []
+            genome_labels = []
+            for contig_labels, contig_embeddings in zip(item.labels, item.embeddings, strict=False):
+                contig_scores, contig_binary_labels = _evaluate_contig_pairs(
+                    contig_labels=contig_labels,
+                    contig_embeddings=contig_embeddings,
+                    score_threshold=score_threshold,
+                    max_n_proteins=max_n_proteins,
+                    max_n_ppi_pairs=max_n_ppi_pairs,
+                )
+                if contig_scores is None or contig_binary_labels is None:
+                    continue
+                genome_scores.append(contig_scores)
+                genome_labels.append(contig_binary_labels)
+
+            # calculate genome-level AUROC and AUPRC
+            try:
+                genome_scores_tensor = torch.cat(genome_scores)
+                genome_labels_tensor = torch.cat(genome_labels)
+                genome_auroc = auroc(genome_scores_tensor, genome_labels_tensor, task="binary").item()
+                genome_auprc = average_precision(genome_scores_tensor, genome_labels_tensor, task="binary").item()
+                genome_metrics = {
+                    "strain_name": item.strain_name,
+                    "auroc": genome_auroc,
+                    "auprc": genome_auprc,
+                    "n_ppi_pairs": int(genome_scores_tensor.numel()),
+                    "n_pos_ppi_pairs": int(genome_labels_tensor.sum().item()),
+                }
+                output.append(genome_metrics)
+            except Exception as e:  # noqa
+                print(f"Error in calculating genome-level metrics: {e}")
+                continue
 
     if model_name is None:
         model_name = "unknown_model"
