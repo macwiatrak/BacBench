@@ -155,6 +155,7 @@ if __name__ == "__main__":
         ("bac_large_cg_ppi.parquet", "Bacformer-Large"),
     ]
     for input_filename, model_name in filepaths:
+        print(f"Running unsupervised evaluation for model: {model_name}")
         run(
             input_filepath=os.path.join(args.input_filepath, input_filename),
             train_test_split_filepath=args.train_test_split_filepath,
