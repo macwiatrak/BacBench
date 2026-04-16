@@ -34,7 +34,7 @@ def run(
         genome_scores = []
         genome_labels = []
         for contig_labels, contig_embeddings in zip(item["labels"], item["embeddings"], strict=False):
-            contig_labels = contig_labels[:max_n_ppi_pairs]
+            contig_labels = contig_labels[: int(max_n_ppi_pairs)]
             contig_embeddings = contig_embeddings[:max_n_proteins]
             for prot1_idx, prot2_idx, label in contig_labels:
                 if prot1_idx >= len(contig_embeddings) or prot2_idx >= len(contig_embeddings):
