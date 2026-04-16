@@ -3,7 +3,7 @@ import random
 from typing import Any
 
 import numpy as np
-import pyarrow.parquet as pq
+import pandas as pd
 import torch
 from tqdm import tqdm
 
@@ -36,27 +36,33 @@ def _split_rows_from_parquet(
     input_filepath: str,
     train_test_split_filepath: str,
     batch_size: int = 32,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Read the single PPI parquet incrementally and partition rows by split."""
     with open(train_test_split_filepath) as f:
         split = json.load(f)
 
-    train_rows: list[dict[str, Any]] = []
-    val_rows: list[dict[str, Any]] = []
-    test_rows: list[dict[str, Any]] = []
+    df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", "embeddings"])
+    df["split"] = df["strain_name"].map(split)
+    train_df = df[df["split"] == "train"]
+    val_df = df[df["split"] == "validation"]
+    test_df = df[df["split"] == "test"]
 
-    parquet_file = pq.ParquetFile(input_filepath)
-    for batch in parquet_file.iter_batches(columns=["strain_name", "labels", "embeddings"], batch_size=batch_size):
-        for row in batch.to_pylist():
-            split_name = split.get(row["strain_name"])
-            if split_name == "train":
-                train_rows.append(row)
-            elif split_name == "validation":
-                val_rows.append(row)
-            elif split_name == "test":
-                test_rows.append(row)
+    # train_rows: list[dict[str, Any]] = []
+    # val_rows: list[dict[str, Any]] = []
+    # test_rows: list[dict[str, Any]] = []
 
-    return train_rows, val_rows, test_rows
+    # parquet_file = pq.ParquetFile(input_filepath)
+    # for batch in parquet_file.iter_batches(columns=["strain_name", "labels", "embeddings"], batch_size=batch_size):
+    #     for row in batch.to_pylist():
+    #         split_name = split.get(row["strain_name"])
+    #         if split_name == "train":
+    #             train_rows.append(row)
+    #         elif split_name == "validation":
+    #             val_rows.append(row)
+    #         elif split_name == "test":
+    #             test_rows.append(row)
+
+    return train_df, val_df, test_df
 
 
 def _infer_hidden_size(*datasets: "PpiDataset") -> int:
@@ -80,7 +86,7 @@ class PpiDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        rows: list[dict[str, Any]],
+        rows: pd.DataFrame,
         max_n_proteins: int,
         max_n_ppi_pairs: float,
         score_threshold: float | None,
@@ -88,9 +94,8 @@ class PpiDataset(torch.utils.data.Dataset):
         self.max_n_proteins = int(max_n_proteins)
         self.max_n_ppi_pairs = int(max_n_ppi_pairs)
         self.score_threshold = score_threshold
-        self.rows = rows
 
-        self.embeddings, self.ppi_labels, self.pair_genome_names = self._build_split_matrices()
+        self.embeddings, self.ppi_labels, self.pair_genome_names = self._build_split_matrices(rows)
 
     def _build_genome_example(self, row: dict[str, Any]) -> tuple[np.ndarray, np.ndarray] | None:
         all_embeddings: list[np.ndarray] = []
@@ -149,13 +154,13 @@ class PpiDataset(torch.utils.data.Dataset):
 
         return embeddings, labels
 
-    def _build_split_matrices(self) -> tuple[torch.Tensor, torch.Tensor, list[str]]:
+    def _build_split_matrices(self, rows: pd.DataFrame) -> tuple[torch.Tensor, torch.Tensor, list[str]]:
         all_embeddings: list[np.ndarray] = []
         all_labels: list[np.ndarray] = []
         pair_genome_names: list[str] = []
         curr_idx = 0
 
-        for row in tqdm(self.rows, desc="Building PPI dataset"):
+        for _, row in tqdm(rows.iterrows(), desc="Building PPI dataset"):
             genome_example = self._build_genome_example(row)
             if genome_example is None:
                 continue
