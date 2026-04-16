@@ -3,14 +3,48 @@ import os
 
 import pandas as pd
 import torch
+import torch.nn.functional as F
 from datasets import tqdm
 from tap import Tap
 from torchmetrics.functional import auroc, average_precision
 
 
+def _evaluate_contig_pairs(
+    contig_labels,
+    contig_embeddings,
+    score_threshold: float,
+    max_n_proteins: int,
+    max_n_ppi_pairs: float,
+) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    """Vectorize pair scoring for one contig."""
+    contig_labels = contig_labels[: int(max_n_ppi_pairs)]
+    contig_embeddings = contig_embeddings[:max_n_proteins]
+    if len(contig_labels) == 0 or len(contig_embeddings) == 0:
+        return None, None
+
+    labels_tensor = torch.as_tensor(contig_labels)
+    if labels_tensor.numel() == 0:
+        return None, None
+    labels_tensor = labels_tensor.reshape(-1, 3)
+
+    embeddings_tensor = torch.as_tensor(contig_embeddings, dtype=torch.float32)
+    n_embeddings = embeddings_tensor.shape[0]
+
+    valid_mask = (labels_tensor[:, 0] < n_embeddings) & (labels_tensor[:, 1] < n_embeddings)
+    if not torch.any(valid_mask):
+        return None, None
+
+    labels_tensor = labels_tensor[valid_mask]
+    prot1_embeddings = embeddings_tensor[labels_tensor[:, 0].long()]
+    prot2_embeddings = embeddings_tensor[labels_tensor[:, 1].long()]
+    scores = F.cosine_similarity(prot1_embeddings, prot2_embeddings, dim=1)
+    binary_labels = (labels_tensor[:, 2].to(torch.float32) / 1000.0 >= score_threshold).to(torch.long)
+    return scores, binary_labels
+
+
 def run(
     input_filepath: str,
-    train_test_split_filepath: list,
+    train_test_split_filepath: str,
     output_dir: str,
     model_name: str,
     score_threshold: float = 0.6,
@@ -28,40 +62,37 @@ def run(
     # filter the dataset to only include test strains
     df["split"] = df["strain_name"].map(split)
     df = df[df["split"] == "test"]
+    os.makedirs(output_dir, exist_ok=True)
 
     output = []
-    for _, item in tqdm(df.iterrows()):
+    for item in tqdm(df.itertuples(index=False), total=len(df)):
         genome_scores = []
         genome_labels = []
-        for contig_labels, contig_embeddings in zip(item["labels"], item["embeddings"], strict=False):
-            contig_labels = contig_labels[: int(max_n_ppi_pairs)]
-            contig_embeddings = contig_embeddings[:max_n_proteins]
-            for prot1_idx, prot2_idx, label in contig_labels:
-                if prot1_idx >= len(contig_embeddings) or prot2_idx >= len(contig_embeddings):
-                    continue
-                # convert the label to be a value between 0 and 1 by dividing by 1000, this is because the original scores are between 0 and 1000
-                label = label / 1000
-                # binarize the labels based on the score threshold
-                label = 1 if label >= score_threshold else 0
-                # compute the cosine similarity between the two protein embeddings
-                prot1_embedding = torch.tensor(contig_embeddings[prot1_idx]).unsqueeze(0)
-                prot2_embedding = torch.tensor(contig_embeddings[prot2_idx]).unsqueeze(0)
-                score = torch.cosine_similarity(prot1_embedding, prot2_embedding).item()
-                genome_scores.append(score)
-                genome_labels.append(label)
+        for contig_labels, contig_embeddings in zip(item.labels, item.embeddings, strict=False):
+            contig_scores, contig_binary_labels = _evaluate_contig_pairs(
+                contig_labels=contig_labels,
+                contig_embeddings=contig_embeddings,
+                score_threshold=score_threshold,
+                max_n_proteins=max_n_proteins,
+                max_n_ppi_pairs=max_n_ppi_pairs,
+            )
+            if contig_scores is None or contig_binary_labels is None:
+                continue
+            genome_scores.append(contig_scores)
+            genome_labels.append(contig_binary_labels)
 
         # calculate genome-level AUROC and AUPRC
         try:
-            genome_auroc = auroc(torch.tensor(genome_scores), torch.tensor(genome_labels), task="binary").item()
-            genome_auprc = average_precision(
-                torch.tensor(genome_scores), torch.tensor(genome_labels), task="binary"
-            ).item()
+            genome_scores_tensor = torch.cat(genome_scores)
+            genome_labels_tensor = torch.cat(genome_labels)
+            genome_auroc = auroc(genome_scores_tensor, genome_labels_tensor, task="binary").item()
+            genome_auprc = average_precision(genome_scores_tensor, genome_labels_tensor, task="binary").item()
             genome_metrics = {
-                "strain_name": item["strain_name"],
+                "strain_name": item.strain_name,
                 "auroc": genome_auroc,
                 "auprc": genome_auprc,
-                "n_ppi_pairs": len(genome_scores),
-                "n_pos_ppi_pairs": sum(genome_labels),
+                "n_ppi_pairs": int(genome_scores_tensor.numel()),
+                "n_pos_ppi_pairs": int(genome_labels_tensor.sum().item()),
             }
             output.append(genome_metrics)
         except Exception as e:  # noqa
