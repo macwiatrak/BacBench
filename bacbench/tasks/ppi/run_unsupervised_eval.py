@@ -82,7 +82,7 @@ def run(
     for batch in tqdm(
         parquet_file.iter_batches(
             columns=["strain_name", "labels", "embeddings"],
-            batch_size=5,
+            batch_size=2,
         )
     ):
         batch = batch.to_pandas()
