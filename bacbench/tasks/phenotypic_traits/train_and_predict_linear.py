@@ -800,7 +800,7 @@ class ArgParser(Tap):
     train_size: float = 0.7
     val_size: float = 0.1
     test_size: float = 0.2
-    test_after_train: bool = True
+    test_after_train: bool = False
     limit_n_phenotypes: int | None = None  # limit number of phenotypes to process, for debugging
 
 
