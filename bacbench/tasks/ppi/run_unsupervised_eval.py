@@ -141,11 +141,11 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     args = parser.parse_args()
     filepaths = [
-        ("mistral_ppi.parquet", "Mistral-DNA"),
+        # ("mistral_ppi.parquet", "Mistral-DNA"),
         # ("dnabert2_ppi.parquet", "DNABERT-2"),
-        ("nt_ppi.parquet", "Nucleotide Transformer"),
-        ("prokbert_ppi.parquet", "ProkBERT"),
-        ("evo_ppi.parquet", "Evo"),
+        # ("nt_ppi.parquet", "Nucleotide Transformer"),
+        # ("prokbert_ppi.parquet", "ProkBERT"),
+        # ("evo_ppi.parquet", "Evo"),
         ("evo2.parquet", "Evo2"),
         ("esm2_ppi.parquet", "ESM-2"),
         ("esmc_ppi.parquet", "ESM-C"),
