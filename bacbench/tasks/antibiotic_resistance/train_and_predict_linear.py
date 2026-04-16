@@ -28,6 +28,15 @@ from tqdm import tqdm
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# learnigng rates for different models after tuning on the validation set
+MODEL2LR_BINARY = {
+    "evo2_1b": 0.5,
+}
+
+MODEL2LR_REGRESSION = {
+    "evo2_1b": 0.0005,
+}
+
 
 # ------------------------- utilities -------------------------
 def _to_numpy_matrix(series) -> np.ndarray:
