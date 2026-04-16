@@ -158,14 +158,14 @@ if __name__ == "__main__":
         # ("dnabert2_ppi.parquet", "DNABERT-2"),
         # ("nt_ppi.parquet", "Nucleotide Transformer"),
         # ("prokbert_ppi.parquet", "ProkBERT"),
-        # ("evo_ppi.parquet", "Evo"),
-        ("evo2.parquet", "Evo2"),
-        ("esm2_ppi.parquet", "ESM-2"),
-        ("esmc_ppi.parquet", "ESM-C"),
-        ("protbert_ppi.parquet", "ProtBERT"),
-        ("glm2_ppi.parquet", "gLM2"),
-        ("bacformer_ppi.parquet", "Bacformer"),
-        ("bac_large_cg_ppi.parquet", "Bacformer-Large"),
+        ("evo_ppi.parquet", "Evo"),
+        # ("evo2.parquet", "Evo2"),
+        # ("esm2_ppi.parquet", "ESM-2"),
+        # ("esmc_ppi.parquet", "ESM-C"),
+        # ("protbert_ppi.parquet", "ProtBERT"),
+        # ("glm2_ppi.parquet", "gLM2"),
+        # ("bacformer_ppi.parquet", "Bacformer"),
+        # ("bac_large_cg_ppi.parquet", "Bacformer-Large"),
     ]
     for input_filename, model_name in filepaths:
         print(f"Running unsupervised evaluation for model: {model_name}")
