@@ -1,6 +1,7 @@
 import json
 import os
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -22,12 +23,21 @@ def _evaluate_contig_pairs(
     if len(contig_labels) == 0 or len(contig_embeddings) == 0:
         return None, None
 
-    labels_tensor = torch.as_tensor(contig_labels)
-    if labels_tensor.numel() == 0:
+    labels_array = np.asarray(contig_labels)
+    if labels_array.dtype == np.object_:
+        labels_array = np.stack([np.asarray(row, dtype=np.int64) for row in labels_array], axis=0)
+    else:
+        labels_array = labels_array.astype(np.int64, copy=False)
+    if labels_array.size == 0:
         return None, None
-    labels_tensor = labels_tensor.reshape(-1, 3)
+    labels_tensor = torch.as_tensor(labels_array).reshape(-1, 3)
 
-    embeddings_tensor = torch.as_tensor(contig_embeddings, dtype=torch.float32)
+    embeddings_array = np.asarray(contig_embeddings)
+    if embeddings_array.dtype == np.object_:
+        embeddings_array = np.stack([np.asarray(row, dtype=np.float32) for row in embeddings_array], axis=0)
+    else:
+        embeddings_array = embeddings_array.astype(np.float32, copy=False)
+    embeddings_tensor = torch.as_tensor(embeddings_array, dtype=torch.float32)
     n_embeddings = embeddings_tensor.shape[0]
 
     valid_mask = (labels_tensor[:, 0] < n_embeddings) & (labels_tensor[:, 1] < n_embeddings)
