@@ -1000,6 +1000,9 @@ if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
     df = pd.read_parquet(args.input_genomes_df_filepath)
+    # sort by genome_name to ensure consistent order
+    df = df.sort_values("genome_name").reset_index(drop=True)
+    # read labels and merge; assumes labels_df has "genome_name" + drug columns; inner join to keep only genomes with labels
     labels_df = pd.read_csv(args.labels_df_filepath)
     drug_cols = list(labels_df.columns[1:])
     df = pd.merge(df, labels_df, on="genome_name", how="inner")

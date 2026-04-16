@@ -127,7 +127,7 @@ def run(
     dfs = []
 
     # if dataset is a dict of splits, keep it as is, otherwise make it a dict with a single split named "full"
-    if not isinstance(Dataset, dict):
+    if not isinstance(dataset, dict):
         dataset = {"full": dataset}
     for split_name, split_ds in dataset.items():  # split_ds is a `Dataset`
         # slice the split
