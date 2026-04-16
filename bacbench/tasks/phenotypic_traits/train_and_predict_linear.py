@@ -808,7 +808,11 @@ if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
     df = pd.read_parquet(args.input_genomes_df_filepath)
+    # sort by genome_name to ensure consistent order
+    df = df.sort_values("genome_name").reset_index(drop=True)
+    # read labels
     labels_df = pd.read_csv(args.labels_df_filepath)
+    # merge on genome_name, inner join to keep only genomes with labels (should be all if data is correct)
     n_before_merge = len(df)
     df = df.merge(labels_df, on="genome_name", how="inner")
     n_after_merge = len(df)
