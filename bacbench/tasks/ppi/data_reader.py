@@ -5,6 +5,7 @@ from typing import Any
 import numpy as np
 import pyarrow.parquet as pq
 import torch
+from tqdm import tqdm
 
 
 def _normalize_labels_array(contig_labels: Any) -> np.ndarray:
@@ -154,7 +155,7 @@ class PpiDataset(torch.utils.data.Dataset):
         pair_genome_names: list[str] = []
         curr_idx = 0
 
-        for row in self.rows:
+        for row in tqdm(self.rows, desc="Building PPI dataset"):
             genome_example = self._build_genome_example(row)
             if genome_example is None:
                 continue
