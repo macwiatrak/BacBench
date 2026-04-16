@@ -9,117 +9,145 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from tap import Tap
 from torch import nn
 from torch.nn.functional import binary_cross_entropy_with_logits
-from torch.utils.data import DataLoader
+from torchmetrics.functional import auroc, average_precision
 
-from bacbench.tasks.ppi.data_reader import collate_ppi, get_datasets_ppi
+from bacbench.tasks.ppi.data_reader import get_dataloaders_ppi
 from bacbench.tasks.utils import get_gpu_info
 
 
-# --------------------------------
-# Pytorch LightningModule
-# --------------------------------
 class PpiLightningModule(pl.LightningModule):
     """Pytorch LightningModule for PPI finetuning."""
 
-    def __init__(self, args):
+    def __init__(self, args, hidden_size: int):
         super().__init__()
         self.args = args
+        self.hidden_size = hidden_size
 
-        # The original head from your code
         self.dropout = nn.Dropout(0.2)
         self.dense = nn.Sequential(
-            nn.Linear(args.hidden_size, args.hidden_size),
+            nn.Linear(hidden_size, hidden_size),
             nn.GELU(),
-            nn.LayerNorm(args.hidden_size, eps=args.layer_norm_eps),
+            nn.LayerNorm(hidden_size, eps=args.layer_norm_eps),
             nn.Dropout(0.2),
         )
-        self.linear = nn.Linear(args.hidden_size, 1, bias=True)
+        self.linear = nn.Linear(hidden_size + 1, 1, bias=True)
 
-        # Save hyperparameters if you want to log them
+        self._val_probs: list[torch.Tensor] = []
+        self._val_labels: list[torch.Tensor] = []
+        self._test_probs: list[torch.Tensor] = []
+        self._test_labels: list[torch.Tensor] = []
+
         self.save_hyperparameters()
 
-    def forward(self, protein_embeddings: torch.Tensor, labels: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Forward method. It's called inside training/validation/test steps.
+    def forward(
+        self,
+        prot1_embeddings: torch.Tensor,
+        prot2_embeddings: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Run the pairwise PPI head.
 
-        Expects:
-          - protein_embeddings of shape [1, N, hidden_size]
-          - labels of shape [K, 3], where each row is [idx1, idx2, ppi_label].
+        Parameters
+        ----------
+        prot1_embeddings : torch.Tensor
+            Tensor of shape [B, hidden_size] for the first protein in each pair.
+        prot2_embeddings : torch.Tensor
+            Tensor of shape [B, hidden_size] for the second protein in each pair.
+        labels : torch.Tensor
+            Binary labels of shape [B].
 
         Returns
         -------
-          - loss, logits
+        tuple[torch.Tensor, torch.Tensor]
+            BCE loss and per-pair logits.
         """
-        # The same aggregator logic you had before
-        # (squeeze(0) because batch_size = 1 in your code).
-        protein_embeddings = self.dense(self.dropout(protein_embeddings.squeeze(0)))
+        # compute cosine similarity
+        cosine_sim = torch.cosine_similarity(prot1_embeddings, prot2_embeddings, eps=1e-8).unsqueeze(-1)
+        prot1_embeddings = self.dense(self.dropout(prot1_embeddings))
+        prot2_embeddings = self.dense(self.dropout(prot2_embeddings))
+        pair_embeddings = (prot1_embeddings + prot2_embeddings) / 2.0
+        pair_embeddings = torch.cat([pair_embeddings, cosine_sim], dim=-1)
 
-        # For each row in labels, pick embeddings for idx1 and idx2, then
-        # stack them, average them, and feed into linear
-        # For demonstration, your original code took the entire set of pairs,
-        # cat them, and took the mean. We'll replicate that logic exactly.
-        protein_embeddings = torch.cat(
-            [protein_embeddings[labels[:, 0]], protein_embeddings[labels[:, 1]]], dim=0
-        ).mean(dim=0)
-
-        logits = self.linear(self.dropout(protein_embeddings)).squeeze(-1)
-
-        loss = binary_cross_entropy_with_logits(logits, labels[:, 2].type_as(logits).squeeze(0))
+        logits = self.linear(self.dropout(pair_embeddings)).squeeze(-1)
+        loss = binary_cross_entropy_with_logits(logits, labels.to(dtype=logits.dtype))
         return loss, logits
 
+    def _log_binary_metrics(self, prefix: str, probs: list[torch.Tensor], labels: list[torch.Tensor]) -> None:
+        """Compute epoch-level AUROC/AUPRC from accumulated batch outputs."""
+        if not probs:
+            return
+
+        probs_tensor = torch.cat(probs).reshape(-1)
+        labels_tensor = torch.cat(labels).reshape(-1).long()
+
+        if labels_tensor.unique().numel() < 2:
+            metric_auroc = torch.tensor(0.0, device=self.device)
+            metric_auprc = torch.tensor(0.0, device=self.device)
+        else:
+            metric_auroc = auroc(probs_tensor, labels_tensor, task="binary")
+            metric_auprc = average_precision(probs_tensor, labels_tensor, task="binary")
+
+        self.log(f"{prefix}_auroc", metric_auroc, prog_bar=(prefix == "val"))
+        self.log(f"{prefix}_auprc", metric_auprc, prog_bar=False)
+
     def training_step(self, batch, batch_idx):
-        """We compute the forward pass and log the training loss."""
-        protein_embeddings = batch.pop("protein_embeddings")
-        labels = batch.pop("ppi_labels")
-        loss, _ = self.forward(protein_embeddings, labels)
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=self.args.batch_size)
+        """Compute the forward pass and log training loss."""
+        loss, _ = self.forward(batch["prot1_embeddings"], batch["prot2_embeddings"], batch["labels"])
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch["labels"].shape[0])
         return loss
 
     def validation_step(self, batch, batch_idx):
-        """We compute the forward pass and log the validation loss."""
-        protein_embeddings = batch.pop("protein_embeddings")
-        labels = batch.pop("ppi_labels")
-        loss, logits = self.forward(protein_embeddings, labels)
-        self.log("val_loss", loss, prog_bar=True, batch_size=self.args.batch_size)
+        """Compute validation loss and collect outputs for AUROC/AUPRC."""
+        loss, logits = self.forward(batch["prot1_embeddings"], batch["prot2_embeddings"], batch["labels"])
+        probs = torch.sigmoid(logits.detach())
+        labels = batch["labels"].detach().long()
+        self._val_probs.append(probs)
+        self._val_labels.append(labels)
+        self.log("val_loss", loss, prog_bar=True, batch_size=labels.shape[0])
+        return {"val_loss": loss}
 
-        # Return predictions/labels if you want them later in validation_epoch_end
-        return {"val_loss": loss, "val_logits": logits.detach(), "val_labels": labels[:, 2].detach()}
+    def on_validation_epoch_end(self):
+        """Log validation AUROC/AUPRC once per epoch."""
+        self._log_binary_metrics("val", self._val_probs, self._val_labels)
+        self._val_probs.clear()
+        self._val_labels.clear()
 
     def test_step(self, batch, batch_idx):
-        """Test step. Similar to validation step but for test data."""
-        protein_embeddings = batch.pop("protein_embeddings")
-        labels = batch.pop("ppi_labels")
-        loss, logits = self.forward(protein_embeddings, labels)
-        self.log("test_loss", loss, prog_bar=True, batch_size=self.args.batch_size)
-        return {"test_loss": loss, "test_logits": logits, "test_labels": labels[:, 2]}
+        """Compute test loss and collect outputs for AUROC/AUPRC."""
+        loss, logits = self.forward(batch["prot1_embeddings"], batch["prot2_embeddings"], batch["labels"])
+        probs = torch.sigmoid(logits.detach())
+        labels = batch["labels"].detach().long()
+        self._test_probs.append(probs)
+        self._test_labels.append(labels)
+        self.log("test_loss", loss, prog_bar=True, batch_size=labels.shape[0])
+        return {"test_loss": loss}
+
+    def on_test_epoch_end(self):
+        """Log test AUROC/AUPRC once per epoch."""
+        self._log_binary_metrics("test", self._test_probs, self._test_labels)
+        self._test_probs.clear()
+        self._test_labels.clear()
 
     def configure_optimizers(self):
-        """Define optimizers and LR schedulers here."""
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
-
-        return optimizer
+        """Define the optimizer."""
+        return torch.optim.AdamW(self.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
 
 
-# --------------------------------
-# Argument Parser and run function
-# --------------------------------
 class ArgumentParser(Tap):
-    """Argument parser for training Bacformer (Lightning version)."""
+    """Argument parser for PPI MLP training."""
 
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    # file paths for loading data
-    input_dir: str
+    input_filepath: str
+    train_test_split_filepath: str
     output_dir: str
 
-    # model arguments
-    batch_size: int = 1
+    batch_size: int = 256
     lr: float = 0.001
-    hidden_size: int = 960
     layer_norm_eps: float = 1e-12
     weight_decay: float = 0.01
 
-    # trainer arguments
     max_epochs: int = 10
     early_stopping_patience: int = 10
     ckpt_path: str = None
@@ -127,103 +155,82 @@ class ArgumentParser(Tap):
     max_grad_norm: float = 2.0
     gradient_accumulation_steps: int = 1
     logging_steps: int = 500
-    monitor_metric: Literal["loss", "macro_f1", "macro_accuracy"] = "loss"
+    monitor_metric: Literal["loss", "auroc", "auprc"] = "auroc"
     dataloader_num_workers: int = 4
 
-    # data arguments
-
-    max_n_proteins: int = 9000
+    max_n_proteins: int = 6000
     n_nodes: int = 1
-    max_n_ppi_pairs: float = 3e6
+    max_n_ppi_pairs: float = 2 * 1e6
     score_threshold: float = 0.6
-    embeddings_col: str = "embeddings"
 
 
 def run(args):
     """Main function to run the training."""
     pl.seed_everything(args.random_state)
 
-    # Create output dirs if needed
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
         os.makedirs(os.path.join(args.output_dir, "logs"))
 
-    # Save args for reproducibility
     with open(os.path.join(args.output_dir, "args.json"), "w") as f:
         json.dump(args.as_dict(), f)
 
-    # Create our model (LightningModule)
-    model = PpiLightningModule(args)
-    logging.info("Nr of parameters: %d", sum(p.numel() for p in model.parameters()))
-
-    assert args.batch_size == 1, "Batch size must be 1 for PPI finetuning."
-
-    # Prepare datasets
-    train_dataset, val_dataset, test_dataset = get_datasets_ppi(
-        input_dir=args.input_dir,
+    train_dl, val_dl, test_dl, hidden_size = get_dataloaders_ppi(
+        input_filepath=args.input_filepath,
+        train_test_split_filepath=args.train_test_split_filepath,
         max_n_proteins=args.max_n_proteins,
-        score_threshold=args.score_threshold,
         max_n_ppi_pairs=args.max_n_ppi_pairs,
-        embeddings_col=args.embeddings_col,
+        score_threshold=args.score_threshold,
+        batch_size=args.batch_size,
+        num_workers=args.dataloader_num_workers,
     )
+
+    if len(train_dl.dataset) == 0:
+        raise ValueError("Training split has no usable PPI pairs after preprocessing.")
+    if len(val_dl.dataset) == 0:
+        raise ValueError("Validation split has no usable PPI pairs after preprocessing.")
+
+    model = PpiLightningModule(args, hidden_size=hidden_size)
+    logging.info("Nr of parameters: %d", sum(p.numel() for p in model.parameters()))
 
     n_gpus, use_ipex = get_gpu_info()
     n_gpus_total = max(n_gpus, 1) * args.n_nodes
+    monitor_key = "val_loss" if args.monitor_metric == "loss" else f"val_{args.monitor_metric}"
+    monitor_mode = "min" if args.monitor_metric == "loss" else "max"
 
-    # For demonstration, skip replicating 100% of HF logic with warmup steps, etc.
-    # but you *can* replicate it in configure_optimizers.
-
-    # If you want mixed precision:
-    precision = "bf16" if (n_gpus_total > 0) else 32
-
-    # Create DataLoaders. Your dataset’s __getitem__ should return (embeddings, labels).
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        num_workers=args.dataloader_num_workers,
-        collate_fn=collate_ppi,
-    )
-    val_loader = DataLoader(
-        val_dataset, batch_size=args.batch_size, num_workers=args.dataloader_num_workers, collate_fn=collate_ppi
-    )
-
-    # Callbacks
     early_stop_callback = EarlyStopping(
-        monitor="val_loss" if args.monitor_metric == "loss" else f"val_{args.monitor_metric}",
+        monitor=monitor_key,
         patience=args.early_stopping_patience,
-        mode="min" if "loss" in args.monitor_metric else "max",
+        mode=monitor_mode,
     )
-
-    # ModelCheckpoint to save the best model
     checkpoint_callback = ModelCheckpoint(
         dirpath=args.output_dir,
         filename="best-checkpoint",
         save_top_k=1,
-        monitor="val_loss" if args.monitor_metric == "loss" else f"val_{args.monitor_metric}",
-        mode="min" if "loss" in args.monitor_metric else "max",
+        monitor=monitor_key,
+        mode=monitor_mode,
     )
 
-    # Create the Trainer
     trainer = pl.Trainer(
         max_epochs=args.max_epochs,
         accelerator="gpu" if n_gpus_total > 0 else "cpu",
         devices=n_gpus_total if n_gpus_total > 0 else None,
-        precision=precision,
+        precision="bf16" if n_gpus_total > 0 else 32,
         accumulate_grad_batches=args.gradient_accumulation_steps,
         gradient_clip_val=args.max_grad_norm,
         callbacks=[early_stop_callback, checkpoint_callback],
         default_root_dir=args.output_dir,
         enable_checkpointing=True,
-        # You can set log_every_n_steps=args.logging_steps if desired
         log_every_n_steps=args.logging_steps,
     )
 
-    # Actual training
-    trainer.fit(model, train_loader, val_loader, ckpt_path=args.ckpt_path)
-
-    # Validate after training (if needed, or to get final metrics)
-    val_results = trainer.validate(model, val_loader)
+    trainer.fit(model, train_dl, val_dl, ckpt_path=args.ckpt_path)
+    val_results = trainer.validate(model=model, dataloaders=val_dl, ckpt_path="best")
     print("Validation metrics:", val_results)
+
+    if test_dl is not None:
+        test_results = trainer.test(model=model, dataloaders=test_dl, ckpt_path="best")
+        print("Test metrics:", test_results)
 
 
 if __name__ == "__main__":
