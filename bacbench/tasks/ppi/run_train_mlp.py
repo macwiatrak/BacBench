@@ -76,16 +76,24 @@ def print_metric_summary(summary_df: pd.DataFrame) -> None:
 class PpiLightningModule(pl.LightningModule):
     """Pytorch LightningModule for PPI finetuning."""
 
-    def __init__(self, args, hidden_size: int):
+    def __init__(
+        self,
+        hidden_size: int,
+        lr: float,
+        weight_decay: float,
+        layer_norm_eps: float,
+    ):
         super().__init__()
-        self.args = args
         self.hidden_size = hidden_size
+        self.lr = lr
+        self.weight_decay = weight_decay
+        self.layer_norm_eps = layer_norm_eps
 
         self.dropout = nn.Dropout(0.2)
         self.dense = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
             nn.GELU(),
-            nn.LayerNorm(hidden_size, eps=args.layer_norm_eps),
+            nn.LayerNorm(hidden_size, eps=layer_norm_eps),
             nn.Dropout(0.2),
         )
         self.linear = nn.Linear(hidden_size + 1, 1, bias=True)
@@ -212,7 +220,16 @@ class PpiLightningModule(pl.LightningModule):
 
     def configure_optimizers(self):
         """Define the optimizer."""
-        return torch.optim.AdamW(self.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
+        return torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+
+
+def load_checkpoint_weights(model: PpiLightningModule, checkpoint_path: str) -> None:
+    """Load only the model weights from a trusted Lightning checkpoint."""
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    state_dict = checkpoint.get("state_dict")
+    if state_dict is None:
+        raise KeyError(f"No 'state_dict' found in checkpoint: {checkpoint_path}")
+    model.load_state_dict(state_dict)
 
 
 class ArgumentParser(Tap):
@@ -271,7 +288,12 @@ def run(args):
     if len(val_dl.dataset) == 0:
         raise ValueError("Validation split has no usable PPI pairs after preprocessing.")
 
-    model = PpiLightningModule(args, hidden_size=hidden_size)
+    model = PpiLightningModule(
+        hidden_size=hidden_size,
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+        layer_norm_eps=args.layer_norm_eps,
+    )
     logging.info("Nr of parameters: %d", sum(p.numel() for p in model.parameters()))
 
     n_gpus, use_ipex = get_gpu_info()
@@ -306,17 +328,26 @@ def run(args):
     )
 
     trainer.fit(model, train_dl, val_dl, ckpt_path=args.ckpt_path)
-    val_results = trainer.validate(model=model, dataloaders=val_dl, ckpt_path="best")
+    best_model_path = checkpoint_callback.best_model_path
+    if not best_model_path:
+        raise RuntimeError("Training finished without producing a best checkpoint.")
+    load_checkpoint_weights(model, best_model_path)
+    logging.info("Loaded best checkpoint weights from %s", best_model_path)
+
+    val_results = trainer.validate(model=model, dataloaders=val_dl, ckpt_path=None)
     print("Validation metrics:", val_results)
 
     test_results = None
     test_df = None
     if test_dl is not None and len(test_dl.dataset) > 0:
-        test_results = trainer.test(model=model, dataloaders=test_dl, ckpt_path="best")
+        test_results = trainer.test(model=model, dataloaders=test_dl, ckpt_path=None)
         test_df = model.test_predictions_df_
+        if test_df is None:
+            raise RuntimeError("Expected test predictions to be cached on the LightningModule after testing.")
         test_summary_df = summarize_test_predictions(test_df)
         print_metric_summary(test_summary_df)
-        test_summary_df.to_csv(os.path.join(args.output_dir, "test_predictions.csv"), index=False)
+        test_df.to_csv(os.path.join(args.output_dir, "test_predictions.csv"), index=False)
+        test_summary_df.to_csv(os.path.join(args.output_dir, "test_predictions_by_genome.csv"), index=False)
         print("Test metrics:", test_results)
         return val_results, test_results, test_df
     return val_results, test_results, test_df
