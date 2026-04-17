@@ -210,8 +210,8 @@ class PpiLightningModule(pl.LightningModule):
         self.test_predictions_df_ = pd.DataFrame(
             {
                 "genome_name": self._test_genomes,
-                "label": torch.cat(self._test_labels).cpu().numpy(),
-                "probability": torch.cat(self._test_probs).cpu().numpy(),
+                "label": torch.cat(self._test_labels).type(torch.long).cpu().numpy(),
+                "probability": torch.cat(self._test_probs).type(torch.float32).cpu().numpy(),
             }
         )
         self._test_probs.clear()
