@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Literal
 
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
@@ -13,6 +14,63 @@ from torchmetrics.functional import auroc, average_precision
 
 from bacbench.tasks.ppi.data_reader import get_dataloaders_ppi
 from bacbench.tasks.utils import get_gpu_info
+
+
+def compute_binary_metrics(
+    probs: torch.Tensor,
+    labels: torch.Tensor,
+) -> tuple[float, float]:
+    """Compute AUROC/AUPRC, returning NaNs when the labels have one class."""
+    probs = probs.reshape(-1).float().cpu()
+    labels = labels.reshape(-1).long().cpu()
+
+    if labels.numel() == 0 or labels.unique().numel() < 2:
+        return float("nan"), float("nan")
+
+    return (
+        float(auroc(probs, labels, task="binary").item()),
+        float(average_precision(probs, labels, task="binary").item()),
+    )
+
+
+def summarize_test_predictions(test_df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate pairwise predictions into per-genome metric summaries."""
+    if test_df.empty:
+        return pd.DataFrame(columns=["genome_name", "label", "probability", "auroc", "auprc"])
+
+    summary_df = test_df.groupby("genome_name", sort=False)[["label", "probability"]].agg(list).reset_index()
+    aurocs: list[float] = []
+    auprcs: list[float] = []
+
+    for row in summary_df.itertuples(index=False):
+        genome_probs = torch.tensor(row.probability, dtype=torch.float32)
+        genome_labels = torch.tensor(row.label, dtype=torch.long)
+        genome_auroc, genome_auprc = compute_binary_metrics(genome_probs, genome_labels)
+        aurocs.append(genome_auroc)
+        auprcs.append(genome_auprc)
+
+    summary_df["auroc"] = aurocs
+    summary_df["auprc"] = auprcs
+    return summary_df
+
+
+def print_metric_summary(summary_df: pd.DataFrame) -> None:
+    """Print aggregate per-genome AUROC/AUPRC statistics."""
+    if summary_df.empty:
+        print("No test predictions available to summarize.")
+        return
+
+    valid_auroc = summary_df["auroc"].dropna()
+    valid_auprc = summary_df["auprc"].dropna()
+    if valid_auroc.empty or valid_auprc.empty:
+        print(f"Per-genome metrics could not be computed for any of the {len(summary_df)} genomes.")
+        return
+
+    print(f"Per-genome metrics computed for {len(valid_auroc)}/{len(summary_df)} genomes with both classes present.")
+    print(f"AUROC mean: {valid_auroc.mean():.4f}, AUROC std: {valid_auroc.std():.4f}")
+    print(f"AUPRC mean: {valid_auprc.mean():.4f}, AUPRC std: {valid_auprc.std():.4f}")
+    print(f"AUROC median: {valid_auroc.median():.4f}")
+    print(f"AUPRC median: {valid_auprc.median():.4f}")
 
 
 class PpiLightningModule(pl.LightningModule):
@@ -36,6 +94,8 @@ class PpiLightningModule(pl.LightningModule):
         self._val_labels: list[torch.Tensor] = []
         self._test_probs: list[torch.Tensor] = []
         self._test_labels: list[torch.Tensor] = []
+        self._test_genomes: list[str] = []
+        self.test_predictions_df_: pd.DataFrame | None = None
 
         self.save_hyperparameters()
 
@@ -79,13 +139,15 @@ class PpiLightningModule(pl.LightningModule):
 
         probs_tensor = torch.cat(probs).reshape(-1)
         labels_tensor = torch.cat(labels).reshape(-1).long()
-
-        if labels_tensor.unique().numel() < 2:
-            metric_auroc = torch.tensor(0.0, device=self.device)
-            metric_auprc = torch.tensor(0.0, device=self.device)
-        else:
-            metric_auroc = auroc(probs_tensor, labels_tensor, task="binary")
-            metric_auprc = average_precision(probs_tensor, labels_tensor, task="binary")
+        metric_auroc_value, metric_auprc_value = compute_binary_metrics(probs_tensor, labels_tensor)
+        metric_auroc = torch.tensor(
+            0.0 if pd.isna(metric_auroc_value) else metric_auroc_value,
+            device=self.device,
+        )
+        metric_auprc = torch.tensor(
+            0.0 if pd.isna(metric_auprc_value) else metric_auprc_value,
+            device=self.device,
+        )
 
         self.log(f"{prefix}_auroc", metric_auroc, prog_bar=(prefix == "val"))
         self.log(f"{prefix}_auprc", metric_auprc, prog_bar=False)
@@ -112,6 +174,13 @@ class PpiLightningModule(pl.LightningModule):
         self._val_probs.clear()
         self._val_labels.clear()
 
+    def on_test_start(self):
+        """Reset cached test outputs before evaluation."""
+        self._test_probs.clear()
+        self._test_labels.clear()
+        self._test_genomes.clear()
+        self.test_predictions_df_ = None
+
     def test_step(self, batch, batch_idx):
         """Compute test loss and collect outputs for AUROC/AUPRC."""
         loss, logits = self.forward(batch["prot1_embeddings"], batch["prot2_embeddings"], batch["labels"])
@@ -119,14 +188,27 @@ class PpiLightningModule(pl.LightningModule):
         labels = batch["labels"].detach().long()
         self._test_probs.append(probs)
         self._test_labels.append(labels)
+        self._test_genomes.extend(batch.get("genome_names", []))
         self.log("test_loss", loss, prog_bar=True, batch_size=labels.shape[0])
         return {"test_loss": loss}
 
     def on_test_epoch_end(self):
-        """Log test AUROC/AUPRC once per epoch."""
+        """Log test AUROC/AUPRC once per epoch and cache pairwise predictions."""
+        if not self._test_probs:
+            self.test_predictions_df_ = pd.DataFrame(columns=["genome_name", "label", "probability"])
+            return
+
         self._log_binary_metrics("test", self._test_probs, self._test_labels)
+        self.test_predictions_df_ = pd.DataFrame(
+            {
+                "genome_name": self._test_genomes,
+                "label": torch.cat(self._test_labels).cpu().numpy(),
+                "probability": torch.cat(self._test_probs).cpu().numpy(),
+            }
+        )
         self._test_probs.clear()
         self._test_labels.clear()
+        self._test_genomes.clear()
 
     def configure_optimizers(self):
         """Define the optimizer."""
@@ -149,7 +231,7 @@ class ArgumentParser(Tap):
     weight_decay: float = 0.01
 
     max_epochs: int = 10
-    early_stopping_patience: int = 10
+    early_stopping_patience: int = 3
     ckpt_path: str = None
     random_state: int = 30
     max_grad_norm: float = 2.0
@@ -168,9 +250,8 @@ def run(args):
     """Main function to run the training."""
     pl.seed_everything(args.random_state)
 
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-        os.makedirs(os.path.join(args.output_dir, "logs"))
+    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir, "logs"), exist_ok=True)
 
     with open(os.path.join(args.output_dir, "args.json"), "w") as f:
         json.dump(args.as_dict(), f)
@@ -194,7 +275,7 @@ def run(args):
     logging.info("Nr of parameters: %d", sum(p.numel() for p in model.parameters()))
 
     n_gpus, use_ipex = get_gpu_info()
-    n_gpus_total = max(n_gpus, 1) * args.n_nodes
+    n_gpus_total = n_gpus * args.n_nodes if n_gpus > 0 else 0
     monitor_key = "val_loss" if args.monitor_metric == "loss" else f"val_{args.monitor_metric}"
     monitor_mode = "min" if args.monitor_metric == "loss" else "max"
 
@@ -213,8 +294,8 @@ def run(args):
 
     trainer = pl.Trainer(
         max_epochs=args.max_epochs,
-        accelerator="gpu" if n_gpus_total > 0 else "cpu",
-        devices=n_gpus_total if n_gpus_total > 0 else None,
+        accelerator="xpu" if use_ipex and n_gpus_total > 0 else ("gpu" if n_gpus_total > 0 else "cpu"),
+        devices=n_gpus_total if n_gpus_total > 0 else 1,
         precision="bf16" if n_gpus_total > 0 else 32,
         accumulate_grad_batches=args.gradient_accumulation_steps,
         gradient_clip_val=args.max_grad_norm,
@@ -228,12 +309,48 @@ def run(args):
     val_results = trainer.validate(model=model, dataloaders=val_dl, ckpt_path="best")
     print("Validation metrics:", val_results)
 
-    if test_dl is not None:
+    test_results = None
+    test_df = None
+    if test_dl is not None and len(test_dl.dataset) > 0:
         test_results = trainer.test(model=model, dataloaders=test_dl, ckpt_path="best")
+        test_df = model.test_predictions_df_
+        test_summary_df = summarize_test_predictions(test_df)
+        print_metric_summary(test_summary_df)
+        test_summary_df.to_csv(os.path.join(args.output_dir, "test_predictions.csv"), index=False)
         print("Test metrics:", test_results)
+        return val_results, test_results, test_df
+    return val_results, test_results, test_df
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    print(args.as_dict())
-    run(args)
+    LRS = [0.01, 0.005, 0.001, 0.0005]
+    base_output_dir = args.output_dir
+    best_df = None
+    best_val_auroc = -1.0
+    best_lr = None
+    lr_results: list[dict[str, float]] = []
+
+    os.makedirs(base_output_dir, exist_ok=True)
+    for lr in LRS:
+        args.lr = lr
+        run_output_dir = os.path.join(base_output_dir, f"lr_{lr}")
+        print(f"Running with learning rate: {lr}")
+        print({**args.as_dict(), "output_dir": run_output_dir})
+        os.makedirs(run_output_dir, exist_ok=True)
+        args.output_dir = run_output_dir
+        val_results, test_results, test_df = run(args)
+        val_auroc = float(val_results[0]["val_auroc"])
+        lr_results.append({"lr": lr, "val_auroc": val_auroc})
+        if best_val_auroc < val_auroc:
+            best_val_auroc = val_auroc
+            best_lr = lr
+            best_df = test_df
+        args.output_dir = base_output_dir
+
+    pd.DataFrame(lr_results).to_csv(os.path.join(base_output_dir, "lr_sweep_results.csv"), index=False)
+    if best_df is not None:
+        best_df.to_csv(os.path.join(base_output_dir, "best_test_predictions.csv"), index=False)
+    if best_lr is not None:
+        with open(os.path.join(base_output_dir, "best_lr.json"), "w") as f:
+            json.dump({"lr": best_lr, "val_auroc": best_val_auroc}, f, indent=2)

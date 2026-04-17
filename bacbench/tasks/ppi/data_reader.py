@@ -43,9 +43,9 @@ def _split_rows_from_parquet(
 
     df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", "embeddings"])
     df["split"] = df["strain_name"].map(split)
-    train_df = df[df["split"] == "train"]
-    val_df = df[df["split"] == "validation"]
-    test_df = df[df["split"] == "test"]
+    train_df = df[df["split"] == "train"][:2]
+    val_df = df[df["split"] == "validation"][:2]
+    test_df = df[df["split"] == "test"][:2]
 
     # train_rows: list[dict[str, Any]] = []
     # val_rows: list[dict[str, Any]] = []
