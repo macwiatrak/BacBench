@@ -355,7 +355,7 @@ def run(args):
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    LRS = [0.01, 0.005, 0.001, 0.0005]
+    LRS = [0.1, 0.01, 0.005, 0.001, 0.0005]
     base_output_dir = args.output_dir
     best_df = None
     best_val_auroc = -1.0
