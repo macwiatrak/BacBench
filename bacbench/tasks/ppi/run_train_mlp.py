@@ -349,8 +349,8 @@ def run(args):
         test_df.to_csv(os.path.join(args.output_dir, "test_predictions.csv"), index=False)
         test_summary_df.to_csv(os.path.join(args.output_dir, "test_predictions_by_genome.csv"), index=False)
         print("Test metrics:", test_results)
-        return val_results, test_results, test_df
-    return val_results, test_results, test_df
+        return val_results, test_results, test_summary_df
+    return val_results, test_results, test_summary_df
 
 
 if __name__ == "__main__":
