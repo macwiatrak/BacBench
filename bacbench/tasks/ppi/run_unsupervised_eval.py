@@ -153,37 +153,12 @@ if __name__ == "__main__":
     # Parse command line arguments
     parser = ArgumentParser()
     args = parser.parse_args()
-    filepaths = [
-        # ("mistral_ppi.parquet", "Mistral-DNA"),
-        ("dnabert2_ppi.parquet", "DNABERT-2"),
-        # ("nt_ppi.parquet", "Nucleotide Transformer"),
-        # ("prokbert_ppi.parquet", "ProkBERT"),
-        # ("evo_ppi.parquet", "Evo"),
-        # ("evo2.parquet", "Evo2"),
-        # ("esm2_ppi.parquet", "ESM-2"),
-        # ("esmc_ppi.parquet", "ESM-C"),
-        # ("protbert_ppi.parquet", "ProtBERT"),
-        # ("glm2_ppi.parquet", "gLM2"),
-        # ("bacformer_ppi.parquet", "Bacformer"),
-        # ("bac_large_cg_ppi.parquet", "Bacformer-Large"),
-    ]
-    for input_filename, model_name in filepaths:
-        print(f"Running unsupervised evaluation for model: {model_name}")
-        run(
-            input_filepath=os.path.join(args.input_filepath, input_filename),
-            train_test_split_filepath=args.train_test_split_filepath,
-            output_dir=args.output_dir,
-            model_name=model_name,
-            score_threshold=args.score_threshold,
-            max_n_proteins=args.max_n_proteins,
-            max_n_ppi_pairs=args.max_n_ppi_pairs,
-        )
-    # run(
-    #     input_filepath=args.input_filepath,
-    #     train_test_split_filepath=args.train_test_split_filepath,
-    #     output_dir=args.output_dir,
-    #     model_name=args.model_name,
-    #     score_threshold=args.score_threshold,
-    #     max_n_proteins=args.max_n_proteins,
-    #     max_n_ppi_pairs=args.max_n_ppi_pairs,
-    # )
+    run(
+        input_filepath=args.input_filepath,
+        train_test_split_filepath=args.train_test_split_filepath,
+        output_dir=args.output_dir,
+        model_name=args.model_name,
+        score_threshold=args.score_threshold,
+        max_n_proteins=args.max_n_proteins,
+        max_n_ppi_pairs=args.max_n_ppi_pairs,
+    )
