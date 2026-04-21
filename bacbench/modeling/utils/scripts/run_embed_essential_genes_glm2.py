@@ -45,7 +45,7 @@ def run(
     prot_df = prot_df[
         ["genome_name", "contig_id", "start", "end", "strand", "essential", "protein_sequence", "split"]
     ].explode(["contig_id", "start", "end", "strand", "essential", "protein_sequence"])
-    dna_df = dna_df[["genome_name", "contig_id", "dna_seq"]].explode(["contig_id", "dna_seq"])
+    dna_df = dna_df[["genome_name", "contig_id", "dna_sequence"]].explode(["contig_id", "dna_sequence"])
     df = pd.merge(prot_df, dna_df, on=["genome_name", "contig_id"], how="inner")
 
     # merge the protein and DNA datasets on the genome name
@@ -58,7 +58,7 @@ def run(
         # precompute GLM2 elements for the gene sequences
         elements, gene_idx_to_elem_idx = precompute_glm2_elements(
             prot_seqs=row["protein_sequence"],
-            dna_seq=row["dna_seq"],
+            dna_seq=row["dna_sequence"],
             start=row["start"],
             end=row["end"],
             strand=row["strand"],
