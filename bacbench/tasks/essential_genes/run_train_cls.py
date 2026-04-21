@@ -367,7 +367,7 @@ class ArgumentParser(Tap):
     batch_size: int = 256
     num_workers: int = 4
     test: bool = True
-    embeddings_col: str = "embedding"
+    embeddings_col: str = "embeddings"
     model_name: str = None
 
 
@@ -409,7 +409,7 @@ if __name__ == "__main__":
                 num_workers=4,
                 output_dir=os.path.join(args.output_dir, model_name),
                 random_state=1,
-                embeddings_col="embeddings",
+                embeddings_col=args.embeddings_col,
                 test=False,
             )
             val_auroc_score = val_df["auroc"].median()
