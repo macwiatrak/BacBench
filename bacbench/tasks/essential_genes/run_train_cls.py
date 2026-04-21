@@ -429,5 +429,5 @@ if __name__ == "__main__":
         output_df = pd.concat(output)
         output_df["model"] = model_name
         output_df["best_lr"] = best_lr
-        output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{args.model_name}.parquet"))
+        output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{model_name}.parquet"))
         shutil.rmtree(os.path.join(args.output_dir, model_name))
