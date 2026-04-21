@@ -2,10 +2,13 @@ import os
 
 import pandas as pd
 import torch
-from bacbench.modeling.embedder import load_seq_embedder
-from bacbench.modeling.utils.utils_glm2 import precompute_glm2_elements, preprocess_glm2_gene_seq
 from datasets import tqdm
 from tap import Tap
+
+from bacbench.modeling.embedder import load_seq_embedder
+
+# from bacbench.modeling.utils.utils_glm2 import precompute_glm2_elements, preprocess_glm2_gene_seq
+from bacbench.modeling.utils.scripts.utils_glm2 import precompute_glm2_elements, preprocess_glm2_gene_seq
 
 
 def run(
