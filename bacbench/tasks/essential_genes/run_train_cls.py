@@ -240,24 +240,22 @@ def main(
     # split the data
     train_df = df[df["split"] == "train"]
     val_df = df[df["split"] == "validation"]
-    if len(val_df) == 0:
-        val_df = df[df["split"] == "val"]
     test_df = df[df["split"] == "test"]
 
     # create datasets
     train_dataset = TensorDataset(
         torch.tensor(np.stack(train_df[embeddings_col].tolist()), dtype=torch.float32),
-        torch.tensor(train_df.label.tolist(), dtype=torch.long),
+        torch.tensor(train_df.essential.tolist(), dtype=torch.long),
         torch.tensor(train_df.genome_idx.tolist(), dtype=torch.long),
     )
     val_dataset = TensorDataset(
         torch.tensor(np.stack(val_df[embeddings_col].tolist()), dtype=torch.float32),
-        torch.tensor(val_df.label.tolist(), dtype=torch.long),
+        torch.tensor(val_df.essential.tolist(), dtype=torch.long),
         torch.tensor(val_df.genome_idx.tolist(), dtype=torch.long),
     )
     test_dataset = TensorDataset(
         torch.tensor(np.stack(test_df[embeddings_col].tolist()), dtype=torch.float32),
-        torch.tensor(test_df.label.tolist(), dtype=torch.long),
+        torch.tensor(test_df.essential.tolist(), dtype=torch.long),
         torch.tensor(test_df.genome_idx.tolist(), dtype=torch.long),
     )
 
