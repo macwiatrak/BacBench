@@ -325,9 +325,6 @@ def main(
     # train the model
     trainer.fit(model, train_dataloader, val_dataloader)
 
-    if not test:
-        return
-
     model = LinearModel.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
     print("Best model path:", trainer.checkpoint_callback.best_model_path)
     model.eval()
