@@ -34,16 +34,16 @@ MODEL2LR = {
 
 def calculate_metrics_per_genome(df: pd.DataFrame):
     """Calculate metrics per genome."""
-    gdf = df.groupby("genome_name")[["label", "logits"]].agg(list).reset_index()
+    gdf = df.groupby("genome_name")[["essential", "logits"]].agg(list).reset_index()
     gdf["auroc"] = gdf.apply(
         lambda x: auroc(
-            torch.tensor(x["logits"]), torch.tensor(x["label"], dtype=torch.long), task="binary", ignore_index=-100
+            torch.tensor(x["logits"]), torch.tensor(x["essential"], dtype=torch.long), task="binary", ignore_index=-100
         ).item(),
         axis=1,
     )
     gdf["auprc"] = gdf.apply(
         lambda x: average_precision(
-            torch.tensor(x["logits"]), torch.tensor(x["label"], dtype=torch.long), task="binary", ignore_index=-100
+            torch.tensor(x["logits"]), torch.tensor(x["essential"], dtype=torch.long), task="binary", ignore_index=-100
         ).item(),
         axis=1,
     )
