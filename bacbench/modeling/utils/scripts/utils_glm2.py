@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
+
 from bacbench.pp import dna_seq_to_cds_and_intergenic
 
 
@@ -223,6 +224,10 @@ def precompute_glm2_elements(
     L = len(dna_seq)
 
     def stoken_for_strand(s: float) -> str:
+        if s in {"+", "-"}:
+            s = 1.0 if s == "+" else -1.0
+        elif s not in {1.0, 0.0, -1.0}:
+            raise ValueError(f"Invalid strand value: {s}")
         return "<+>" if s >= 0 else "<->"
 
     # Keep original indices, sort by genomic start
