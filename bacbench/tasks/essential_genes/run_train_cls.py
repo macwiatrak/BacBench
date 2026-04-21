@@ -391,7 +391,7 @@ if __name__ == "__main__":
         ("prokbert.parquet", "ProkBERT"),
     ]
 
-    with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/genome_split.json") as f:
+    with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split.json") as f:
         genome_split = json.load(f)
 
     for model_file, model_name in tqdm(models):
