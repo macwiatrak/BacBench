@@ -49,7 +49,7 @@ def calculate_metrics_per_genome(df: pd.DataFrame):
     )
     print("Mean AUROC:", gdf["auroc"].mean(), "Median AUROC:", gdf["auroc"].median())
     print("Mean AUPRC:", gdf["auprc"].mean(), "Median AUPRC:", gdf["auprc"].median())
-    return df
+    return gdf
 
 
 class LinearModel(pl.LightningModule):
@@ -340,7 +340,6 @@ def main(
             output.append(model(batch[0]))
     val_df["logits"] = torch.cat(output).cpu().numpy()
     val_df = calculate_metrics_per_genome(val_df)
-    test_df = test_df.drop(columns=[embeddings_col])
     val_df = val_df.drop(columns=[embeddings_col])
 
     if not test:
