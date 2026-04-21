@@ -401,7 +401,7 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(args.output_dir, model_name), exist_ok=True)
         for lr in lrs:
             val_df = main(
-                df=df,
+                df=df.copy(),
                 lr=lr,
                 dropout=0.2,
                 max_epochs=args.max_epochs,
@@ -412,9 +412,9 @@ if __name__ == "__main__":
                 embeddings_col="embeddings",
                 test=False,
             )
-            auroc = val_df["auroc"].median()
-            if auroc > best_auroc:
-                best_auroc = auroc
+            val_auroc_score = val_df["auroc"].median()
+            if val_auroc_score > best_auroc:
+                best_auroc = val_auroc_score
                 best_lr = lr
 
         for random_state in tqdm([1, 2, 3]):
