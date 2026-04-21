@@ -1,4 +1,5 @@
 import os
+import shutil
 from collections import defaultdict
 
 import numpy as np
@@ -202,12 +203,8 @@ class LinearModel(pl.LightningModule):
 
 def prepare_essential_genes_df(df: pd.DataFrame, embeddings_col: str) -> pd.DataFrame:
     """Prepare the essential genes DataFrame."""
-    # check if the embeddings column is already in the correct format
-    if isinstance(df[embeddings_col].iloc[0], np.ndarray):
-        return df
-    # if embeddings is List[List[np.ndarray]], we need to make it List[np.ndarray]
-    if isinstance(df[embeddings_col].iloc[0], list):
-        df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
+    # the embeddings column is a list of lists, we need to extract the first element of the list as it is the only one after embedding
+    # df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
     # explode the DF
     df = df.explode([embeddings_col, "essential", "protein_id", "product", "start", "end"])
     return df
@@ -235,7 +232,7 @@ def main(
     # read input file
     df = pd.read_parquet(input_df_dile_path)
     # explode the embeddings column as after embedding it is a list of lists
-    df = prepare_essential_genes_df(df, embeddings_col=embeddings_col)
+    # df = prepare_essential_genes_df(df, embeddings_col=embeddings_col)
     # process the DF
     genome2idx = {g: i for i, g in enumerate(df["genome_name"].unique())}
     df["genome_idx"] = df["genome_name"].map(genome2idx)
@@ -340,7 +337,12 @@ def main(
         for batch in val_dataloader:
             output.append(model(batch[0]))
     val_df["logits"] = torch.cat(output).cpu().numpy()
-    _ = calculate_metrics_per_genome(val_df)
+    val_df = calculate_metrics_per_genome(val_df)
+    test_df = test_df.drop(columns=[embeddings_col])
+    val_df = val_df.drop(columns=[embeddings_col])
+
+    if not test:
+        return val_df
 
     print("Test metrics:")
     trainer.test(model, test_dataloader)
@@ -361,35 +363,73 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str
-    output_dir: str
-    lr: float
+    input_df_file_path: str = "/Users/maciejwiatrak/Downloads/baclm_masked_hf_inf.parquet"  # "/Users/maciejwiatrak/Downloads/baclm_masked_hf_inf.parquet"
+    output_dir: str = "/tmp/"
+    lr: float = 0.001
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 256
     num_workers: int = 4
     test: bool = True
-    embeddings_col: str = "embeddings"
+    embeddings_col: str = "embedding"
     model_name: str = None
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     output = []
-    for random_state in tqdm([1, 2, 3]):
-        test_df = main(
-            input_df_dile_path=args.input_df_file_path,
-            lr=args.lr,
-            dropout=args.dropout,
-            max_epochs=args.max_epochs,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            output_dir=args.output_dir,
-            random_state=random_state,
-            embeddings_col=args.embeddings_col,
-            test=args.test,
-        )
-        test_df["random_state"] = random_state
-        output.append(test_df)
-    output_df = pd.concat(output)
-    output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{args.model_name}.parquet"))
+    lrs = [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
+    input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
+    models = [
+        ("dnabert.parquet", "DNABERT-2"),
+        ("bacformer.parquet", "Bacformer"),
+        ("bac_large.parquet", "Bacformer Large"),
+        ("esmc.parquet", "ESM-C"),
+        ("esm2.parquet", "ESM-2"),
+        ("mistral.parquet", "Mistral-DNA"),
+        ("nt.parquet", "Nucleotide Transformer"),
+        ("protbert.parquet", "ProtBERT"),
+        ("glm2.parquet", "gLM2"),
+        ("prokbert.parquet", "ProkBERT"),
+    ]
+    for model_file, model_name in models:
+        print(f"Running for model: {model_name}")
+        best_lr = None
+        best_auroc = -1
+        os.makedirs(os.path.join(args.output_dir, model_name), exist_ok=True)
+        for lr in lrs:
+            val_df = main(
+                input_df_dile_path=os.path.join(input_dir, model_file),
+                lr=lr,
+                dropout=0.2,
+                max_epochs=100,
+                batch_size=256,
+                num_workers=4,
+                output_dir=os.path.join(args.output_dir, model_name),
+                random_state=1,
+                embeddings_col="embeddings",
+                test=False,
+            )
+            auroc = val_df["auroc"].median()
+            if auroc > best_auroc:
+                best_auroc = auroc
+                best_lr = lr
+
+        for random_state in tqdm([1, 2, 3]):
+            test_df = main(
+                input_df_dile_path=args.input_df_file_path,
+                lr=best_lr,
+                dropout=args.dropout,
+                max_epochs=args.max_epochs,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                output_dir=os.path.join(args.output_dir, model_name),
+                random_state=random_state,
+                embeddings_col=args.embeddings_col,
+                test=True,
+            )
+            test_df["random_state"] = random_state
+            output.append(test_df)
+        output_df = pd.concat(output)
+        output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{args.model_name}.parquet"))
+        shutil.rmtree(os.path.join(args.output_dir, model_name))
