@@ -410,7 +410,7 @@ if __name__ == "__main__":
                 df=df,
                 lr=lr,
                 dropout=0.2,
-                max_epochs=100,
+                max_epochs=args.max_epochs,
                 batch_size=256,
                 num_workers=4,
                 output_dir=os.path.join(args.output_dir, model_name),
