@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 from collections import defaultdict
@@ -211,7 +212,7 @@ def prepare_essential_genes_df(df: pd.DataFrame, embeddings_col: str) -> pd.Data
 
 
 def main(
-    input_df_dile_path: str,
+    df: pd.DataFrame,
     lr: float = 1e-3,
     dropout: float = 0.2,
     max_epochs: int = 100,
@@ -229,14 +230,11 @@ def main(
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # read input file
-    df = pd.read_parquet(input_df_dile_path)
-    # explode the embeddings column as after embedding it is a list of lists
-    # df = prepare_essential_genes_df(df, embeddings_col=embeddings_col)
-    # process the DF
+    # explode the pandas dataframe so that each row corresponds to one gene
+    df = df.explode(["embeddings", "essential"]).explode(["embeddings", "essential"])
+
     genome2idx = {g: i for i, g in enumerate(df["genome_name"].unique())}
     df["genome_idx"] = df["genome_name"].map(genome2idx)
-    df["label"] = df.essential.map({"Yes": 1, "No": 0})
     dim = df[embeddings_col].iloc[0].shape[0]
 
     # split the data
@@ -392,8 +390,14 @@ if __name__ == "__main__":
         ("glm2.parquet", "gLM2"),
         ("prokbert.parquet", "ProkBERT"),
     ]
-    for model_file, model_name in models:
+
+    with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/genome_split.json") as f:
+        genome_split = json.load(f)
+
+    for model_file, model_name in tqdm(models):
         print(f"Running for model: {model_name}")
+        df = pd.read_parquet(os.path.join(input_dir, model_file))
+        df["split"] = df["genome_name"].map(genome_split)
         best_lr = None
         best_auroc = -1
         os.makedirs(os.path.join(args.output_dir, model_name), exist_ok=True)
