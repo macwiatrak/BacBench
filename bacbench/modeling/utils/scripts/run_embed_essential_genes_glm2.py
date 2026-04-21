@@ -31,11 +31,12 @@ def run(
         save_every_n_rows (int): Save the output every n rows.
         max_seq_len (int): Maximum sequence length for the model.
     """
-    os.makedirs(output_dir, exist_ok=True)
     if output_filepath is not None and save_every_n_rows > 0:
         raise ValueError("Cannot specify both output_filepath and save_every_n_rows. Please choose one.")
     if output_filepath is None and output_dir is None:
         raise ValueError("Must specify either output_filepath or output_dir.")
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
 
     embedder = load_seq_embedder(model_path)
 
