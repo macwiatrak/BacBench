@@ -403,7 +403,7 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(args.output_dir, model_name), exist_ok=True)
         for lr in lrs:
             val_df = main(
-                input_df_dile_path=os.path.join(input_dir, model_file),
+                df=df,
                 lr=lr,
                 dropout=0.2,
                 max_epochs=100,
@@ -421,7 +421,7 @@ if __name__ == "__main__":
 
         for random_state in tqdm([1, 2, 3]):
             test_df = main(
-                input_df_dile_path=args.input_df_file_path,
+                df=df,
                 lr=best_lr,
                 dropout=args.dropout,
                 max_epochs=args.max_epochs,
