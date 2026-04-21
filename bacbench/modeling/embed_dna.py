@@ -39,6 +39,9 @@ def get_dna_seq(
     """
     seq_len = len(dna_seq)
 
+    if strand in {"+", "-"}:
+        strand = 1.0 if strand == "+" else -1.0
+
     if strand is None:  # promoter on both sides
         seq_start = max(1, start - promoter_len)
         seq_end = min(seq_len, end + promoter_len)
