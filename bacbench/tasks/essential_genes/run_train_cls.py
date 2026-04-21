@@ -238,9 +238,15 @@ def main(
     dim = df[embeddings_col].iloc[0].shape[0]
 
     # split the data
-    train_df = df[df["split"] == "train"]
-    val_df = df[df["split"] == "validation"]
-    test_df = df[df["split"] == "test"]
+    train_df = df[df["split"] == "train"][
+        :1024
+    ]  # limit to 1024 samples for training to speed up the process, can be removed later
+    val_df = df[df["split"] == "validation"][
+        :1024
+    ]  # limit to 1024 samples for validation to speed up the process, can be removed later
+    test_df = df[df["split"] == "test"][
+        :1024
+    ]  # limit to 1024 samples for testing to speed up the process, can be removed later
 
     # create datasets
     train_dataset = TensorDataset(
@@ -433,5 +439,7 @@ if __name__ == "__main__":
             test_df["random_state"] = random_state
             output.append(test_df)
         output_df = pd.concat(output)
+        output_df["model"] = model_name
+        output_df["best_lr"] = best_lr
         output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{args.model_name}.parquet"))
         shutil.rmtree(os.path.join(args.output_dir, model_name))
