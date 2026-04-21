@@ -337,7 +337,6 @@ def main(
             output.append(model(batch[0]))
     val_df["logits"] = torch.cat(output).cpu().numpy()
     val_df = calculate_metrics_per_genome(val_df)
-    val_df = val_df.drop(columns=[embeddings_col])
 
     if not test:
         return val_df
@@ -350,7 +349,6 @@ def main(
             output.append(model(batch[0]))
     test_df["logits"] = torch.cat(output).cpu().numpy()
     test_df = calculate_metrics_per_genome(test_df)
-    test_df = test_df.drop(columns=[embeddings_col])
     return test_df
 
 
