@@ -238,15 +238,9 @@ def main(
     dim = df[embeddings_col].iloc[0].shape[0]
 
     # split the data
-    train_df = df[df["split"] == "train"][
-        :1024
-    ]  # limit to 1024 samples for training to speed up the process, can be removed later
-    val_df = df[df["split"] == "validation"][
-        :1024
-    ]  # limit to 1024 samples for validation to speed up the process, can be removed later
-    test_df = df[df["split"] == "test"][
-        :1024
-    ]  # limit to 1024 samples for testing to speed up the process, can be removed later
+    train_df = df[df["split"] == "train"]
+    val_df = df[df["split"] == "validation"]
+    test_df = df[df["split"] == "test"]
 
     # create datasets
     train_dataset = TensorDataset(
