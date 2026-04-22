@@ -383,8 +383,9 @@ if __name__ == "__main__":
         # ("prokbert.parquet", "ProkBERT"),
         # ("bac_large_mags.parquet", "Bacformer_Large_MAGS"),
         # ("evo2.parquet", "Evo2"),
-        ("baclm_masked.parquet", "BacLM-Masked"),
-        ("evo.parquet", "Evo"),
+        # ("baclm_masked.parquet", "BacLM-Masked"),
+        # ("evo.parquet", "Evo"),
+        ("baclm_causal.parquet", "BacLM-Causal"),
     ]
 
     with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split.json") as f:
