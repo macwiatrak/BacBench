@@ -133,7 +133,8 @@ def extract_cds_and_intergenic_regions(
                 seq_val = feat.qualifiers.get("translation", [""])
                 seq_val = seq_val[0] if isinstance(seq_val, list) else seq_val
                 seq_val = seq_val.replace("*", "").upper()  # remove stop codons from translation and ensure uppercase
-                strand_val = int(feat.strand) if feat.strand in (-1, 1) else 0
+                strand = getattr(feat.location, "strand", getattr(feat, "strand", None))
+                strand_val = int(strand) if strand in (-1, 1) else 0
                 seq_type = "cds"
             else:  # intergenic
                 seq_val = feat.qualifiers.get("sequence", [""])
