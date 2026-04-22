@@ -285,6 +285,7 @@ def preprocess_whole_genome_for_baclm(
     df = dna_seq_to_cds_and_intergenic(dna_sequence, contig_names=contig_names)
     # sort by sequence length
     df["seq_len"] = df["sequence"].apply(len)
+    print(df[:20]["sequence"].tolist())
     df = df.sort_values("seq_len", ascending=False)
     # we don't care about the order for BacLM so we can sort it by sequence length to minimize padding during batching
     return df["sequence"].tolist()
