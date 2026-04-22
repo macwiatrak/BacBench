@@ -6,6 +6,8 @@ import torch
 from datasets import Dataset, IterableDataset
 from tqdm import tqdm
 
+from bacbench.pp import dna_seq_to_cds_and_intergenic
+
 BACFORMER_SPECIAL_TOKENS_DICT = {
     "PAD": 0,
     "MASK": 1,
@@ -262,3 +264,27 @@ def average_unpadded(
 
     # 3) Stack results -> (B, D)
     return torch.stack(results, dim=0)
+
+
+def preprocess_whole_genome_for_baclm(
+    dna_sequence: list[str] | str,
+    contig_names: list[str] = None,
+    max_seq_len: int = 2048,
+) -> list[str]:
+    """Function to preprocess DNA sequences for BacLM.
+
+    Args:
+        dna_sequence (list[str] | str): DNA sequences to preprocess.
+        contig_names (list[str], optional): Names of the contigs. Defaults to None.
+        max_seq_len (int, optional): Maximum length of the sequence. Defaults to 2048.
+
+    Returns
+    -------
+        List[str]: List of preprocessed gLM2 strings.
+    """
+    df = dna_seq_to_cds_and_intergenic(dna_sequence, contig_names=contig_names)
+    # sort by sequence length
+    df["seq_len"] = df["sequence"].apply(len)
+    df = df.sort_values("seq_len", ascending=False)
+    # we don't care about the order for BacLM so we can sort it by sequence length to minimize padding during batching
+    return df["sequence"].tolist()
