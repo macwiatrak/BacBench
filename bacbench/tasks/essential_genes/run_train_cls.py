@@ -368,7 +368,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     output = []
-    lrs = [0.5, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
+    lrs = [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
     input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
     models = [
         # ("dnabert.parquet", "DNABERT-2"),
@@ -383,9 +383,9 @@ if __name__ == "__main__":
         # ("prokbert.parquet", "ProkBERT"),
         # ("bac_large_mags.parquet", "Bacformer_Large_MAGS"),
         # ("evo2.parquet", "Evo2"),
-        # ("baclm_masked.parquet", "BacLM-Masked"),
         # ("evo.parquet", "Evo"),
-        ("baclm_causal.parquet", "BacLM-Causal"),
+        # ("baclm_causal.parquet", "BacLM-Causal"),
+        ("baclm_masked_inf.parquet", "BacLM-Masked")
     ]
 
     with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split.json") as f:
