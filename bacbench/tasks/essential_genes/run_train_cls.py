@@ -202,15 +202,6 @@ class LinearModel(pl.LightningModule):
         return optimizer
 
 
-def prepare_essential_genes_df(df: pd.DataFrame, embeddings_col: str) -> pd.DataFrame:
-    """Prepare the essential genes DataFrame."""
-    # the embeddings column is a list of lists, we need to extract the first element of the list as it is the only one after embedding
-    # df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
-    # explode the DF
-    df = df.explode([embeddings_col, "essential", "protein_id", "product", "start", "end"])
-    return df
-
-
 def main(
     df: pd.DataFrame,
     lr: float = 1e-3,
@@ -231,7 +222,7 @@ def main(
         os.makedirs(output_dir)
 
     # explode the pandas dataframe so that each row corresponds to one gene
-    df = df.explode(["embeddings", "essential"]).explode(["embeddings", "essential"])
+    df = df.explode([embeddings_col, "essential"]).explode([embeddings_col, "essential"])
 
     genome2idx = {g: i for i, g in enumerate(df["genome_name"].unique())}
     df["genome_idx"] = df["genome_name"].map(genome2idx)
