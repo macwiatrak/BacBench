@@ -4,7 +4,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 import torch
 from tqdm import tqdm
 
@@ -37,34 +36,35 @@ def _split_rows_from_parquet(
     input_filepath: str,
     train_test_split_filepath: str,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Read the single PPI parquet incrementally and partition rows by split."""
+    """Read the parquet file and partition rows by split."""
     with open(train_test_split_filepath) as f:
         split = json.load(f)
 
-    # df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", "embeddings"])
-    # df["split"] = df["strain_name"].map(split)
-    # train_df = df[df["split"] == "train"]
-    # val_df = df[df["split"] == "validation"]
-    # test_df = df[df["split"] == "test"]
+    df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", "embeddings"])
+    df["split"] = df["strain_name"].map(split)
+    train_df = df[df["split"] == "train"]
+    val_df = df[df["split"] == "validation"]
+    test_df = df[df["split"] == "test"]
 
-    train_df = []
-    val_df = []
-    test_df = []
+    # below code is for the edge case where the parquet is too large to fit in memory due to overflow, so we read it incrementally and build the splits on the fly
+    # train_df = []
+    # val_df = []
+    # test_df = []
 
-    parquet_file = pq.ParquetFile(input_filepath)
-    for batch in parquet_file.iter_batches(columns=["strain_name", "labels", "embeddings"], batch_size=1):
-        batch = batch.to_pandas()
-        split_name = split[batch["strain_name"].iloc[0]]
-        if split_name == "train":
-            train_df.append(batch)
-        elif split_name == "validation":
-            val_df.append(batch)
-        elif split_name == "test":
-            test_df.append(batch)
+    # parquet_file = pq.ParquetFile(input_filepath)
+    # for batch in parquet_file.iter_batches(columns=["strain_name", "labels", "embeddings"], batch_size=1):
+    #     batch = batch.to_pandas()
+    #     split_name = split[batch["strain_name"].iloc[0]]
+    #     if split_name == "train":
+    #         train_df.append(batch)
+    #     elif split_name == "validation":
+    #         val_df.append(batch)
+    #     elif split_name == "test":
+    #         test_df.append(batch)
 
-    train_df = pd.concat(train_df, ignore_index=True)
-    val_df = pd.concat(val_df, ignore_index=True)
-    test_df = pd.concat(test_df, ignore_index=True)
+    # train_df = pd.concat(train_df, ignore_index=True)
+    # val_df = pd.concat(val_df, ignore_index=True)
+    # test_df = pd.concat(test_df, ignore_index=True)
 
     return train_df, val_df, test_df
 
