@@ -59,9 +59,13 @@ def run(
         )
     else:
         prot_df = load_dataset(prot_dataset_path, split="test").to_pandas()
+        prot_df = prot_df[[genome_col, contig_col, "start", "end", "strand", "protein_sequence"]]
     # explode the cols
-    prot_df = prot_df.explode([contig_col, "start", "end", "strand", label_col, "protein_sequence"]).explode(
-        ["start", "end", "strand", label_col, "protein_sequence"]
+    # prot_df = prot_df.explode([contig_col, "start", "end", "strand", label_col, "protein_sequence"]).explode(
+    #     ["start", "end", "strand", label_col, "protein_sequence"]
+    # )
+    prot_df = prot_df.explode([contig_col, "start", "end", "strand", "protein_sequence"]).explode(
+        ["start", "end", "strand", "protein_sequence"]
     )
     prot_df["gene_idx"] = list(range(len(prot_df)))  # add a gene index column for easier tracking
 
