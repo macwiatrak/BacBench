@@ -363,7 +363,7 @@ if __name__ == "__main__":
     models = [
         # ("dnabert.parquet", "DNABERT-2"),
         ("bacformer.parquet", "Bacformer"),
-        ("bac_large.parquet", "Bacformer Large"),
+        ("bac_large.parquet", "Bacformer_Large"),
         ("esmc.parquet", "ESM-C"),
         ("esm2.parquet", "ESM-2"),
         ("mistral.parquet", "Mistral-DNA"),
