@@ -358,7 +358,7 @@ class ArgumentParser(Tap):
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    lrs = [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
+    lrs = [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
     input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
     models = [
         # ("dnabert.parquet", "DNABERT-2"),
