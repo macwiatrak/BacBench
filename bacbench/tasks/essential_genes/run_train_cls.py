@@ -359,8 +359,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     output = []
-    # lrs = [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
-    lrs = [0.005, 0.001, 0.0005, 0.0001]
+    lrs = [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
     input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
     models = [
         # ("dnabert.parquet", "DNABERT-2"),
@@ -383,17 +382,12 @@ if __name__ == "__main__":
         #     "mean_embedding",
         # ),
         ("evo.parquet", "Evo", "embeddings"),
-        ("baclm_with_promoter.parquet", "BacLM_masked_dna_prot_concat", "concat_embedding"),
     ]
 
     with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split.json") as f:
         genome_split = json.load(f)
 
     for model_file, model_name, emb_col in tqdm(models):
-        if model_name == "Evo":
-            lrs = [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
-        else:
-            lrs = [0.005, 0.001, 0.0005, 0.0001]
         print(f"Running for model: {model_name}")
         df = pd.read_parquet(os.path.join(input_dir, model_file))
         df["split"] = df["genome_name"].map(genome_split)
