@@ -90,7 +90,6 @@ def run(
             output.append(
                 {
                     "genome_name": genome_name,
-                    "example_idx": example_idx,
                     "cds_mean_embedding": zero_embedding,
                     "cds_max_embedding": zero_embedding,
                     "intergenic_mean_embedding": zero_embedding,
