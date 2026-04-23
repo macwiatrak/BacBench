@@ -366,8 +366,8 @@ if __name__ == "__main__":
         # ("bac_large.parquet", "Bacformer_Large"),
         ("esmc.parquet", "ESM-C"),  # TOFINISH
         ("esm2.parquet", "ESM-2"),  # TOFINISH
-        # ("mistral.parquet", "Mistral-DNA"), # TOFINISH
-        # ("nt.parquet", "Nucleotide-Transformer"), # TOFINISH
+        # ("mistral.parquet", "Mistral-DNA"),  # TOFINISH
+        # ("nt.parquet", "Nucleotide-Transformer"),  # TOFINISH
         # ("protbert.parquet", "ProtBERT"), # TOFINISH
         # ("glm2.parquet", "gLM2"), # TOFINISH
         # ("prokbert.parquet", "ProkBERT"),
@@ -381,7 +381,7 @@ if __name__ == "__main__":
         # ),
         # ("evo.parquet", "Evo", "embeddings"),
     ]
-    emb_col = "concat_embedding"
+    emb_col = args.embeddings_col
     with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split.json") as f:
         genome_split = json.load(f)
 
