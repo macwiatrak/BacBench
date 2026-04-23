@@ -386,11 +386,11 @@ if __name__ == "__main__":
         # ("evo.parquet", "Evo"),
         # ("baclm_causal.parquet", "BacLM-Causal"),
         (
-            "baclm_with_promoter.parquet.parquet",
-            "BacLM_masked_dna_prot_mean.parquet",
+            "baclm_with_promoter.parquet",
+            "BacLM_masked_dna_prot_mean",
             "mean_embedding",
         ),
-        ("baclm_with_promoter.parquet.parquet", "BacLM_masked_dna_prot_concat.parquet", "concat_embedding"),
+        ("baclm_with_promoter.parquet", "BacLM_masked_dna_prot_concat", "concat_embedding"),
     ]
 
     with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split.json") as f:
