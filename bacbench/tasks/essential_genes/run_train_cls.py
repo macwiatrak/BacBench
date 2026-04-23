@@ -389,7 +389,6 @@ if __name__ == "__main__":
             "baclm_with_promoter.parquet.parquet",
             "BacLM_masked_dna_prot_mean.parquet",
             "mean_embedding",
-            "concat_embedding",
         ),
         ("baclm_with_promoter.parquet.parquet", "BacLM_masked_dna_prot_concat.parquet", "concat_embedding"),
     ]
