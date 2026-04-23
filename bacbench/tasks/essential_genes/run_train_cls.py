@@ -364,21 +364,21 @@ if __name__ == "__main__":
         # ("dnabert.parquet", "DNABERT-2"),
         # ("bacformer.parquet", "Bacformer"),
         # ("bac_large.parquet", "Bacformer_Large"),
-        # ("esmc.parquet", "ESM-C"),
-        # ("esm2.parquet", "ESM-2"),
-        # ("mistral.parquet", "Mistral-DNA"),
-        # ("nt.parquet", "Nucleotide-Transformer"),
-        # ("protbert.parquet", "ProtBERT"),
-        # ("glm2.parquet", "gLM2"),
+        ("esmc.parquet", "ESM-C"),  # TOFINISH
+        ("esm2.parquet", "ESM-2"),  # TOFINISH
+        # ("mistral.parquet", "Mistral-DNA"), # TOFINISH
+        # ("nt.parquet", "Nucleotide-Transformer"), # TOFINISH
+        # ("protbert.parquet", "ProtBERT"), # TOFINISH
+        # ("glm2.parquet", "gLM2"), # TOFINISH
         # ("prokbert.parquet", "ProkBERT"),
         # ("bac_large_mags.parquet", "Bacformer_Large_MAGS"),
-        # ("baclm_masked.parquet", "BacLM-Masked"),
-        # ("baclm_causal.parquet", "BacLM-Causal"),
+        # ("baclm_masked.parquet", "BacLM-Masked"), # TOFINISH
+        # ("baclm_causal.parquet", "BacLM-Causal"), # TOFINISH
         # ("evo2.parquet", "Evo-2"),
-        (
-            "baclm_with_promoter.parquet",
-            "BacLM_masked_dna_prot_concat",
-        ),
+        # (
+        #     "baclm_with_promoter.parquet",
+        #     "BacLM_masked_dna_prot_concat",
+        # ),
         # ("evo.parquet", "Evo", "embeddings"),
     ]
     emb_col = "concat_embedding"
