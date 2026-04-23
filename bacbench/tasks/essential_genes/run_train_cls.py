@@ -366,10 +366,10 @@ if __name__ == "__main__":
         # ("bac_large.parquet", "Bacformer_Large"),
         # ("esmc.parquet", "ESM-C"),  # TOFINISH
         # ("esm2.parquet", "ESM-2"),  # TOFINISH
-        ("mistral.parquet", "Mistral-DNA"),  # TOFINISH
-        ("nt.parquet", "Nucleotide-Transformer"),  # TOFINISH
-        # ("protbert.parquet", "ProtBERT"), # TOFINISH
-        # ("glm2.parquet", "gLM2"), # TOFINISH
+        # ("mistral.parquet", "Mistral-DNA"),  # TOFINISH
+        # ("nt.parquet", "Nucleotide-Transformer"),  # TOFINISH
+        ("protbert.parquet", "ProtBERT"),  # TOFINISH
+        ("glm2.parquet", "gLM2"),  # TOFINISH
         # ("prokbert.parquet", "ProkBERT"),
         # ("bac_large_mags.parquet", "Bacformer_Large_MAGS"),
         # ("baclm_masked.parquet", "BacLM-Masked"), # TOFINISH
