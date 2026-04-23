@@ -1,5 +1,6 @@
 import pandas as pd
 import torch
+from datasets import load_dataset
 from tap import Tap
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
@@ -25,36 +26,49 @@ def _masked_mean_pool(hidden_states: torch.Tensor, attention_mask: torch.Tensor 
 
 def run(
     model_name: str,
-    dna_input_file_path: str,
-    prot_input_file_path: str,
+    dna_dataset_path: str,
+    prot_dataset_path: str,
     output_file_path: str,
     batch_size: int = 32,
     max_seq_len: int = 2048,
     promoter_len: int = 128,
     min_promoter_len: int = 3,
+    label_col: str = "essential",
 ):
     """Run the embedding script for essential genes using BacLM."""
-    # load the DNA sequences and the train/test split information
-    dna_df = pd.read_parquet(dna_input_file_path, columns=["genome_name", "contig_id", "dna_sequence"])
-    # explode the col
-    dna_df = dna_df.explode(["contig_id", "dna_sequence"])
-    # set index to genome_name and contig_id for faster dna seq lookup
-    dna_df.set_index(["genome_name", "contig_id"], inplace=True)
+    # load the DNA sequences
+    if dna_dataset_path.endswith(".parquet"):
+        dna_df = pd.read_parquet(dna_dataset_path)
+    else:
+        dna_df = load_dataset(dna_dataset_path).to_pandas()
 
-    prot_df = pd.read_parquet(
-        prot_input_file_path,
-        columns=["genome_name", "contig_id", "start", "end", "strand", "essential", "protein_sequence", "split"],
-    )
+    contig_col = "contig_id" if "contig_id" in dna_df.columns else "contig_name"
+    genome_col = "genome_name" if "genome_name" in dna_df.columns else "strain_name"
+    # limit to necessary columns
+    dna_df = dna_df[[genome_col, contig_col, "dna_sequence"]]
+
+    # explode the col
+    dna_df = dna_df.explode([contig_col, "dna_sequence"])
+    # set index to genome_col and contig_col for faster dna seq lookup
+    dna_df.set_index([genome_col, contig_col], inplace=True)
+
+    if prot_dataset_path.endswith(".parquet"):
+        prot_df = pd.read_parquet(
+            prot_dataset_path,
+            columns=[genome_col, contig_col, "start", "end", "strand", label_col, "protein_sequence"],
+        )
+    else:
+        prot_df = load_dataset(prot_dataset_path).to_pandas()
     # explode the cols
-    prot_df = prot_df.explode(["contig_id", "start", "end", "strand", "essential", "protein_sequence"]).explode(
-        ["start", "end", "strand", "essential", "protein_sequence"]
+    prot_df = prot_df.explode([contig_col, "start", "end", "strand", label_col, "protein_sequence"]).explode(
+        ["start", "end", "strand", label_col, "protein_sequence"]
     )
     prot_df["gene_idx"] = list(range(len(prot_df)))  # add a gene index column for easier tracking
 
     seqs = []
     for _, row in prot_df.iterrows():
-        genome_name = row["genome_name"]
-        contig_id = row["contig_id"]
+        genome_name = row[genome_col]
+        contig_id = row[contig_col]
         # Input coordinates are 1-based inclusive. Convert to Python's 0-based,
         # end-exclusive slices only when extracting the promoter sequence.
         start = row["start"]
@@ -174,12 +188,7 @@ def run(
 
     # groupby again for compatibility
     prot_df = (
-        prot_df.groupby(["genome_name", "contig_id", "split"])
-        .agg(list)
-        .reset_index()
-        .groupby(["genome_name", "split"])
-        .agg(list)
-        .reset_index()
+        prot_df.groupby([genome_col, contig_col]).agg(list).reset_index().groupby([genome_col]).agg(list).reset_index()
     )
     prot_df.to_parquet(output_file_path, index=False)
 
@@ -193,8 +202,9 @@ class ArgumentParser(Tap):
     # file paths for loading data
     model_name: str = "macwiatrak/baclm-350m-masked"
     output_filepath: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/baclm_with_promoter.parquet"
-    dna_input_file_path: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/DEG_dna_dataset.parquet"
-    prot_input_file_path: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/DEG_prot_dataset.parquet"
+    dna_dataset_path: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/DEG_dna_dataset.parquet"
+    prot_dataset_path: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/DEG_prot_dataset.parquet"
+    label_col: str = "essential"
     promoter_len: int = 128
     min_promoter_len: int = 3
     max_seq_len: int = 2048
@@ -205,8 +215,9 @@ if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     run(
         model_name=args.model_name,
-        dna_input_file_path=args.dna_input_file_path,
-        prot_input_file_path=args.prot_input_file_path,
+        dna_dataset_path=args.dna_dataset_path,
+        prot_dataset_path=args.prot_dataset_path,
+        label_col=args.label_col,
         output_file_path=args.output_filepath,
         batch_size=args.batch_size,
         max_seq_len=args.max_seq_len,
