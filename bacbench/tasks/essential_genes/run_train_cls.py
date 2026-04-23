@@ -358,7 +358,7 @@ class ArgumentParser(Tap):
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    lrs = [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
+    lrs = [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
     input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
     models = [
         # ("dnabert.parquet", "DNABERT-2"),
@@ -370,11 +370,11 @@ if __name__ == "__main__":
         # ("nt.parquet", "Nucleotide-Transformer"),
         # ("protbert.parquet", "ProtBERT"),
         # ("glm2.parquet", "gLM2"),
-        ("prokbert.parquet", "ProkBERT"),
+        # ("prokbert.parquet", "ProkBERT"),
         # ("bac_large_mags.parquet", "Bacformer_Large_MAGS"),
-        ("baclm_masked.parquet", "BacLM-Masked"),
-        ("baclm_causal.parquet", "BacLM-Causal"),
-        # ("evo2.parquet", "Evo-2"),
+        # ("baclm_masked.parquet", "BacLM-Masked"),
+        # ("baclm_causal.parquet", "BacLM-Causal"),
+        ("evo2.parquet", "Evo-2"),
         # (
         #     "baclm_with_promoter.parquet",
         #     "BacLM_masked_dna_prot_mean",
