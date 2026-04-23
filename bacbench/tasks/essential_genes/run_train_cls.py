@@ -345,7 +345,7 @@ class ArgumentParser(Tap):
 
     # file paths for loading data
     input_df_file_path: str = "/Users/maciejwiatrak/Downloads/baclm_masked_hf_inf.parquet"  # "/Users/maciejwiatrak/Downloads/baclm_masked_hf_inf.parquet"
-    output_dir: str = "/tmp/"
+    output_dir: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/results"
     lr: float = 0.001
     dropout: float = 0.2
     max_epochs: int = 100
@@ -359,7 +359,8 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     output = []
-    lrs = [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
+    # lrs = [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
+    lrs = [0.005, 0.001, 0.0005, 0.0001]
     input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
     models = [
         # ("dnabert.parquet", "DNABERT-2"),
