@@ -40,7 +40,7 @@ def run(
     if dna_dataset_path.endswith(".parquet"):
         dna_df = pd.read_parquet(dna_dataset_path)
     else:
-        dna_df = load_dataset(dna_dataset_path).to_pandas()
+        dna_df = load_dataset(dna_dataset_path, split="test").to_pandas()
 
     contig_col = "contig_id" if "contig_id" in dna_df.columns else "contig_name"
     genome_col = "genome_name" if "genome_name" in dna_df.columns else "strain_name"
@@ -58,7 +58,7 @@ def run(
             columns=[genome_col, contig_col, "start", "end", "strand", label_col, "protein_sequence"],
         )
     else:
-        prot_df = load_dataset(prot_dataset_path).to_pandas()
+        prot_df = load_dataset(prot_dataset_path, split="test").to_pandas()
     # explode the cols
     prot_df = prot_df.explode([contig_col, "start", "end", "strand", label_col, "protein_sequence"]).explode(
         ["start", "end", "strand", label_col, "protein_sequence"]
