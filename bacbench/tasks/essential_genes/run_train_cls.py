@@ -374,15 +374,14 @@ if __name__ == "__main__":
         # ("bac_large_mags.parquet", "Bacformer_Large_MAGS"),
         # ("baclm_masked.parquet", "BacLM-Masked"),
         # ("baclm_causal.parquet", "BacLM-Causal"),
-        ("evo2.parquet", "Evo-2"),
-        # (
-        #     "baclm_with_promoter.parquet",
-        #     "BacLM_masked_dna_prot_mean",
-        #     "concat_embedding",
-        # ),
+        # ("evo2.parquet", "Evo-2"),
+        (
+            "baclm_with_promoter.parquet",
+            "BacLM_masked_dna_prot_concat",
+        ),
         # ("evo.parquet", "Evo", "embeddings"),
     ]
-    emb_col = args.embeddings_col
+    emb_col = "concat_embedding"
     with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split.json") as f:
         genome_split = json.load(f)
 
