@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 from collections import defaultdict
@@ -19,16 +18,19 @@ from transformers import set_seed
 
 # learnigng rates for different models after tuning on the validation set
 MODEL2LR = {
-    "gLM2": 0.001,  # Unknown yet
-    "evo": 0.0005,  # Unknown yet
-    "ProkBERT": 0.01,  # DONE
-    "esm2": 0.01,  # DONE
-    "bacformer": 0.01,  # DONE
-    "dnabert": 0.001,  # DONE
-    "esmc": 0.001,  # DONE
-    "mistral_dna": 0.005,  # DONE
-    "nucleotide_transformer": 0.001,  # DONE
-    "protbert": 0.005,  # DONE
+    "gLM2": 0.01,
+    "evo": 0.1,
+    "evo2": 0.05,
+    "ProkBERT": 0.01,
+    "esm2": 0.001,
+    "bacformer": 0.01,
+    "bacformer-large": 0.1,
+    "BacLM": 0.001,
+    "dnabert2": 0.001,
+    "esmc": 0.005,
+    "mistral_dna": 0.01,
+    "nucleotide_transformer": 0.001,
+    "protbert": 0.0001,
 }
 
 
@@ -344,9 +346,9 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_file_path: str = "/Users/maciejwiatrak/Downloads/baclm_masked_hf_inf.parquet"  # "/Users/maciejwiatrak/Downloads/baclm_masked_hf_inf.parquet"
-    output_dir: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/results"
-    lr: float = 0.001
+    input_df_file_path: str
+    output_dir: str
+    lr: float
     dropout: float = 0.2
     max_epochs: int = 100
     batch_size: int = 256
@@ -358,76 +360,31 @@ class ArgumentParser(Tap):
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    lrs = [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]
-    input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
-    models = [
-        # ("dnabert.parquet", "DNABERT-2"),
-        # ("bacformer.parquet", "Bacformer"),
-        # ("bac_large.parquet", "Bacformer_Large"),
-        # ("esmc.parquet", "ESM-C"),  # TOFINISH
-        # ("esm2.parquet", "ESM-2"),  # TOFINISH
-        # ("mistral.parquet", "Mistral-DNA"),  # TOFINISH
-        # ("nt.parquet", "Nucleotide-Transformer"),  # TOFINISH
-        # ("protbert.parquet", "ProtBERT"),  # TOFINISH
-        # ("glm2.parquet", "gLM2"),  # TOFINISH
-        # ("prokbert.parquet", "ProkBERT"),
-        # ("bac_large_mags.parquet", "Bacformer_Large_MAGS"),
-        ("baclm_masked_inf.parquet", "BacLM-Masked"),  # TOFINISH
-        ("baclm_causal.parquet", "BacLM-Causal"),  # TOFINISH
-        # ("evo2.parquet", "Evo-2"),
-        # (
-        #     "baclm_with_promoter.parquet",
-        #     "BacLM_masked_dna_prot_concat",
-        # ),
-        # ("evo.parquet", "Evo", "embeddings"),
-    ]
-    emb_col = args.embeddings_col
-    with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split.json") as f:
-        genome_split = json.load(f)
+    df = pd.read_parquet(args.input_df_file_path)
 
-    for model_file, model_name in tqdm(models):
-        print(f"Running for model: {model_name}\n\n\n")
-        output = []
-        df = pd.read_parquet(os.path.join(input_dir, model_file))
-        df["split"] = df["genome_name"].map(genome_split)
-        best_lr = None
-        best_auroc = -1
-        os.makedirs(os.path.join(args.output_dir, model_name), exist_ok=True)
-        for lr in lrs:
-            val_df = main(
-                df=df.copy(),
-                lr=lr,
-                dropout=0.2,
-                max_epochs=args.max_epochs,
-                batch_size=256,
-                num_workers=4,
-                output_dir=os.path.join(args.output_dir, model_name),
-                random_state=1,
-                embeddings_col=emb_col,
-                test=False,
-            )
-            val_auroc_score = val_df["auroc"].median()
-            if val_auroc_score > best_auroc:
-                best_auroc = val_auroc_score
-                best_lr = lr
+    # ensure output directory exists
+    os.makedirs(args.output_dir, exist_ok=True)
+    model_name = "unknown_model" if args.model_name is None else args.model_name
+    os.makedirs(os.path.join(args.output_dir, args.model_name), exist_ok=True)
 
-        for random_state in tqdm([1, 2, 3]):
-            test_df = main(
-                df=df,
-                lr=best_lr,
-                dropout=args.dropout,
-                max_epochs=args.max_epochs,
-                batch_size=args.batch_size,
-                num_workers=args.num_workers,
-                output_dir=os.path.join(args.output_dir, model_name),
-                random_state=random_state,
-                embeddings_col=emb_col,
-                test=True,
-            )
-            test_df["random_state"] = random_state
-            output.append(test_df)
-        output_df = pd.concat(output)
-        output_df["model"] = model_name
-        output_df["best_lr"] = best_lr
-        output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{model_name}.parquet"))
-        shutil.rmtree(os.path.join(args.output_dir, model_name))
+    # train and test the model for different random seeds to get a distribution of results
+    output = []
+    for random_state in tqdm([1, 2, 3]):
+        test_df = main(
+            df=df,
+            lr=args.lr,
+            dropout=args.dropout,
+            max_epochs=args.max_epochs,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            output_dir=os.path.join(args.output_dir, model_name),
+            random_state=random_state,
+            embeddings_col=args.embeddings_col,
+            test=True,
+        )
+        test_df["random_state"] = random_state
+        output.append(test_df)
+    output_df = pd.concat(output)
+    output_df["model"] = model_name
+    output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{model_name}.parquet"))
+    shutil.rmtree(os.path.join(args.output_dir, model_name))
