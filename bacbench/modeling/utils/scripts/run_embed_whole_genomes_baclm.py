@@ -2,13 +2,12 @@ import os
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import torch
-from datasets import load_dataset
 from tap import Tap
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
-from bacbench.modeling.utils.utils import _slice_split
 from bacbench.pp import dna_seq_to_cds_and_intergenic
 
 
@@ -49,8 +48,28 @@ def _aggregate_region_embeddings(embeddings: list[np.ndarray], hidden_dim: int) 
     return stacked.mean(axis=0), stacked.max(axis=0)
 
 
+def slice_from_iterable(pf: pq.ParquetFile, start_idx: int, end_idx: int | None, batch_size: int) -> pd.DataFrame:
+    """Load a slice of the input Parquet file as a DataFrame."""
+    assert start_idx % batch_size == 0, f"start_idx {start_idx} must be a multiple of batch_size {batch_size}"
+    if end_idx is not None:
+        assert end_idx % batch_size == 0, f"end_idx {end_idx} must be a multiple of batch_size {batch_size}"
+    else:
+        end_idx = pf.metadata.num_rows
+    df = []
+    curr_idx = 0
+    for batch in tqdm(pf.iter_batches(batch_size=batch_size), desc="Loading data"):
+        start_batch = curr_idx
+        curr_idx += len(batch)
+        if start_batch >= start_idx and curr_idx <= end_idx:
+            df.append(batch.to_pandas())
+
+    df = pd.concat(df, ignore_index=True)
+    assert len(df) == (end_idx - start_idx), f"Loaded {len(df)} rows but expected {(end_idx - start_idx)}"
+    return df
+
+
 def run(
-    dataset_name: str,
+    input_parquet_path: str,
     model_name_or_path: str,
     output_dir: str,
     batch_size: int = 32,
@@ -62,8 +81,9 @@ def run(
     """Embed CDS and intergenic regions of each genome and save genome-level summaries."""
     os.makedirs(output_dir, exist_ok=True)
 
-    dataset = load_dataset(dataset_name, split="train", streaming=True)
-    dataset = _slice_split(dataset, start_idx, end_idx)
+    pf = pq.ParquetFile(input_parquet_path)
+    df = slice_from_iterable(pf, start_idx, end_idx, batch_size=100)
+    print(f"Loaded {len(df)} rows from {input_parquet_path} for embedding")
 
     model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
     model.eval()
@@ -74,7 +94,7 @@ def run(
     hidden_dim = int(model.config.hidden_size)
 
     output = []
-    for example_idx, example in tqdm(enumerate(dataset), desc="Embedding genomes"):
+    for example_idx, (_, example) in tqdm(df.iterrows(), desc="Embedding genomes"):
         genome_name = example["genome_name"]
         contig_sequences = _get_contig_sequences(example["dna_sequence"])
         genome_df = dna_seq_to_cds_and_intergenic(contig_sequences)
@@ -180,7 +200,7 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    dataset_name: str
+    input_parquet_path: str = "/projects/public/u6fp/benchmarks/tasks/phenotypic-traits/pheno_all_genomes_dna.parquet"
     model_name_or_path: str
     output_dir: str
     batch_size: int = 32
@@ -193,7 +213,7 @@ class ArgumentParser(Tap):
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     run(
-        dataset_name=args.dataset_name,
+        input_parquet_path=args.input_parquet_path,
         model_name_or_path=args.model_name_or_path,
         output_dir=args.output_dir,
         batch_size=args.batch_size,
