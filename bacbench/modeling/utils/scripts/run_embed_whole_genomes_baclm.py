@@ -63,6 +63,9 @@ def slice_from_iterable(pf: pq.ParquetFile, start_idx: int, end_idx: int | None,
         if start_batch >= start_idx and curr_idx <= end_idx:
             df.append(batch.to_pandas())
 
+        if curr_idx >= end_idx:
+            break
+
     df = pd.concat(df, ignore_index=True)
     assert len(df) == (end_idx - start_idx), f"Loaded {len(df)} rows but expected {(end_idx - start_idx)}"
     return df
@@ -94,7 +97,7 @@ def run(
     hidden_dim = int(model.config.hidden_size)
 
     output = []
-    for example_idx, (_, example) in tqdm(df.iterrows(), desc="Embedding genomes"):
+    for example_idx, example in tqdm(df.iterrows(), desc="Embedding genomes"):
         genome_name = example["genome_name"]
         contig_sequences = _get_contig_sequences(example["dna_sequence"])
         genome_df = dna_seq_to_cds_and_intergenic(contig_sequences)
