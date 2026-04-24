@@ -163,10 +163,14 @@ def run(
                 "max_embedding": max_embedding,
             }
         )
+        if example_idx + 1 % 200 == 0:
+            pd.DataFrame(output).to_parquet(
+                os.path.join(output_dir, f"chunk_{start_idx}_{start_idx + example_idx + 1}.parquet")
+            )
 
     output_df = pd.DataFrame(output)
     end_idx_for_name = -100 if end_idx is None else end_idx
-    output_df.to_parquet(os.path.join(output_dir, f"chunk_{start_idx}_{end_idx_for_name}.parquet"), index=False)
+    output_df.to_parquet(os.path.join(output_dir, f"chunk_{start_idx}_{end_idx_for_name}.parquet"))
     return output_df
 
 
