@@ -97,6 +97,7 @@ def run(
     hidden_dim = int(model.config.hidden_size)
 
     output = []
+    curr_chunk_idx = start_idx
     for example_idx, example in tqdm(df.iterrows(), desc="Embedding genomes"):
         genome_name = example["genome_name"]
         contig_sequences = _get_contig_sequences(example["dna_sequence"])
@@ -186,15 +187,14 @@ def run(
                 "max_embedding": max_embedding,
             }
         )
-        if example_idx + 1 % 200 == 0:
-            pd.DataFrame(output).to_parquet(
-                os.path.join(output_dir, f"chunk_{start_idx}_{start_idx + example_idx + 1}.parquet")
-            )
+        if (example_idx + 1) % 200 == 0:
+            chunk_end_idx = start_idx + example_idx + 1
+            pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{curr_chunk_idx}_{chunk_end_idx}.parquet"))
+            curr_chunk_idx = chunk_end_idx
+            output = []
 
-    output_df = pd.DataFrame(output)
-    end_idx_for_name = -100 if end_idx is None else end_idx
-    output_df.to_parquet(os.path.join(output_dir, f"chunk_{start_idx}_{end_idx_for_name}.parquet"))
-    return output_df
+    if len(output) > 0:
+        pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{curr_chunk_idx}_{chunk_end_idx}.parquet"))
 
 
 class ArgumentParser(Tap):
