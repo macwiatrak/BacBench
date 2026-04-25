@@ -845,7 +845,7 @@ if __name__ == "__main__":
                 val_size=args.val_size,
                 test_size=args.test_size,
                 test_after_train=False,
-                seeds=1,  # [1, 2, 3],
+                seeds=[1],  # [1, 2, 3],
                 limit_n_phenotypes=args.limit_n_phenotypes,
             )
             auroc_val = metrics_df["val_macro_auroc"].mean()
