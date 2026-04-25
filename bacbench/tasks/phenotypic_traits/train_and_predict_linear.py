@@ -832,6 +832,7 @@ if __name__ == "__main__":
         best_val_auroc = -1.0
         for lr in [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]:
             print(f"Learning rate: {lr}")
+            args.lr = lr
             metrics_df = run(
                 df=df,
                 model_name=args.model_name,
