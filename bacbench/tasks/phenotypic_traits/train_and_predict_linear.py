@@ -812,7 +812,8 @@ if __name__ == "__main__":
     best_overall_val_auroc = -1.0
     best_metrics_df = None
     best_overall_lr = None
-    for emb_col in ["cds_mean_embedding", "cds_max_embedding", "mean_embedding", "max_embedding"]:
+    # for emb_col in ["cds_mean_embedding", "cds_max_embedding", "mean_embedding", "max_embedding"]:
+    for emb_col in ["concat_mean", "concat_max"]:
         df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", emb_col])
         args.model_name = emb_col
         # sort by genome_name to ensure consistent order
