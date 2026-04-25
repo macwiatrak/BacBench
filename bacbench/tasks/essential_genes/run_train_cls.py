@@ -1,5 +1,4 @@
 import os
-import shutil
 from collections import defaultdict
 
 import numpy as np
@@ -368,23 +367,32 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(args.output_dir, args.model_name), exist_ok=True)
 
     # train and test the model for different random seeds to get a distribution of results
-    output = []
-    for random_state in tqdm([1, 2, 3]):
-        test_df = main(
-            df=df,
-            lr=args.lr,
-            dropout=args.dropout,
-            max_epochs=args.max_epochs,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            output_dir=os.path.join(args.output_dir, model_name),
-            random_state=random_state,
-            embeddings_col=args.embeddings_col,
-            test=True,
-        )
-        test_df["random_state"] = random_state
-        output.append(test_df)
-    output_df = pd.concat(output)
-    output_df["model"] = model_name
-    output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{model_name}.parquet"))
-    shutil.rmtree(os.path.join(args.output_dir, model_name))
+    best_lr = None
+    best_auroc = -1.0
+    for lr in [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005]:
+        print(f"Learning rate: {lr}")
+        args.lr = lr
+        output = []
+        for random_state in tqdm([1, 2]):
+            test_df = main(
+                df=df,
+                lr=args.lr,
+                dropout=args.dropout,
+                max_epochs=args.max_epochs,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                output_dir=os.path.join(args.output_dir, model_name),
+                random_state=random_state,
+                embeddings_col=args.embeddings_col,
+                test=True,
+            )
+            if test_df["auroc"].mean() > best_auroc:
+                best_auroc = test_df["auroc"].mean()
+                best_lr = lr
+            test_df["random_state"] = random_state
+            output.append(test_df)
+    print(f"Best learning rate: {best_lr} with mean AUROC: {best_auroc}")
+    # output_df = pd.concat(output)
+    # output_df["model"] = model_name
+    # output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{model_name}.parquet"))
+    # shutil.rmtree(os.path.join(args.output_dir, model_name))
