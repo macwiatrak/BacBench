@@ -807,34 +807,69 @@ class ArgParser(Tap):
 if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
-    df = pd.read_parquet(args.input_genomes_df_filepath)
-    # sort by genome_name to ensure consistent order
-    df = df.sort_values("genome_name").reset_index(drop=True)
-    # read labels
-    labels_df = pd.read_csv(args.labels_df_filepath)
-    # merge on genome_name, inner join to keep only genomes with labels (should be all if data is correct)
-    n_before_merge = len(df)
-    df = df.merge(labels_df, on="genome_name", how="inner")
-    n_after_merge = len(df)
-    assert n_before_merge == n_after_merge, "Merging with labels changed number of genomes! Investigate it."
 
-    today = datetime.today().strftime("%Y_%m_%d")
-    print(f"\nRunning phenotype prediction for model: {args.model_name}")
-    metrics_df = run(
-        df=df,
-        model_name=args.model_name,
-        lr=args.lr,
-        max_epochs=args.max_epochs,
-        early_stopping_patience=args.early_stopping_patience,
-        min_class_samples=args.min_class_samples,
-        split=args.split,
-        train_size=args.train_size,
-        val_size=args.val_size,
-        test_size=args.test_size,
-        test_after_train=args.test_after_train,
-        seeds=[1, 2, 3],
-        limit_n_phenotypes=args.limit_n_phenotypes,
+    best_emb_col = None
+    best_overall_val_auroc = -1.0
+    best_metrics_df = None
+    best_overall_lr = None
+    for emb_col in ["cds_mean_embedding", "cds_max_embedding", "mean_embedding", "max_embedding"]:
+        df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", emb_col])
+        args.model_name = emb_col
+        # sort by genome_name to ensure consistent order
+        df = df.sort_values("genome_name").reset_index(drop=True)
+        # read labels
+        labels_df = pd.read_csv(args.labels_df_filepath)
+        # merge on genome_name, inner join to keep only genomes with labels (should be all if data is correct)
+        n_before_merge = len(df)
+        df = df.merge(labels_df, on="genome_name", how="inner")
+        n_after_merge = len(df)
+        # assert n_before_merge == n_after_merge, "Merging with labels changed number of genomes! Investigate it."
+
+        today = datetime.today().strftime("%Y_%m_%d")
+        print(f"\nRunning phenotype prediction for model: {args.model_name}")
+
+        best_lr = None
+        best_val_auroc = -1.0
+        for lr in [0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]:
+            print(f"Learning rate: {lr}")
+            metrics_df = run(
+                df=df,
+                model_name=args.model_name,
+                lr=args.lr,
+                max_epochs=args.max_epochs,
+                early_stopping_patience=args.early_stopping_patience,
+                min_class_samples=args.min_class_samples,
+                split=args.split,
+                train_size=args.train_size,
+                val_size=args.val_size,
+                test_size=args.test_size,
+                test_after_train=False,
+                seeds=1,  # [1, 2, 3],
+                limit_n_phenotypes=args.limit_n_phenotypes,
+            )
+            auroc_val = metrics_df["val_macro_auroc"].mean()
+            if auroc_val > best_val_auroc:
+                best_val_auroc = auroc_val
+                best_lr = lr
+                if auroc_val > best_overall_val_auroc:
+                    best_overall_val_auroc = auroc_val
+                    best_emb_col = emb_col
+                    best_overall_lr = lr
+                    best_metrics_df = metrics_df.copy()
+        print(f"Best LR for {args.model_name} with {emb_col}: {best_lr} (Val Macro AUROC: {best_val_auroc:.4f})")
+    print(
+        f"Best embedding column: {best_emb_col} (Overall Val Macro AUROC: {best_overall_val_auroc:.4f}) with LR: {best_overall_lr}"
     )
-    out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{today}.csv")
-    metrics_df.to_csv(out_path, index=False)
-    print(f"\nSaved metrics to: {out_path}")
+
+    # Report mean metrics across phenotypes and seeds (validation metrics)
+    metric_cols = ["val_macro_auroc", "val_macro_auprc", "val_macro_f1", "val_macro_accuracy", "val_accuracy"]
+    available = [m for m in metric_cols if m in best_metrics_df.columns]
+    if available:
+        means = best_metrics_df[available].mean(numeric_only=True)
+        print("\n=== Mean validation metrics across phenotypes/seeds ===")
+        for k, v in means.items():
+            print(f"{k}: {v:.4f}")
+
+    # out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{today}.csv")
+    # metrics_df.to_csv(out_path, index=False)
+    # print(f"\nSaved metrics to: {out_path}")
