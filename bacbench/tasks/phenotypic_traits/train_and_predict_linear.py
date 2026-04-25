@@ -831,7 +831,7 @@ if __name__ == "__main__":
 
         best_lr = None
         best_val_auroc = -1.0
-        for lr in [0.05, 0.01, 0.005, 0.001]:
+        for lr in [0.05, 0.1]:
             print(f"Learning rate: {lr}")
             args.lr = lr
             metrics_df = run(
@@ -845,8 +845,8 @@ if __name__ == "__main__":
                 train_size=args.train_size,
                 val_size=args.val_size,
                 test_size=args.test_size,
-                test_after_train=False,
-                seeds=[1],  # [1, 2, 3],
+                test_after_train=True,
+                seeds=[1, 2, 3],  # [1, 2, 3],
                 limit_n_phenotypes=args.limit_n_phenotypes,
             )
             auroc_val = metrics_df["val_macro_auroc"].mean()
@@ -864,7 +864,7 @@ if __name__ == "__main__":
     )
 
     # Report mean metrics across phenotypes and seeds (validation metrics)
-    metric_cols = ["val_macro_auroc", "val_macro_auprc", "val_macro_f1", "val_macro_accuracy", "val_accuracy"]
+    metric_cols = ["test_macro_auroc", "test_macro_auprc", "test_macro_f1", "test_macro_accuracy", "test_accuracy"]
     available = [m for m in metric_cols if m in best_metrics_df.columns]
     if available:
         means = best_metrics_df[available].mean(numeric_only=True)
