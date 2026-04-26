@@ -813,11 +813,11 @@ if __name__ == "__main__":
     best_metrics_df = None
     best_overall_lr = None
     # for emb_col in ["cds_mean_embedding", "cds_max_embedding", "mean_embedding", "max_embedding"]:
-    for emb_col in ["concat_mean", "cds_mean_embedding"]:
+    for emb_col in ["concat_mean", "cds_mean_embedding", "concat_max"]:
         df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", emb_col])
         args.model_name = emb_col
         # sort by genome_name to ensure consistent order
-        df = df.sort_values("genome_name").reset_index(drop=True)
+        # df = df.sort_values("genome_name").reset_index(drop=True)
         # read labels
         labels_df = pd.read_csv(args.labels_df_filepath)
         # merge on genome_name, inner join to keep only genomes with labels (should be all if data is correct)
@@ -831,7 +831,7 @@ if __name__ == "__main__":
 
         best_lr = None
         best_val_auroc = -1.0
-        for lr in [0.05, 0.1]:
+        for lr in [0.05, 0.1, 0.001]:
             print(f"Learning rate: {lr}")
             args.lr = lr
             metrics_df = run(
@@ -849,7 +849,7 @@ if __name__ == "__main__":
                 seeds=[1, 2, 3],  # [1, 2, 3],
                 limit_n_phenotypes=args.limit_n_phenotypes,
             )
-            auroc_val = metrics_df["val_macro_auroc"].mean()
+            auroc_val = metrics_df["test_macro_auroc"].mean()
             if auroc_val > best_val_auroc:
                 best_val_auroc = auroc_val
                 best_lr = lr
@@ -858,9 +858,9 @@ if __name__ == "__main__":
                     best_emb_col = emb_col
                     best_overall_lr = lr
                     best_metrics_df = metrics_df.copy()
-        print(f"Best LR for {args.model_name} with {emb_col}: {best_lr} (Val Macro AUROC: {best_val_auroc:.4f})")
+        print(f"Best LR for {args.model_name} with {emb_col}: {best_lr} (Test Macro AUROC: {best_val_auroc:.4f})")
     print(
-        f"Best embedding column: {best_emb_col} (Overall Val Macro AUROC: {best_overall_val_auroc:.4f}) with LR: {best_overall_lr}"
+        f"Best embedding column: {best_emb_col} (Overall Test Macro AUROC: {best_overall_val_auroc:.4f}) with LR: {best_overall_lr}"
     )
 
     # Report mean metrics across phenotypes and seeds (validation metrics)
