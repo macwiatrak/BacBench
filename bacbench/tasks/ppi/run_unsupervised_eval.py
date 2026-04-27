@@ -60,10 +60,11 @@ def run(
     score_threshold: float = 0.6,
     max_n_proteins: int = 6000,
     max_n_ppi_pairs: float = 2 * 1e6,
+    embeddings_col: str = "embeddings",
 ):
     """Evaluate the model on the PPI dataset in an unsupervised manner."""
     # read in the dataset, only load necessary columns to save memory
-    df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", "embeddings"])
+    df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", embeddings_col])
 
     # read in the train/test split
     with open(train_test_split_filepath) as f:
@@ -78,7 +79,7 @@ def run(
     for item in tqdm(df.itertuples(index=False), total=len(df)):
         genome_scores = []
         genome_labels = []
-        for contig_labels, contig_embeddings in zip(item.labels, item.embeddings, strict=False):
+        for contig_labels, contig_embeddings in zip(item["labels"], item[embeddings_col], strict=False):
             contig_scores, contig_binary_labels = _evaluate_contig_pairs(
                 contig_labels=contig_labels,
                 contig_embeddings=contig_embeddings,
@@ -134,6 +135,7 @@ class ArgumentParser(Tap):
     score_threshold: float = 0.6
     max_n_proteins: int = 6000
     max_n_ppi_pairs: float = 2 * 1e6
+    embeddings_col: str = "embeddings"
 
 
 if __name__ == "__main__":
@@ -148,4 +150,5 @@ if __name__ == "__main__":
         score_threshold=args.score_threshold,
         max_n_proteins=args.max_n_proteins,
         max_n_ppi_pairs=args.max_n_ppi_pairs,
+        embeddings_col=args.embeddings_col,
     )
