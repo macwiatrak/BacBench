@@ -76,7 +76,7 @@ def run(
     os.makedirs(output_dir, exist_ok=True)
 
     output = []
-    for item in tqdm(df.itertuples(index=False), total=len(df)):
+    for _, item in tqdm(df.iterrows(), total=len(df)):
         genome_scores = []
         genome_labels = []
         for contig_labels, contig_embeddings in zip(item["labels"], item[embeddings_col], strict=False):
