@@ -1,3 +1,4 @@
+import json
 import os
 from collections import defaultdict
 
@@ -18,18 +19,18 @@ from transformers import set_seed
 # learnigng rates for different models after tuning on the validation set
 MODEL2LR = {
     "gLM2": 0.01,
-    "evo": 0.1,
-    "evo2": 0.05,
+    "Evo": 0.1,
+    "Evo-2": 0.05,
     "ProkBERT": 0.01,
-    "esm2": 0.001,
-    "bacformer": 0.01,
-    "bacformer-large": 0.1,
+    "ESM-2": 0.001,
+    "Bacformer": 0.01,
+    "Bacformer_Large": 0.1,
     "BacLM": 0.001,
-    "dnabert2": 0.001,
-    "esmc": 0.005,
-    "mistral_dna": 0.01,
-    "nucleotide_transformer": 0.001,
-    "protbert": 0.0001,
+    "DNABERT-2": 0.001,
+    "ESM-C": 0.005,
+    "Mistral-DNA": 0.01,
+    "Nucleotide_Transformer": 0.001,
+    "ProtBERT": 0.0001,
 }
 
 
@@ -359,30 +360,58 @@ class ArgumentParser(Tap):
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    df = pd.read_parquet(args.input_df_file_path)
 
-    # ensure output directory exists
-    os.makedirs(args.output_dir, exist_ok=True)
-    model_name = "unknown_model" if args.model_name is None else args.model_name
-    os.makedirs(os.path.join(args.output_dir, args.model_name), exist_ok=True)
+    with open("/projects/public/u6fp/benchmarks/tasks/essential-genes/genome_split_updated.json") as f:
+        split = json.load(f)
 
-    # train and test the model for different random seeds to get a distribution of results
-    output = []
-    for random_state in tqdm([1, 2, 3]):
-        test_df = main(
-            df=df,
-            lr=args.lr,
-            dropout=args.dropout,
-            max_epochs=args.max_epochs,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            output_dir=os.path.join(args.output_dir, model_name),
-            random_state=random_state,
-            embeddings_col=args.embeddings_col,
-            test=True,
-        )
-        test_df["random_state"] = random_state
-        output.append(test_df)
-    output_df = pd.concat(output)
-    output_df["model"] = model_name
-    output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{model_name}.parquet"))
+    input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
+    models = [
+        ("Bacformer", "bacformer.parquet"),
+        ("Bacformer_Large", "bac_large_mags.parquet"),
+        ("BacLM", "baclm_v1_with_promoter.parquet"),
+        ("DNABERT-2", "dnabert.parquet"),
+        ("ESM-2", "esm2.parquet"),
+        ("ESM-C", "esmc.parquet"),
+        ("Evo", "evo.parquet"),
+        ("Evo-2", "evo2.parquet"),
+        ("gLM2", "glm2.parquet"),
+        ("Mistral-DNA", "mistral.parquet"),
+        ("Nucleotide_Transformer", "nt.parquet"),
+        ("ProkBERT", "prokbert.parquet"),
+        ("ProtBERT", "protbert.parquet"),
+    ]
+    output_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/results-v2"
+    # df = pd.read_parquet(args.input_df_file_path)
+    for model_name, parquet_file in models:
+        df = pd.read_parquet(os.path.join(input_dir, parquet_file))
+        df["split"] = df["genome_name"].map(split)
+        # ensure output directory exists
+        os.makedirs(args.output_dir, exist_ok=True)
+        # model_name = "unknown_model" if args.model_name is None else args.model_name
+        os.makedirs(os.path.join(args.output_dir, args.model_name), exist_ok=True)
+
+        args.lr = MODEL2LR[model_name]
+
+        if model_name == "BacLM":
+            args.embeddings_col = "mean_embedding"
+
+        # train and test the model for different random seeds to get a distribution of results
+        output = []
+        for random_state in tqdm([1, 2, 3]):
+            test_df = main(
+                df=df,
+                lr=args.lr,
+                dropout=args.dropout,
+                max_epochs=args.max_epochs,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                output_dir=os.path.join(args.output_dir, model_name),
+                random_state=random_state,
+                embeddings_col=args.embeddings_col,
+                test=True,
+            )
+            test_df["random_state"] = random_state
+            output.append(test_df)
+        output_df = pd.concat(output)
+        output_df["model"] = model_name
+        output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{model_name}.parquet"))
