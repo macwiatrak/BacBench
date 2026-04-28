@@ -355,6 +355,23 @@ def run(args):
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
+    # read the test set
+    # read train + val
+    # rename the column
+    # save to args.input_filepath
+
+    test_df = pd.read_parquet(
+        "/projects/public/u6fp/benchmarks/tasks/ppi/baclm_v1_test_embeds.parquet",
+        columns=["strain_name", "labels", "mean_embedding"],
+    )
+    df = pd.read_parquet(
+        "/projects/public/u6fp/benchmarks/tasks/ppi/baclm_v1_train_val_embeds.parquet",
+        columns=["strain_name", "labels", "mean_embedding"],
+    )
+    df = pd.concat([df, test_df], ignore_index=True).rename(columns={"mean_embedding": "embeddings"})
+    df.to_parquet(args.input_filepath)
+    del df
+
     LRS = [0.01, 0.005, 0.001, 0.0005]
     base_output_dir = args.output_dir
     best_df = None
