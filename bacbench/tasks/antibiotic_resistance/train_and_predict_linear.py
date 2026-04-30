@@ -1013,7 +1013,9 @@ if __name__ == "__main__":
     best_lr = None
     best_metrics_df = None
     best_auroc = None
+    best_model = None
     for model in ["mean_embedding", "concat_mean", "cds_mean_embedding"]:
+        print("Running things for model:", model)
         df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", model])
         args.model_name = model
         # sort by genome_name to ensure consistent order
@@ -1024,6 +1026,7 @@ if __name__ == "__main__":
         df = pd.merge(df, labels_df, on="genome_name", how="inner")
 
         for lr in [0.1, 0.05, 0.01, 0.005]:
+            print("Running things for LR:", lr)
             args.lr = lr
             today = datetime.today().strftime("%Y_%m_%d")
             print(f"\nRunning AMR prediction for model: {args.model_name}")
@@ -1045,12 +1048,15 @@ if __name__ == "__main__":
                 seeds=[1],  # [1, 2, 3],
                 limit_n_drugs=args.limit_n_drugs,
             )
-            if metrics_df["test_auroc"] > best_auroc:
+            if metrics_df["test_auroc"].mean() > best_auroc:
                 best_lr = lr
                 best_metrics_df = metrics_df.copy()
+                best_model = model
 
-            # out_path = os.path.join(
-            #     args.output_dir, f"amr_preds_regression_{args.regression}_split_{args.split}_{args.model_name}_{today}.csv"
-            # )
-            # metrics_df.to_csv(out_path, index=False)
-            # print(f"\nSaved metrics to: {out_path}")
+    print("Best LR:", lr, "Best AUROC:", best_auroc, "Best model:", best_model)
+
+    # out_path = os.path.join(
+    #     args.output_dir, f"amr_preds_regression_{args.regression}_split_{args.split}_{args.model_name}_{today}.csv"
+    # )
+    # metrics_df.to_csv(out_path, index=False)
+    # print(f"\nSaved metrics to: {out_path}")
