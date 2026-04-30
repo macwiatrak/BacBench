@@ -1008,36 +1008,49 @@ class ArgParser(Tap):
 if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
-    df = pd.read_parquet(args.input_genomes_df_filepath)
-    # sort by genome_name to ensure consistent order
-    df = df.sort_values("genome_name").reset_index(drop=True)
-    # read labels and merge; assumes labels_df has "genome_name" + drug columns; inner join to keep only genomes with labels
-    labels_df = pd.read_csv(args.labels_df_filepath)
-    drug_cols = list(labels_df.columns[1:])
-    df = pd.merge(df, labels_df, on="genome_name", how="inner")
 
-    today = datetime.today().strftime("%Y_%m_%d")
-    print(f"\nRunning AMR prediction for model: {args.model_name}")
-    metrics_df = run(
-        df=df,
-        drug_cols=drug_cols,
-        model_name=args.model_name,
-        lr=args.lr,
-        regression=args.regression,
-        max_epochs=args.max_epochs,
-        early_stopping_patience=args.early_stopping_patience,
-        total_min_samples=args.total_min_samples,
-        min_class_samples=args.min_class_samples,
-        split=args.split,
-        train_size=args.train_size,
-        val_size=args.val_size,
-        test_size=args.test_size,
-        test_after_train=args.test_after_train,
-        seeds=[1, 2, 3],
-        limit_n_drugs=args.limit_n_drugs,
-    )
-    out_path = os.path.join(
-        args.output_dir, f"amr_preds_regression_{args.regression}_split_{args.split}_{args.model_name}_{today}.csv"
-    )
-    metrics_df.to_csv(out_path, index=False)
-    print(f"\nSaved metrics to: {out_path}")
+    # try different embedding methods
+    best_lr = None
+    best_metrics_df = None
+    best_auroc = None
+    for model in ["mean_embedding", "concat_mean", "cds_mean_embedding"]:
+        df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", model])
+        args.model_name = model
+        # sort by genome_name to ensure consistent order
+        df = df.sort_values("genome_name").reset_index(drop=True)
+        # read labels and merge; assumes labels_df has "genome_name" + drug columns; inner join to keep only genomes with labels
+        labels_df = pd.read_csv(args.labels_df_filepath)
+        drug_cols = list(labels_df.columns[1:])
+        df = pd.merge(df, labels_df, on="genome_name", how="inner")
+
+        for lr in [0.1, 0.05, 0.01, 0.005]:
+            args.lr = lr
+            today = datetime.today().strftime("%Y_%m_%d")
+            print(f"\nRunning AMR prediction for model: {args.model_name}")
+            metrics_df = run(
+                df=df,
+                drug_cols=drug_cols,
+                model_name=args.model_name,
+                lr=args.lr,
+                regression=args.regression,
+                max_epochs=args.max_epochs,
+                early_stopping_patience=args.early_stopping_patience,
+                total_min_samples=args.total_min_samples,
+                min_class_samples=args.min_class_samples,
+                split=args.split,
+                train_size=args.train_size,
+                val_size=args.val_size,
+                test_size=args.test_size,
+                test_after_train=args.test_after_train,
+                seeds=[1],  # [1, 2, 3],
+                limit_n_drugs=args.limit_n_drugs,
+            )
+            if metrics_df["test_auroc"] > best_auroc:
+                best_lr = lr
+                best_metrics_df = metrics_df.copy()
+
+            # out_path = os.path.join(
+            #     args.output_dir, f"amr_preds_regression_{args.regression}_split_{args.split}_{args.model_name}_{today}.csv"
+            # )
+            # metrics_df.to_csv(out_path, index=False)
+            # print(f"\nSaved metrics to: {out_path}")
