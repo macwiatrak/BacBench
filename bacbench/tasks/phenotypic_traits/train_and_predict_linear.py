@@ -853,6 +853,6 @@ if __name__ == "__main__":
         for k, v in means.items():
             print(f"{k}: {v:.4f}")
 
-    # out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{today}.csv")
-    # metrics_df.to_csv(out_path, index=False)
-    # print(f"\nSaved metrics to: {out_path}")
+    out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{today}.csv")
+    metrics_df.to_csv(out_path, index=False)
+    print(f"\nSaved metrics to: {out_path}")
