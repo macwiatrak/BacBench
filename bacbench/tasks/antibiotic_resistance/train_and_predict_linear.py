@@ -1012,7 +1012,7 @@ if __name__ == "__main__":
     # try different embedding methods
     best_lr = None
     best_metrics_df = None
-    best_auroc = None
+    best_auroc = -1
     best_model = None
     for model in ["mean_embedding", "concat_mean", "cds_mean_embedding"]:
         print("Running things for model:", model)
