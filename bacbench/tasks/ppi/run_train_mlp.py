@@ -372,7 +372,7 @@ if __name__ == "__main__":
     df.to_parquet(args.input_filepath)
     del df
 
-    LRS = [0.01, 0.005, 0.001, 0.0005]
+    LRS = [0.005, 0.001, 0.0005]
     base_output_dir = args.output_dir
     best_df = None
     best_val_auroc = -1.0
