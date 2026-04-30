@@ -847,6 +847,7 @@ if __name__ == "__main__":
         )
 
         # Report mean metrics across phenotypes and seeds (validation metrics)
+        print(f"Metrics for model: {args.model_name}")
         metric_cols = ["test_macro_auroc", "test_macro_auprc", "test_macro_f1", "test_macro_accuracy", "test_accuracy"]
         available = [m for m in metric_cols if m in metrics_df.columns]
         if available:
