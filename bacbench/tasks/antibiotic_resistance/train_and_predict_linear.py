@@ -1085,7 +1085,7 @@ if __name__ == "__main__":
         test_size=args.test_size,
         test_after_train=args.test_after_train,
         seeds=[1, 2, 3],
-        limit_n_drugs=args.limit_n_drugs,
+        limit_n_drugs=None,
     )
 
     out_path = os.path.join(
