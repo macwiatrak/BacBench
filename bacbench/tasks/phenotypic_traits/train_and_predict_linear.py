@@ -814,9 +814,9 @@ if __name__ == "__main__":
     # best_overall_lr = None
     # for emb_col in ["cds_mean_embedding", "cds_max_embedding", "mean_embedding", "max_embedding"]:
     # for emb_col in ["concat_mean", "mean_embedding", "cds_mean_embedding"]:
-    for model in ["mean_embedding", "concat_mean", "cds_mean_embedding"]:
-        args.model_name = model
-        print(f"Running training for model: {model}")
+    for lr in [0.5, 0.1, 0.05, 0.01, 0.005]:
+        print(f"Running training for lr: {lr}")
+        args.lr = lr
         df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", args.model_name])
         # sort by genome_name to ensure consistent order
         df = df.sort_values("genome_name").reset_index(drop=True)
@@ -848,7 +848,7 @@ if __name__ == "__main__":
         )
 
         # Report mean metrics across phenotypes and seeds (validation metrics)
-        print(f"Metrics for model: {args.model_name}")
+        print(f"Metrics for lr: {args.lr}")
         metric_cols = ["test_macro_auroc", "test_macro_auprc", "test_macro_f1", "test_macro_accuracy", "test_accuracy"]
         available = [m for m in metric_cols if m in metrics_df.columns]
         if available:
@@ -857,6 +857,6 @@ if __name__ == "__main__":
             for k, v in means.items():
                 print(f"{k}: {v:.4f}")
 
-        out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{today}.csv")
+        out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{args.lr}_{today}.csv")
         metrics_df.to_csv(out_path, index=False)
         print(f"\nSaved metrics to: {out_path}")
