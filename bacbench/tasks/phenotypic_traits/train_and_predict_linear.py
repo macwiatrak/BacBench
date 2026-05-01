@@ -814,8 +814,9 @@ if __name__ == "__main__":
     # best_overall_lr = None
     # for emb_col in ["cds_mean_embedding", "cds_max_embedding", "mean_embedding", "max_embedding"]:
     # for emb_col in ["concat_mean", "mean_embedding", "cds_mean_embedding"]:
-    for model in ["concat_mean", "mean_embedding", "cds_mean_embedding"]:
+    for model in ["mean_embedding", "concat_mean", "cds_mean_embedding"]:
         args.model_name = model
+        print(f"Running training for model: {model}")
         df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", args.model_name])
         # sort by genome_name to ensure consistent order
         df = df.sort_values("genome_name").reset_index(drop=True)
