@@ -1015,7 +1015,7 @@ if __name__ == "__main__":
     best_score = -1
     best_model = None
     metric = "test_r2" if args.regression else "test_auroc"
-    for model in ["mean_embedding", "concat_mean", "cds_mean_embedding"]:
+    for model in ["mean_embedding", "cds_mean_embedding"]:
         print("Running things for model:", model)
         df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", model])
         args.model_name = model
