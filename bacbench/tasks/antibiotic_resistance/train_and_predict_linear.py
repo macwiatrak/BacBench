@@ -1026,7 +1026,7 @@ if __name__ == "__main__":
         drug_cols = list(labels_df.columns[1:])
         df = pd.merge(df, labels_df, on="genome_name", how="inner")
 
-        for lr in [0.1, 0.05, 0.01, 0.005]:
+        for lr in [0.05, 0.01, 0.005]:
             print("Running things for LR:", lr)
             args.lr = lr
             today = datetime.today().strftime("%Y_%m_%d")
