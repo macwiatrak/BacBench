@@ -1009,63 +1009,66 @@ if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # try different embedding methods
-    best_lr = None
-    best_metrics_df = None
-    best_score = -1
-    best_model = None
-    metric = "test_r2" if args.regression else "test_auroc"
-    for model in ["mean_embedding", "cds_mean_embedding"]:
-        print("Running things for model:", model)
-        df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", model])
-        args.model_name = model
-        # sort by genome_name to ensure consistent order
-        df = df.sort_values("genome_name").reset_index(drop=True)
-        # read labels and merge; assumes labels_df has "genome_name" + drug columns; inner join to keep only genomes with labels
-        labels_df = pd.read_csv(args.labels_df_filepath)
-        drug_cols = list(labels_df.columns[1:])
-        df = pd.merge(df, labels_df, on="genome_name", how="inner")
+    # # try different embedding methods
+    # best_lr = None
+    # best_metrics_df = None
+    # best_score = -1
+    # best_model = None
+    # metric = "test_r2" if args.regression else "test_auroc"
+    # for model in ["mean_embedding", "cds_mean_embedding"]:
+    #     print("Running things for model:", model)
+    #     df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", model])
+    #     args.model_name = model
+    #     # sort by genome_name to ensure consistent order
+    #     df = df.sort_values("genome_name").reset_index(drop=True)
+    #     # read labels and merge; assumes labels_df has "genome_name" + drug columns; inner join to keep only genomes with labels
+    #     labels_df = pd.read_csv(args.labels_df_filepath)
+    #     drug_cols = list(labels_df.columns[1:])
+    #     df = pd.merge(df, labels_df, on="genome_name", how="inner")
 
-        for lr in [0.05, 0.01, 0.005]:
-            print("Running things for LR:", lr)
-            args.lr = lr
-            today = datetime.today().strftime("%Y_%m_%d")
-            print(f"\nRunning AMR prediction for model: {args.model_name}")
-            metrics_df = run(
-                df=df,
-                drug_cols=drug_cols,
-                model_name=args.model_name,
-                lr=args.lr,
-                regression=args.regression,
-                max_epochs=args.max_epochs,
-                early_stopping_patience=args.early_stopping_patience,
-                total_min_samples=args.total_min_samples,
-                min_class_samples=args.min_class_samples,
-                split=args.split,
-                train_size=args.train_size,
-                val_size=args.val_size,
-                test_size=args.test_size,
-                test_after_train=args.test_after_train,
-                seeds=[1],  # [1, 2, 3],
-                limit_n_drugs=args.limit_n_drugs,
-            )
-            if metrics_df[metric].mean() > best_score:
-                best_lr = lr
-                best_metrics_df = metrics_df.copy()
-                best_model = model
-                best_score = metrics_df[metric].mean()
+    #     for lr in [0.05, 0.01, 0.005]:
+    #         print("Running things for LR:", lr)
+    #         args.lr = lr
+    #         today = datetime.today().strftime("%Y_%m_%d")
+    #         print(f"\nRunning AMR prediction for model: {args.model_name}")
+    #         metrics_df = run(
+    #             df=df,
+    #             drug_cols=drug_cols,
+    #             model_name=args.model_name,
+    #             lr=args.lr,
+    #             regression=args.regression,
+    #             max_epochs=args.max_epochs,
+    #             early_stopping_patience=args.early_stopping_patience,
+    #             total_min_samples=args.total_min_samples,
+    #             min_class_samples=args.min_class_samples,
+    #             split=args.split,
+    #             train_size=args.train_size,
+    #             val_size=args.val_size,
+    #             test_size=args.test_size,
+    #             test_after_train=args.test_after_train,
+    #             seeds=[1],  # [1, 2, 3],
+    #             limit_n_drugs=args.limit_n_drugs,
+    #         )
+    #         if metrics_df[metric].mean() > best_score:
+    #             best_lr = lr
+    #             best_metrics_df = metrics_df.copy()
+    #             best_model = model
+    #             best_score = metrics_df[metric].mean()
 
-    print("Best LR:", lr, f"Best {metric}:", best_score, "Best model:", best_model)
+    # print("Best LR:", best_lr, f"Best {metric}:", best_score, "Best model:", best_model)
 
-    args.lr = best_lr
-    df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", best_model])
-    args.model_name = best_model
+    # args.lr = best_lr
+    # df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", best_model])
+    # args.model_name = best_model
     # sort by genome_name to ensure consistent order
+
+    df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", args.model_name])
     df = df.sort_values("genome_name").reset_index(drop=True)
     # read labels and merge; assumes labels_df has "genome_name" + drug columns; inner join to keep only genomes with labels
     labels_df = pd.read_csv(args.labels_df_filepath)
     drug_cols = list(labels_df.columns[1:])
     df = pd.merge(df, labels_df, on="genome_name", how="inner")
+    today = datetime.today().strftime("%Y_%m_%d")
     metrics_df = run(
         df=df,
         drug_cols=drug_cols,
