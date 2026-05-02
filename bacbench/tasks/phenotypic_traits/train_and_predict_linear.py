@@ -814,49 +814,49 @@ if __name__ == "__main__":
     # best_overall_lr = None
     # for emb_col in ["cds_mean_embedding", "cds_max_embedding", "mean_embedding", "max_embedding"]:
     # for emb_col in ["concat_mean", "mean_embedding", "cds_mean_embedding"]:
-    for lr in [0.5, 0.1, 0.05, 0.01, 0.005]:
-        print(f"Running training for lr: {lr}")
-        args.lr = lr
-        df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", args.model_name])
-        # sort by genome_name to ensure consistent order
-        df = df.sort_values("genome_name").reset_index(drop=True)
-        # read labels
-        labels_df = pd.read_csv(args.labels_df_filepath)
-        # merge on genome_name, inner join to keep only genomes with labels (should be all if data is correct)
-        n_before_merge = len(df)
-        df = df.merge(labels_df, on="genome_name", how="inner")
-        n_after_merge = len(df)
-        # assert n_before_merge == n_after_merge, "Merging with labels changed number of genomes! Investigate it."
+    # for lr in [0.5, 0.1, 0.05, 0.01, 0.005]:
+    #     print(f"Running training for lr: {lr}")
+    #     args.lr = lr
+    df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", args.model_name])
+    # sort by genome_name to ensure consistent order
+    df = df.sort_values("genome_name").reset_index(drop=True)
+    # read labels
+    labels_df = pd.read_csv(args.labels_df_filepath)
+    # merge on genome_name, inner join to keep only genomes with labels (should be all if data is correct)
+    n_before_merge = len(df)
+    df = df.merge(labels_df, on="genome_name", how="inner")
+    n_after_merge = len(df)
+    # assert n_before_merge == n_after_merge, "Merging with labels changed number of genomes! Investigate it."
 
-        today = datetime.today().strftime("%Y_%m_%d")
-        print(f"\nRunning phenotype prediction for model: {args.model_name}")
+    today = datetime.today().strftime("%Y_%m_%d")
+    print(f"\nRunning phenotype prediction for model: {args.model_name}")
 
-        metrics_df = run(
-            df=df,
-            model_name=args.model_name,
-            lr=args.lr,
-            max_epochs=args.max_epochs,
-            early_stopping_patience=args.early_stopping_patience,
-            min_class_samples=args.min_class_samples,
-            split=args.split,
-            train_size=args.train_size,
-            val_size=args.val_size,
-            test_size=args.test_size,
-            test_after_train=True,
-            seeds=[1, 2, 3],
-            limit_n_phenotypes=args.limit_n_phenotypes,
-        )
+    metrics_df = run(
+        df=df,
+        model_name=args.model_name,
+        lr=args.lr,
+        max_epochs=args.max_epochs,
+        early_stopping_patience=args.early_stopping_patience,
+        min_class_samples=args.min_class_samples,
+        split=args.split,
+        train_size=args.train_size,
+        val_size=args.val_size,
+        test_size=args.test_size,
+        test_after_train=True,
+        seeds=[1, 2, 3],
+        limit_n_phenotypes=args.limit_n_phenotypes,
+    )
 
-        # Report mean metrics across phenotypes and seeds (validation metrics)
-        print(f"Metrics for lr: {args.lr}")
-        metric_cols = ["test_macro_auroc", "test_macro_auprc", "test_macro_f1", "test_macro_accuracy", "test_accuracy"]
-        available = [m for m in metric_cols if m in metrics_df.columns]
-        if available:
-            means = metrics_df[available].mean(numeric_only=True)
-            print("\n=== Mean validation metrics across phenotypes/seeds ===")
-            for k, v in means.items():
-                print(f"{k}: {v:.4f}")
+    # Report mean metrics across phenotypes and seeds (validation metrics)
+    print(f"Metrics for lr: {args.lr}")
+    metric_cols = ["test_macro_auroc", "test_macro_auprc", "test_macro_f1", "test_macro_accuracy", "test_accuracy"]
+    available = [m for m in metric_cols if m in metrics_df.columns]
+    if available:
+        means = metrics_df[available].mean(numeric_only=True)
+        print("\n=== Mean validation metrics across phenotypes/seeds ===")
+        for k, v in means.items():
+            print(f"{k}: {v:.4f}")
 
-        out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{args.lr}_{today}.csv")
-        metrics_df.to_csv(out_path, index=False)
-        print(f"\nSaved metrics to: {out_path}")
+    out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{today}.csv")
+    metrics_df.to_csv(out_path, index=False)
+    print(f"\nSaved metrics to: {out_path}")
