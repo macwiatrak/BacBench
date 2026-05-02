@@ -297,7 +297,7 @@ class LinearHead(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.net = nn.Sequential(
-            nn.LayerNorm(input_dim),
+            # nn.LayerNorm(input_dim),
             nn.Dropout(dropout),
             nn.Linear(input_dim, output_dim),
         )
