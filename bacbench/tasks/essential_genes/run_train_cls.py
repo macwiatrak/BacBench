@@ -26,7 +26,7 @@ MODEL2LR = {
     "Bacformer": 0.01,
     "Bacformer_Large": 0.1,
     "BacLM": 0.001,
-    "BacLM-Prot": 0.001,
+    "BacLM-Prot": 0.005,
     "DNABERT-2": 0.001,
     "ESM-C": 0.005,
     "Mistral-DNA": 0.01,
