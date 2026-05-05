@@ -25,7 +25,7 @@ MODEL2LR = {
     "ESM-2": 0.001,
     "Bacformer": 0.01,
     "Bacformer_Large": 0.1,
-    "BacLM": 0.001,
+    "BacLM": 0.005,
     "BacLM-Prot": 0.005,
     "DNABERT-2": 0.001,
     "ESM-C": 0.005,
@@ -369,7 +369,7 @@ if __name__ == "__main__":
     models = [
         # ("Bacformer", "bacformer.parquet"),
         # ("Bacformer_Large", "bac_large_mags.parquet"),
-        ("BacLM-Prot", "baclm_v1_with_promoter.parquet"),
+        ("BacLM-v2", "baclm_v1_with_promoter.parquet"),
         # ("DNABERT-2", "dnabert.parquet"),
         # ("ESM-2", "esm2.parquet"),
         # ("ESM-C", "esmc.parquet"),
@@ -395,7 +395,7 @@ if __name__ == "__main__":
         args.lr = MODEL2LR[model_name]
 
         if model_name == "BacLM-Prot":
-            args.embeddings_col = "cds_mean_embedding"
+            args.embeddings_col = "mean_embedding"
 
         # train and test the model for different random seeds to get a distribution of results
         output = []
