@@ -394,7 +394,7 @@ if __name__ == "__main__":
 
         args.lr = MODEL2LR[model_name]
 
-        if model_name == "BacLM-Prot":
+        if model_name == "BacLM-v2":
             args.embeddings_col = "mean_embedding"
 
         # train and test the model for different random seeds to get a distribution of results
