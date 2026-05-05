@@ -416,4 +416,4 @@ if __name__ == "__main__":
             output.append(test_df)
         output_df = pd.concat(output)
         output_df["model"] = model_name
-        output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{model_name}.parquet"))
+        output_df.to_parquet(os.path.join(output_dir, f"finetune_results_{model_name}.parquet"))
