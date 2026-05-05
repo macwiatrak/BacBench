@@ -26,6 +26,7 @@ MODEL2LR = {
     "Bacformer": 0.01,
     "Bacformer_Large": 0.1,
     "BacLM": 0.001,
+    "BacLM-Prot": 0.001,
     "DNABERT-2": 0.001,
     "ESM-C": 0.005,
     "Mistral-DNA": 0.01,
@@ -366,23 +367,24 @@ if __name__ == "__main__":
 
     input_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/"
     models = [
-        ("Bacformer", "bacformer.parquet"),
-        ("Bacformer_Large", "bac_large_mags.parquet"),
-        ("BacLM", "baclm_v1_with_promoter.parquet"),
-        ("DNABERT-2", "dnabert.parquet"),
-        ("ESM-2", "esm2.parquet"),
-        ("ESM-C", "esmc.parquet"),
-        ("Evo", "evo.parquet"),
-        ("Evo-2", "evo2.parquet"),
-        ("gLM2", "glm2.parquet"),
-        ("Mistral-DNA", "mistral.parquet"),
-        ("Nucleotide_Transformer", "nt.parquet"),
-        ("ProkBERT", "prokbert.parquet"),
-        ("ProtBERT", "protbert.parquet"),
+        # ("Bacformer", "bacformer.parquet"),
+        # ("Bacformer_Large", "bac_large_mags.parquet"),
+        ("BacLM-Prot", "baclm_v1_with_promoter.parquet"),
+        # ("DNABERT-2", "dnabert.parquet"),
+        # ("ESM-2", "esm2.parquet"),
+        # ("ESM-C", "esmc.parquet"),
+        # ("Evo", "evo.parquet"),
+        # ("Evo-2", "evo2.parquet"),
+        # ("gLM2", "glm2.parquet"),
+        # ("Mistral-DNA", "mistral.parquet"),
+        # ("Nucleotide_Transformer", "nt.parquet"),
+        # ("ProkBERT", "prokbert.parquet"),
+        # ("ProtBERT", "protbert.parquet"),
     ]
     output_dir = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/results-v2"
     # df = pd.read_parquet(args.input_df_file_path)
     for model_name, parquet_file in models:
+        args.model_name = model_name
         df = pd.read_parquet(os.path.join(input_dir, parquet_file))
         df["split"] = df["genome_name"].map(split)
         # ensure output directory exists
@@ -392,8 +394,8 @@ if __name__ == "__main__":
 
         args.lr = MODEL2LR[model_name]
 
-        if model_name == "BacLM":
-            args.embeddings_col = "mean_embedding"
+        if model_name == "BacLM-Prot":
+            args.embeddings_col = "cds_mean_embedding"
 
         # train and test the model for different random seeds to get a distribution of results
         output = []
