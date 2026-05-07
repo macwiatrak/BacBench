@@ -609,7 +609,7 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
         return gLM2Embedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
     if "baclm" in model_name_or_path_lower:
-        return BacLMEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+        return BacLMEmbedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
     if "evo2" in model_name_or_path_lower:
         print(
