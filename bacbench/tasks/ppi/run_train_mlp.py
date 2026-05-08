@@ -355,50 +355,5 @@ def run(args):
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
-    # read the test set
-    # read train + val
-    # rename the column
-    # save to args.input_filepath
-
-    test_df = pd.read_parquet(
-        "/projects/public/u6fp/benchmarks/tasks/ppi/baclm_v1_test_embeds.parquet",
-        columns=["strain_name", "labels", "mean_embedding"],
-    )
-    df = pd.read_parquet(
-        "/projects/public/u6fp/benchmarks/tasks/ppi/baclm_v1_train_val_embeds.parquet",
-        columns=["strain_name", "labels", "mean_embedding"],
-    )
-    df = pd.concat([df, test_df], ignore_index=True).rename(columns={"mean_embedding": "embeddings"})
-    df.to_parquet(args.input_filepath)
-    del df
-
-    LRS = [0.005, 0.001, 0.0005]
-    base_output_dir = args.output_dir
-    best_df = None
-    best_val_auroc = -1.0
-    best_lr = None
-    lr_results: list[dict[str, float]] = []
-
-    os.makedirs(base_output_dir, exist_ok=True)
-    for lr in LRS:
-        args.lr = lr
-        run_output_dir = os.path.join(base_output_dir, f"lr_{lr}")
-        print(f"Running with learning rate: {lr}")
-        print({**args.as_dict(), "output_dir": run_output_dir})
-        os.makedirs(run_output_dir, exist_ok=True)
-        args.output_dir = run_output_dir
-        val_results, test_results, test_df = run(args)
-        val_auroc = float(val_results[0]["val_auroc"])
-        lr_results.append({"lr": lr, "val_auroc": val_auroc})
-        if best_val_auroc < val_auroc:
-            best_val_auroc = val_auroc
-            best_lr = lr
-            best_df = test_df
-        args.output_dir = base_output_dir
-
-    pd.DataFrame(lr_results).to_csv(os.path.join(base_output_dir, "lr_sweep_results.csv"), index=False)
-    if best_df is not None:
-        best_df.to_csv(os.path.join(base_output_dir, "best_test_predictions.csv"), index=False)
-    if best_lr is not None:
-        with open(os.path.join(base_output_dir, "best_lr.json"), "w") as f:
-            json.dump({"lr": best_lr, "val_auroc": best_val_auroc}, f, indent=2)
+    os.makedirs(args.output_dir)
+    run(args)

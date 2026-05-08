@@ -807,16 +807,6 @@ class ArgParser(Tap):
 if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
-
-    # best_emb_col = None
-    # best_overall_val_auroc = -1.0
-    # best_metrics_df = None
-    # best_overall_lr = None
-    # for emb_col in ["cds_mean_embedding", "cds_max_embedding", "mean_embedding", "max_embedding"]:
-    # for emb_col in ["concat_mean", "mean_embedding", "cds_mean_embedding"]:
-    # for lr in [0.5, 0.1, 0.05, 0.01, 0.005]:
-    #     print(f"Running training for lr: {lr}")
-    #     args.lr = lr
     df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", args.model_name])
     # sort by genome_name to ensure consistent order
     df = df.sort_values("genome_name").reset_index(drop=True)
@@ -826,7 +816,7 @@ if __name__ == "__main__":
     n_before_merge = len(df)
     df = df.merge(labels_df, on="genome_name", how="inner")
     n_after_merge = len(df)
-    # assert n_before_merge == n_after_merge, "Merging with labels changed number of genomes! Investigate it."
+    assert n_before_merge == n_after_merge, "Merging with labels changed number of genomes! Investigate it."
 
     today = datetime.today().strftime("%Y_%m_%d")
     print(f"\nRunning phenotype prediction for model: {args.model_name}")
