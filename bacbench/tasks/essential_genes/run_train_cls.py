@@ -369,7 +369,7 @@ class ArgumentParser(Tap):
     max_epochs: int = 100
     batch_size: int = 256
     num_workers: int = 4
-    test: bool = True
+    test: bool = False
     embeddings_col: str = "embeddings"
     model_name: str = None
 
@@ -390,7 +390,7 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             random_state=random_state,
             embeddings_col=args.embeddings_col,
-            test=True,
+            test=args.test,
         )
         test_df["random_state"] = random_state
         output.append(test_df)

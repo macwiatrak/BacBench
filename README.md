@@ -89,17 +89,6 @@ pip install -e ".[test]"
 pytest
 ```
 
-### Quickstart
-
-The fastest smoke test is to install the package and run a CPU-only import check:
-```bash
-python - <<'PY'
-import bacbench
-
-print("BacBench import OK.")
-PY
-```
-
 Embedding and most full benchmark runs require GPU hardware and task-specific input files.
 
 ## Usage
@@ -188,7 +177,7 @@ Below, we show examples on how to embed genomes using the supported models on a 
 python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_esmc_embeddings.parquet \
-    --model-path esmc_300m \
+    --model-path Synthyra/ESMplusplus_small \
     --batch-size 64
 
 # embed and save the genomes using the Bacformer model

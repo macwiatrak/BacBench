@@ -255,6 +255,7 @@ class ArgumentParser(Tap):
     logging_steps: int = 500
     monitor_metric: Literal["loss", "auroc", "auprc"] = "auroc"
     dataloader_num_workers: int = 4
+    test_after_train: bool = False
 
     max_n_proteins: int = 6000
     n_nodes: int = 1
@@ -340,6 +341,9 @@ def run(args):
     test_results = None
     test_df = None
     test_summary_df = None
+    if not args.test_after_train:
+        return val_results, test_results, test_summary_df
+
     if test_dl is not None and len(test_dl.dataset) > 0:
         test_results = trainer.test(model=model, dataloaders=test_dl, ckpt_path=None)
         test_df = model.test_predictions_df_
@@ -351,6 +355,7 @@ def run(args):
         test_summary_df.to_csv(os.path.join(args.output_dir, "test_predictions_by_genome.csv"), index=False)
         print("Test metrics:", test_results)
         return val_results, test_results, test_summary_df
+    print("Test evaluation requested, but the test split has no usable PPI pairs after preprocessing.")
     return val_results, test_results, test_summary_df
 
 

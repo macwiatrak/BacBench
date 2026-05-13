@@ -67,6 +67,8 @@ python bacbench/tasks/ppi/run_train_mlp.py \
     --score-threshold 0.6
 ```
 
+By default, the script trains and validates only. Add `--test-after-train` after tuning validation settings to run test evaluation and write test prediction files.
+
 For very large parquet files, use incremental split construction:
 
 ```bash
@@ -90,7 +92,7 @@ python bacbench/tasks/ppi/run_unsupervised_eval.py \
 
 ## Output
 
-`run_train_mlp.py` writes checkpoints, logs, `args.json`, `test_predictions.csv`, and `test_predictions_by_genome.csv` under `--output-dir`.
+`run_train_mlp.py` always writes checkpoints, logs, and `args.json` under `--output-dir`. When `--test-after-train` is set, it also writes `test_predictions.csv` and `test_predictions_by_genome.csv`.
 
 `run_unsupervised_eval.py` writes:
 
