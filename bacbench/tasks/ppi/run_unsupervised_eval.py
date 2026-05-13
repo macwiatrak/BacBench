@@ -114,6 +114,9 @@ def run(
         model_name = "unknown_model"
 
     output = pd.DataFrame(output)
+    if output.empty:
+        print("No valid genome-level metrics were computed. No output will be saved.")
+        return
     print(f"Mean AUROC: {output['auroc'].mean():.4f}, Mean AUPRC: {output['auprc'].mean():.4f}")
     print(f"Median AUROC: {output['auroc'].median():.4f}, Median AUPRC: {output['auprc'].median():.4f}")
     print(f"Std AUROC: {output['auroc'].std():.4f}, Std AUPRC: {output['auprc'].std():.4f}")

@@ -88,7 +88,11 @@ def run(
     df = slice_from_iterable(pf, start_idx, end_idx, batch_size=100)
     print(f"Loaded {len(df)} rows from {input_parquet_path} for embedding")
 
-    model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+    model = AutoModel.from_pretrained(
+        model_name_or_path,
+        trust_remote_code=True,
+        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+    )
     model.eval()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)

@@ -70,7 +70,7 @@ def run(
                 elements=elements,
                 gene_idx_to_elem_idx=gene_idx_to_elem_idx,
                 gene_idx=gene_idx,  # Assuming start is the gene index here
-                max_seq_len=4096,
+                max_seq_len=max_seq_len,
             )
             # embed the gene sequence
             with torch.no_grad():
@@ -97,13 +97,14 @@ def run(
                 chunk_idx += 1
 
     # save any remaining output
-    if len(output) > 0 and save_every_n_rows > 0:
-        pd.DataFrame(output).to_parquet(
-            os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
-            index=False,
-        )
-    if output_filepath is not None:
-        pd.DataFrame(output).to_parquet(output_filepath, index=False)
+    if len(output) > 0:
+        if output_dir is not None:
+            pd.DataFrame(output).to_parquet(
+                os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
+                index=False,
+            )
+        elif output_filepath is not None:
+            pd.DataFrame(output).to_parquet(output_filepath, index=False)
 
 
 class ArgumentParser(Tap):
