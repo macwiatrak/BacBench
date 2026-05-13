@@ -341,6 +341,7 @@ def run(args):
 
     test_results = None
     test_df = None
+    test_summary_df = None
     if test_dl is not None and len(test_dl.dataset) > 0:
         test_results = trainer.test(model=model, dataloaders=test_dl, ckpt_path=None)
         test_df = model.test_predictions_df_
