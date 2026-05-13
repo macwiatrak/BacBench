@@ -837,13 +837,13 @@ if __name__ == "__main__":
         limit_n_phenotypes=args.limit_n_phenotypes,
     )
 
-    # Report mean metrics across phenotypes and seeds (validation metrics)
+    # Report mean metrics across phenotypes and seeds (test metrics)
     print(f"Metrics for lr: {args.lr}")
     metric_cols = ["test_macro_auroc", "test_macro_auprc", "test_macro_f1", "test_macro_accuracy", "test_accuracy"]
     available = [m for m in metric_cols if m in metrics_df.columns]
     if available:
         means = metrics_df[available].mean(numeric_only=True)
-        print("\n=== Mean validation metrics across phenotypes/seeds ===")
+        print("\n=== Mean test metrics across phenotypes/seeds ===")
         for k, v in means.items():
             print(f"{k}: {v:.4f}")
 
