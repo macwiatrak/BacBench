@@ -1,4 +1,3 @@
-import json
 import os
 
 import numpy as np
@@ -54,7 +53,6 @@ def _evaluate_contig_pairs(
 
 def run(
     input_filepath: str,
-    train_test_split_filepath: str,
     output_dir: str,
     model_name: str,
     score_threshold: float = 0.6,
@@ -64,14 +62,9 @@ def run(
 ):
     """Evaluate the model on the PPI dataset in an unsupervised manner."""
     # read in the dataset, only load necessary columns to save memory
-    df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", embeddings_col])
-
-    # read in the train/test split
-    with open(train_test_split_filepath) as f:
-        split = json.load(f)
+    df = pd.read_parquet(input_filepath, columns=["strain_name", "split", "labels", embeddings_col])
 
     # filter the dataset to only include test strains
-    df["split"] = df["strain_name"].map(split)
     df = df[df["split"] == "test"]
     os.makedirs(output_dir, exist_ok=True)
 
@@ -132,7 +125,6 @@ class ArgumentParser(Tap):
 
     # file paths for loading data
     input_filepath: str
-    train_test_split_filepath: str
     output_dir: str
     model_name: str
     score_threshold: float = 0.6
@@ -147,7 +139,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     run(
         input_filepath=args.input_filepath,
-        train_test_split_filepath=args.train_test_split_filepath,
         output_dir=args.output_dir,
         model_name=args.model_name,
         score_threshold=args.score_threshold,

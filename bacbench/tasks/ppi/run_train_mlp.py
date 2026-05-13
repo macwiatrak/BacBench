@@ -239,7 +239,6 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     input_filepath: str
-    train_test_split_filepath: str
     output_dir: str
 
     batch_size: int = 256
@@ -276,7 +275,6 @@ def run(args):
 
     train_dl, val_dl, test_dl, hidden_size = get_dataloaders_ppi(
         input_filepath=args.input_filepath,
-        train_test_split_filepath=args.train_test_split_filepath,
         max_n_proteins=args.max_n_proteins,
         max_n_ppi_pairs=args.max_n_ppi_pairs,
         score_threshold=args.score_threshold,

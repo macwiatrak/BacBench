@@ -1,4 +1,3 @@
-import json
 import random
 from typing import Any
 
@@ -8,8 +7,9 @@ import pyarrow.parquet as pq
 import torch
 from tqdm import tqdm
 
-PPI_PARQUET_COLUMNS = ["strain_name", "labels", "embeddings"]
+PPI_PARQUET_COLUMNS = ["strain_name", "split", "labels", "embeddings"]
 PPI_SPLIT_NAMES = ("train", "validation", "test")
+PPI_SPLIT_NAME_SET = set(PPI_SPLIT_NAMES)
 
 
 def _normalize_labels_array(contig_labels: Any) -> np.ndarray:
@@ -36,19 +36,24 @@ def _normalize_embeddings_array(contig_embeddings: Any) -> np.ndarray:
     return embeddings_array
 
 
-def _load_train_test_split(train_test_split_filepath: str) -> dict[str, str]:
-    """Load the strain-name to split-name mapping."""
-    with open(train_test_split_filepath) as f:
-        return json.load(f)
+def _validate_split_column(rows: pd.DataFrame) -> None:
+    """Validate the embedded train/validation/test split column."""
+    if "split" not in rows.columns:
+        raise ValueError("PPI parquet must contain a 'split' column with train/validation/test values.")
+
+    observed_splits = set(rows["split"].dropna().unique())
+    unknown_splits = observed_splits - PPI_SPLIT_NAME_SET
+    if unknown_splits:
+        unknown_values = ", ".join(sorted(str(split_name) for split_name in unknown_splits))
+        raise ValueError(f"PPI parquet contains unsupported split values: {unknown_values}.")
 
 
 def _split_rows_from_parquet_in_memory(
     input_filepath: str,
-    split: dict[str, str],
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Read the full parquet file into memory and partition rows by split."""
     df = pd.read_parquet(input_filepath, columns=PPI_PARQUET_COLUMNS)
-    df["split"] = df["strain_name"].map(split)
+    _validate_split_column(df)
 
     return (
         df[df["split"] == "train"],
@@ -60,13 +65,12 @@ def _split_rows_from_parquet_in_memory(
 def _concat_split_batches(batches: list[pd.DataFrame]) -> pd.DataFrame:
     """Concatenate batches for one split, preserving the splitter output columns."""
     if not batches:
-        return pd.DataFrame(columns=[*PPI_PARQUET_COLUMNS, "split"])
+        return pd.DataFrame(columns=PPI_PARQUET_COLUMNS)
     return pd.concat(batches, ignore_index=True)
 
 
 def _split_rows_from_parquet_incremental(
     input_filepath: str,
-    split: dict[str, str],
     batch_size: int = 1,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Read the parquet file incrementally and partition rows by split."""
@@ -75,7 +79,7 @@ def _split_rows_from_parquet_incremental(
 
     for batch in parquet_file.iter_batches(columns=PPI_PARQUET_COLUMNS, batch_size=batch_size):
         batch_df = batch.to_pandas()
-        batch_df["split"] = batch_df["strain_name"].map(split)
+        _validate_split_column(batch_df)
         for split_name in PPI_SPLIT_NAMES:
             split_batch = batch_df[batch_df["split"] == split_name]
             if not split_batch.empty:
@@ -90,15 +94,13 @@ def _split_rows_from_parquet_incremental(
 
 def _split_rows_from_parquet(
     input_filepath: str,
-    train_test_split_filepath: str,
     use_incremental_read: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Read the parquet file and partition rows by split."""
-    split = _load_train_test_split(train_test_split_filepath)
     if use_incremental_read:
-        return _split_rows_from_parquet_incremental(input_filepath, split)
+        return _split_rows_from_parquet_incremental(input_filepath)
 
-    return _split_rows_from_parquet_in_memory(input_filepath, split)
+    return _split_rows_from_parquet_in_memory(input_filepath)
 
 
 def _infer_hidden_size(*datasets: "PpiDataset") -> int:
@@ -108,7 +110,7 @@ def _infer_hidden_size(*datasets: "PpiDataset") -> int:
             return int(dataset.embeddings.shape[1])
     raise ValueError(
         "No usable PPI pairs were found in any split, so hidden_size could not be inferred. "
-        "Check the input parquet, split file, and filtering thresholds."
+        "Check the input parquet split column and filtering thresholds."
     )
 
 
@@ -252,7 +254,6 @@ def collate_ppi(batch: list[dict[str, torch.Tensor | str]]) -> dict[str, Any]:
 
 def get_datasets_ppi(
     input_filepath: str,
-    train_test_split_filepath: str,
     max_n_proteins: int,
     max_n_ppi_pairs: float,
     score_threshold: float | None,
@@ -261,7 +262,6 @@ def get_datasets_ppi(
     """Build train/val/test datasets for the single-parquet PPI format."""
     train_rows, val_rows, test_rows = _split_rows_from_parquet(
         input_filepath,
-        train_test_split_filepath,
         use_incremental_read=use_incremental_parquet_read,
     )
 
@@ -289,7 +289,6 @@ def get_datasets_ppi(
 
 def get_dataloaders_ppi(
     input_filepath: str,
-    train_test_split_filepath: str,
     max_n_proteins: int,
     max_n_ppi_pairs: float,
     score_threshold: float | None,
@@ -300,12 +299,10 @@ def get_dataloaders_ppi(
     """Get train/val/test dataloaders for the single-parquet PPI format.
 
     The parquet input is expected to match `run_unsupervised_eval.py` and contain
-    `strain_name`, `labels`, and `embeddings` columns. The split JSON must map
-    strain names to `train`, `validation`, or `test`.
+    `strain_name`, `split`, `labels`, and `embeddings` columns.
     """
     train_ds, val_ds, test_ds, hidden_size = get_datasets_ppi(
         input_filepath=input_filepath,
-        train_test_split_filepath=train_test_split_filepath,
         max_n_proteins=max_n_proteins,
         max_n_ppi_pairs=max_n_ppi_pairs,
         score_threshold=score_threshold,
