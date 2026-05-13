@@ -4,8 +4,12 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import torch
 from tqdm import tqdm
+
+PPI_PARQUET_COLUMNS = ["strain_name", "labels", "embeddings"]
+PPI_SPLIT_NAMES = ("train", "validation", "test")
 
 
 def _normalize_labels_array(contig_labels: Any) -> np.ndarray:
@@ -32,41 +36,69 @@ def _normalize_embeddings_array(contig_embeddings: Any) -> np.ndarray:
     return embeddings_array
 
 
+def _load_train_test_split(train_test_split_filepath: str) -> dict[str, str]:
+    """Load the strain-name to split-name mapping."""
+    with open(train_test_split_filepath) as f:
+        return json.load(f)
+
+
+def _split_rows_from_parquet_in_memory(
+    input_filepath: str,
+    split: dict[str, str],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Read the full parquet file into memory and partition rows by split."""
+    df = pd.read_parquet(input_filepath, columns=PPI_PARQUET_COLUMNS)
+    df["split"] = df["strain_name"].map(split)
+
+    return (
+        df[df["split"] == "train"],
+        df[df["split"] == "validation"],
+        df[df["split"] == "test"],
+    )
+
+
+def _concat_split_batches(batches: list[pd.DataFrame]) -> pd.DataFrame:
+    """Concatenate batches for one split, preserving the splitter output columns."""
+    if not batches:
+        return pd.DataFrame(columns=[*PPI_PARQUET_COLUMNS, "split"])
+    return pd.concat(batches, ignore_index=True)
+
+
+def _split_rows_from_parquet_incremental(
+    input_filepath: str,
+    split: dict[str, str],
+    batch_size: int = 1,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Read the parquet file incrementally and partition rows by split."""
+    split_batches: dict[str, list[pd.DataFrame]] = {split_name: [] for split_name in PPI_SPLIT_NAMES}
+    parquet_file = pq.ParquetFile(input_filepath)
+
+    for batch in parquet_file.iter_batches(columns=PPI_PARQUET_COLUMNS, batch_size=batch_size):
+        batch_df = batch.to_pandas()
+        batch_df["split"] = batch_df["strain_name"].map(split)
+        for split_name in PPI_SPLIT_NAMES:
+            split_batch = batch_df[batch_df["split"] == split_name]
+            if not split_batch.empty:
+                split_batches[split_name].append(split_batch)
+
+    return (
+        _concat_split_batches(split_batches["train"]),
+        _concat_split_batches(split_batches["validation"]),
+        _concat_split_batches(split_batches["test"]),
+    )
+
+
 def _split_rows_from_parquet(
     input_filepath: str,
     train_test_split_filepath: str,
+    use_incremental_read: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Read the parquet file and partition rows by split."""
-    with open(train_test_split_filepath) as f:
-        split = json.load(f)
+    split = _load_train_test_split(train_test_split_filepath)
+    if use_incremental_read:
+        return _split_rows_from_parquet_incremental(input_filepath, split)
 
-    df = pd.read_parquet(input_filepath, columns=["strain_name", "labels", "embeddings"])
-    df["split"] = df["strain_name"].map(split)
-    train_df = df[df["split"] == "train"]
-    val_df = df[df["split"] == "validation"]
-    test_df = df[df["split"] == "test"]
-
-    # below code is for the edge case where the parquet is too large to fit in memory due to overflow, so we read it incrementally and build the splits on the fly
-    # train_df = []
-    # val_df = []
-    # test_df = []
-
-    # parquet_file = pq.ParquetFile(input_filepath)
-    # for batch in parquet_file.iter_batches(columns=["strain_name", "labels", "embeddings"], batch_size=1):
-    #     batch = batch.to_pandas()
-    #     split_name = split[batch["strain_name"].iloc[0]]
-    #     if split_name == "train":
-    #         train_df.append(batch)
-    #     elif split_name == "validation":
-    #         val_df.append(batch)
-    #     elif split_name == "test":
-    #         test_df.append(batch)
-
-    # train_df = pd.concat(train_df, ignore_index=True)
-    # val_df = pd.concat(val_df, ignore_index=True)
-    # test_df = pd.concat(test_df, ignore_index=True)
-
-    return train_df, val_df, test_df
+    return _split_rows_from_parquet_in_memory(input_filepath, split)
 
 
 def _infer_hidden_size(*datasets: "PpiDataset") -> int:
@@ -224,9 +256,14 @@ def get_datasets_ppi(
     max_n_proteins: int,
     max_n_ppi_pairs: float,
     score_threshold: float | None,
+    use_incremental_parquet_read: bool = False,
 ) -> tuple[PpiDataset, PpiDataset, PpiDataset, int]:
     """Build train/val/test datasets for the single-parquet PPI format."""
-    train_rows, val_rows, test_rows = _split_rows_from_parquet(input_filepath, train_test_split_filepath)
+    train_rows, val_rows, test_rows = _split_rows_from_parquet(
+        input_filepath,
+        train_test_split_filepath,
+        use_incremental_read=use_incremental_parquet_read,
+    )
 
     train_ds = PpiDataset(
         rows=train_rows,
@@ -258,6 +295,7 @@ def get_dataloaders_ppi(
     score_threshold: float | None,
     batch_size: int,
     num_workers: int,
+    use_incremental_parquet_read: bool = False,
 ) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader | None, int]:
     """Get train/val/test dataloaders for the single-parquet PPI format.
 
@@ -271,6 +309,7 @@ def get_dataloaders_ppi(
         max_n_proteins=max_n_proteins,
         max_n_ppi_pairs=max_n_ppi_pairs,
         score_threshold=score_threshold,
+        use_incremental_parquet_read=use_incremental_parquet_read,
     )
 
     train_dl = torch.utils.data.DataLoader(

@@ -261,6 +261,7 @@ class ArgumentParser(Tap):
     n_nodes: int = 1
     max_n_ppi_pairs: float = 2 * 1e6
     score_threshold: float = 0.6
+    use_incremental_parquet_read: bool = False
 
 
 def run(args):
@@ -281,6 +282,7 @@ def run(args):
         score_threshold=args.score_threshold,
         batch_size=args.batch_size,
         num_workers=args.dataloader_num_workers,
+        use_incremental_parquet_read=args.use_incremental_parquet_read,
     )
 
     if len(train_dl.dataset) == 0:

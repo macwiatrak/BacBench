@@ -832,7 +832,7 @@ if __name__ == "__main__":
         train_size=args.train_size,
         val_size=args.val_size,
         test_size=args.test_size,
-        test_after_train=True,
+        test_after_train=args.test_after_train,
         seeds=[1, 2, 3],
         limit_n_phenotypes=args.limit_n_phenotypes,
     )
