@@ -137,7 +137,8 @@ def run(
     dfs = []
     # if dataset is a dict of splits, keep it as is, otherwise make it a dict with a single split named "full"
     if not isinstance(dataset, dict):
-        dataset = {"full": dataset}
+        split_name = args.split if args.split is not None else "full"
+        dataset = {split_name: dataset}
     for split_name, split_ds in dataset.items():
         # slice the split
         split_ds = _slice_split(split_ds, start_idx, end_idx)
@@ -215,6 +216,7 @@ class ArgumentParser(Tap):
     end_idx: int | None = None
     save_every_n_rows: int = None  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = None  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
+    cache_dir: str | None = None  # cache dir for loading the dataset
 
 
 if __name__ == "__main__":
@@ -226,8 +228,9 @@ if __name__ == "__main__":
     if args.dataset_name:
         dataset = load_dataset(
             args.dataset_name,
+            split=args.split,
             streaming=args.streaming,
-            cache_dir=None,
+            cache_dir=args.cache_dir,
         )
     else:  # parquet file chosen
         if os.path.isdir(args.input_parquet_path):
@@ -265,6 +268,7 @@ if __name__ == "__main__":
         end_idx=args.end_idx,
         save_every_n_rows=args.save_every_n_rows,
         output_dir=args.output_dir,
+        split=args.split,
     )
     # if save_every_n_rows is set, we already saved the dataframe in chunks
     if df is not None:

@@ -75,6 +75,7 @@ def run(
     end_idx: int | None = None,  # for slicing the dataset
     save_every_n_rows: int | None = None,  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = None,  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
+    split: str | None = None,  # if set, will only process this split of the dataset
 ):
     """Run script to embed protein sequences with various models.
 
@@ -128,7 +129,8 @@ def run(
 
     # if dataset is a dict of splits, keep it as is, otherwise make it a dict with a single split named "full"
     if not isinstance(dataset, dict):
-        dataset = {"full": dataset}
+        split_name = split if split is not None else "full"
+        dataset = {split_name: dataset}
     for split_name, split_ds in dataset.items():  # split_ds is a `Dataset`
         # slice the split
         split_ds = _slice_split(split_ds, start_idx, end_idx)
@@ -275,6 +277,7 @@ if __name__ == "__main__":
         end_idx=args.end_idx,
         save_every_n_rows=args.save_every_n_rows,
         output_dir=args.output_dir,
+        split=args.split,
     )
     # save the dataframe if returned (i.e. if save_every_n_rows is not set)
     if df is not None:
