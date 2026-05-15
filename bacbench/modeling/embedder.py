@@ -191,7 +191,9 @@ class ESMPlusPlusEmbedder(SeqEmbedder):
     """Embedder for ESMPlusPlus models from Synthyra. A faithful implementation of ESM-C"""
 
     def _load(self, model_name_or_path: str):
-        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        self.model = AutoModel.from_pretrained(
+            model_name_or_path, trust_remote_code=True, revision="1e40c1b8ef46c33f93a9b817eb0bd81279ab4088"
+        )
         self.tokenizer = self.model.tokenizer
         self.model_type = "esmplusplus"
 
