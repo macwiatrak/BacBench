@@ -10,7 +10,8 @@ from tap import Tap
 from transformers import AutoModel
 
 try:
-    from bacformer.modeling.modeling_updated import BacformerCGForMaskedGM
+    # from bacformer.modeling.modeling_updated import BacformerCGForMaskedGM
+    pass
 except ImportError:
     pass
 
@@ -106,8 +107,11 @@ def run(
     bacformer_model = None
     if "bacformer-300m" in model_path.lower():
         logging.info("Bacformer-300M model used, loading Bacformer-300M model and its ESM-C base model.")
+        # bacformer_model = (
+        #     BacformerCGForMaskedGM.from_pretrained(model_path).bacformer.eval().to(torch.bfloat16).to(device)
+        # )
         bacformer_model = (
-            BacformerCGForMaskedGM.from_pretrained(model_path).bacformer.eval().to(torch.bfloat16).to(device)
+            AutoModel.from_pretrained(model_path, trust_remote_code=True).eval().to(torch.bfloat16).to(device)
         )
         model_path = "Synthyra/ESMplusplus_small"
         bacformer_model_type = "large"
