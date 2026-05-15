@@ -25,6 +25,21 @@ except ImportError:
     )
 
 
+def _patch_torch_dynamo_recompile_limit() -> None:
+    """Add a missing TorchDynamo config key used by Synthyra ESM++ remote code."""
+    try:
+        import torch._dynamo.config as dynamo_config
+    except (AttributeError, ImportError):
+        return
+
+    if hasattr(dynamo_config, "recompile_limit"):
+        return
+
+    config = getattr(dynamo_config, "_config", None)
+    if isinstance(config, dict):
+        config["recompile_limit"] = 16
+
+
 # -------------------------------------------------------
 # Base class
 # -------------------------------------------------------
@@ -165,6 +180,7 @@ class ESMPlusPlusEmbedder(SeqEmbedder):
     """Embedder for ESMPlusPlus models from Synthyra."""
 
     def _load(self, model_name_or_path: str):
+        _patch_torch_dynamo_recompile_limit()
         self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
         self.tokenizer = self.model.tokenizer
         self.model_type = "esmplusplus"
