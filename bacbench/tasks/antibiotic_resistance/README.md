@@ -14,9 +14,9 @@ The evaluation script trains one MLP per antibiotic and reports validation metri
 Input embeddings are whole-genome parquet files produced by the BacBench embedding scripts. The evaluation script reads:
 
 - `genome_name`
-- the embedding column named by `--model-name`
+- the embedding column named by `--embeddings-col`
 
-If you use the embedding scripts without changing their defaults, the embedding column is `embeddings`, so pass `--model-name embeddings`.
+If you use the embedding scripts without changing their defaults, the embedding column is `embeddings`, so pass `--embeddings-col embeddings`.
 
 Label CSV files are available from the Hugging Face dataset repository:
 

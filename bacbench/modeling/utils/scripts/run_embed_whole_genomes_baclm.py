@@ -206,6 +206,7 @@ def run(
     if len(output) > 0:
         # Ensure chunk_end_idx is defined for the final flush
         chunk_end_idx = curr_chunk_idx + len(output)
+        chunk_end_idx = start_idx + example_idx + 1
         pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{curr_chunk_idx}_{chunk_end_idx}.parquet"))
 
 
@@ -215,7 +216,7 @@ class ArgumentParser(Tap):
     def __init__(self):
         super().__init__(underscores_to_dashes=True)
 
-    input_parquet_path: str = "/projects/public/u6fp/benchmarks/tasks/phenotypic-traits/pheno_all_genomes_dna.parquet"
+    input_parquet_path: str
     model_name_or_path: str
     output_dir: str
     batch_size: int = 32

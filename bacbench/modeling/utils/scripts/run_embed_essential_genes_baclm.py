@@ -169,7 +169,7 @@ def run(
         )
     else:
         prot_df = load_dataset(prot_dataset_path, split="test").to_pandas()
-        prot_df = prot_df[[genome_col, contig_col, "start", "end", "strand", "protein_sequence"]]
+        prot_df = prot_df[[genome_col, contig_col, "start", "end", "strand", label_col, "protein_sequence"]]
     # explode the cols
     prot_df = prot_df.explode([contig_col, "start", "end", "strand", label_col, "protein_sequence"]).explode(
         ["start", "end", "strand", label_col, "protein_sequence"]
@@ -215,10 +215,15 @@ def run(
     seqs_df = pd.DataFrame(seqs, columns=["sequence", "gene_idx", "seq_type", "seq_len"])
     seqs_df = seqs_df.sort_values("seq_len", ascending=False).reset_index(drop=True)
     runtime_device = "cuda" if torch.cuda.is_available() else "cpu"
+    model_dtype = torch.bfloat16 if runtime_device == "cuda" else torch.float32
 
     # embed the sequence using the BacLM embedder and save the results to a parquet file
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
+    model = AutoModel.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        torch_dtype=model_dtype,
+    )
     model.to(runtime_device)
     model.eval()
 
@@ -318,9 +323,9 @@ class ArgumentParser(Tap):
 
     # file paths for loading data
     model_name: str = "macwiatrak/baclm-350m-masked"
-    output_filepath: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/updated/baclm_with_promoter.parquet"
-    dna_dataset_path: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/DEG_dna_dataset.parquet"
-    prot_dataset_path: str = "/projects/public/u6fp/benchmarks/tasks/essential-genes/DEG_prot_dataset.parquet"
+    output_filepath: str
+    dna_dataset_path: str
+    prot_dataset_path: str
     label_col: str = "essential"
     promoter_len: int = 128
     min_promoter_len: int = 3
