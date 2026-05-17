@@ -205,7 +205,6 @@ def run(
 
     if len(output) > 0:
         # Ensure chunk_end_idx is defined for the final flush
-        chunk_end_idx = curr_chunk_idx + len(output)
         chunk_end_idx = start_idx + example_idx + 1
         pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{curr_chunk_idx}_{chunk_end_idx}.parquet"))
 

@@ -9,11 +9,11 @@ The script trains one MLP per phenotype and reports validation metrics across th
 Input embeddings are whole-genome parquet files produced by the BacBench embedding scripts. The evaluation script reads:
 
 - `genome_name`
-- the embedding column named by `--model-name`
+- the embedding column named by `--embeddings-col`
 
-If you use the embedding scripts without changing their defaults, the embedding column is `embeddings`, so pass `--model-name embeddings`.
+If you use the embedding scripts without changing their defaults, the embedding column is `embeddings`, which is also the default value of `--embeddings-col`.
 
-The labels CSV is available from the Hugging Face dataset repository for the phenotypic traits task. Keep the labels CSV layout unchanged: after merging with embeddings, the script treats columns from index 5 onward as phenotype columns.
+The labels CSV is available from the Hugging Face dataset repository for the phenotypic traits task - https://huggingface.co/datasets/macwiatrak/bacbench-phenotypic-traits-protein-sequences/blob/main/labels.csv .
 
 ## Embedding Genomes
 
@@ -71,16 +71,19 @@ python bacbench/tasks/phenotypic_traits/train_and_predict_linear.py \
     --input-genomes-df-filepath <output-dir>/pheno_bacformer_genome_embeddings.parquet \
     --labels-df-filepath <input-dir>/labels.csv \
     --output-dir <output-dir> \
-    --model-name embeddings \
+    --embeddings-col embeddings \
+    --model-name bacformer \
     --lr 0.01
 ```
 
 Useful options:
 
+- `--embeddings-col <column>`: embedding column in the input parquet, by default `embeddings`.
+- `--model-name <name>`: label used in the output CSV filename and metrics table.
 - `--limit-n-phenotypes <N>`: run only the first `N` phenotypes for debugging.
 - `--test-after-train`: also report test metrics after validation.
 - `--min-class-samples`: filter rare phenotype classes.
-- `--split genus`: use a group-aware split column when present in the merged dataframe.
+- `--split genus`: use a group-aware split column when present in the merged dataframe. If the column is not present, the script falls back to a random split.
 
 ## Output
 

@@ -217,6 +217,7 @@ class ArgumentParser(Tap):
     end_idx: int | None = None
     save_every_n_rows: int = None  # for saving the dataframe every n rows, only works for iterable datasets
     output_dir: str = None  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
+    split: str | None = None  # for naming the output files when save_every_n_rows is set
     cache_dir: str | None = None  # cache dir for loading the dataset
 
 
