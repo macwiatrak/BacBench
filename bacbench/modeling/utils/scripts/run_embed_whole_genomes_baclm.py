@@ -66,6 +66,9 @@ def slice_from_iterable(pf: pq.ParquetFile, start_idx: int, end_idx: int | None,
         if curr_idx >= end_idx:
             break
 
+    if not df:
+        return pd.DataFrame()
+
     df = pd.concat(df, ignore_index=True)
     assert len(df) == (end_idx - start_idx), f"Loaded {len(df)} rows but expected {(end_idx - start_idx)}"
     return df
