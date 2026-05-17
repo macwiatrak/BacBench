@@ -174,9 +174,6 @@ def run(
     prot_df = prot_df.explode([contig_col, "start", "end", "strand", label_col, "protein_sequence"]).explode(
         ["start", "end", "strand", label_col, "protein_sequence"]
     )
-    # prot_df = prot_df.explode([contig_col, "start", "end", "strand", "protein_sequence"]).explode(
-    #     ["start", "end", "strand", "protein_sequence"]
-    # )
     prot_df["start"] = prot_df["start"].astype(int)
     prot_df["end"] = prot_df["end"].astype(int)
     prot_df["gene_idx"] = list(range(len(prot_df)))  # add a gene index column for easier tracking

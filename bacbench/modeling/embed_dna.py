@@ -251,7 +251,7 @@ def embed_genome_dna_sequences(
             # GLM2 model requires the whole genome to be embedded in a specific manner
             dna = preprocess_whole_genome_for_glm2(dna_sequence=dna, max_seq_len=max_seq_len, n_overlap=dna_seq_overlap)
         elif embedder.model_type == "baclm":
-            dna = preprocess_whole_genome_for_baclm(dna_sequence=dna, max_seq_len=max_seq_len)
+            dna = preprocess_whole_genome_for_baclm(dna_sequence=dna)
         else:
             dna = chunk_whole_genome_dna_seq(dna_sequence=dna, max_seq_len=max_seq_len, overlap=dna_seq_overlap)
         gene_indices = None

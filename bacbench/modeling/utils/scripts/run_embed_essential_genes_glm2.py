@@ -31,8 +31,8 @@ def run(
         save_every_n_rows (int): Save the output every n rows.
         max_seq_len (int): Maximum sequence length for the model.
     """
-    if output_filepath is not None and save_every_n_rows > 0:
-        raise ValueError("Cannot specify both output_filepath and save_every_n_rows. Please choose one.")
+    if output_filepath is not None and output_dir is not None:
+        raise ValueError("Cannot specify both output_filepath and output_dir. Please choose one.")
     if output_filepath is None and output_dir is None:
         raise ValueError("Must specify either output_filepath or output_dir.")
     if output_dir is not None:
@@ -88,7 +88,7 @@ def run(
                 }
             )
             # save the output every `save_every_n_rows` rows
-            if len(output) == save_every_n_rows:
+            if output_dir is not None and save_every_n_rows > 0 and len(output) == save_every_n_rows:
                 pd.DataFrame(output).to_parquet(
                     os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
                     index=False,
@@ -99,6 +99,7 @@ def run(
     # save any remaining output
     if len(output) > 0:
         if output_dir is not None:
+            # Always write remaining output to a final parquet in output_dir
             pd.DataFrame(output).to_parquet(
                 os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
                 index=False,

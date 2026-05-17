@@ -104,6 +104,7 @@ def run(
     start_idx: int | None = None,  # for slicing the dataset
     end_idx: int | None = None,  # for slicing the dataset
     save_every_n_rows: int | None = None,  # for saving the dataframe every n rows, only works for iterable datasets
+    split: str | None = None,  # for naming the output files when save_every_n_rows is set
     output_dir: str = None,  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
 ):
     """Run script to embed DNA sequences with various models.
@@ -137,7 +138,7 @@ def run(
     dfs = []
     # if dataset is a dict of splits, keep it as is, otherwise make it a dict with a single split named "full"
     if not isinstance(dataset, dict):
-        split_name = args.split if args.split is not None else "full"
+        split_name = split if split is not None else "full"
         dataset = {split_name: dataset}
     for split_name, split_ds in dataset.items():
         # slice the split

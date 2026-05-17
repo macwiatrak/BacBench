@@ -269,7 +269,6 @@ def average_unpadded(
 def preprocess_whole_genome_for_baclm(
     dna_sequence: list[str] | str,
     contig_names: list[str] = None,
-    max_seq_len: int = 2048,
     min_seq_len: int = 3,
 ) -> list[str]:
     """Function to preprocess DNA sequences for BacLM.

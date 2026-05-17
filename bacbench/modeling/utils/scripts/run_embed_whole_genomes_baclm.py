@@ -69,6 +69,9 @@ def slice_from_iterable(pf: pq.ParquetFile, start_idx: int, end_idx: int | None,
     if not df:
         return pd.DataFrame()
 
+    if len(df) == 0:
+        return pd.DataFrame()
+
     df = pd.concat(df, ignore_index=True)
     assert len(df) == (end_idx - start_idx), f"Loaded {len(df)} rows but expected {(end_idx - start_idx)}"
     return df
@@ -83,7 +86,7 @@ def run(
     min_seq_len: int = 3,
     start_idx: int = 0,
     end_idx: int | None = None,
-) -> pd.DataFrame:
+) -> None:
     """Embed CDS and intergenic regions of each genome and save genome-level summaries."""
     os.makedirs(output_dir, exist_ok=True)
 
@@ -201,6 +204,8 @@ def run(
             output = []
 
     if len(output) > 0:
+        # Ensure chunk_end_idx is defined for the final flush
+        chunk_end_idx = curr_chunk_idx + len(output)
         pd.DataFrame(output).to_parquet(os.path.join(output_dir, f"chunk_{curr_chunk_idx}_{chunk_end_idx}.parquet"))
 
 
