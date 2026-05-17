@@ -23,11 +23,35 @@ Common setup commands:
 pip install -e ".[test]"
 ```
 
+Preferred local setup with `uv`:
+
+```bash
+uv venv --python 3.10 .venv
+source .venv/bin/activate
+uv pip install -e ".[test]"
+```
+
+Use the repo-local environment explicitly when running commands from an agent session:
+
+```bash
+.venv/bin/python -m pytest
+.venv/bin/python -m pytest tests/tasks/phenotypic_traits/test_train_and_predict_linear.py
+```
+
+Install development tools into the same environment when needed:
+
+```bash
+uv pip install ruff
+.venv/bin/ruff check bacbench tests
+```
+
 Optional extras:
 
 ```bash
 pip install -e ".[faesm]"
 pip install -e ".[pyrodigal]"
+uv pip install -e ".[faesm]"
+uv pip install -e ".[pyrodigal]"
 ```
 
 Only install GPU-specific extras such as `faesm` on machines with a compatible CUDA/GPU setup.

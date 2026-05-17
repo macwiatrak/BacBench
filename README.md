@@ -34,13 +34,13 @@ as well as preprocessing bacterial genomes.
   - [Installation](#installation)
   - [Quickstart](#quickstart)
 - [Usage](#usage)
-  - [Task overview](#task-overview)
   - [Datasets](#datasets)
   - [Embedding genomes](#embedding-genomes)
   - [Model evaluation](#model-evaluation)
   - [Large dataset tips](#large-dataset-tips)
   - [Download and preprocess genomes](#download-and-preprocess-genomes)
 - [Benchmarked models](#benchmarked-models)
+- [Task overview](#task-overview)
 - [Contributing](#contributing)
 - [Citation](#citation)
 - [To-do-list](#to-do-list)
@@ -98,17 +98,6 @@ Below we describe how to access and use BacBench to:
 2) Embed the genomes using various models.
 3) Evaluate the models on distinct tasks.
 4) Download and preprocess bacterial genomes.
-
-### Task overview
-
-| Task | Status | Input modality | Embedding granularity | Main evaluation script |
-|------|--------|----------------|-----------------------|------------------------|
-| Essential genes prediction | Active | DNA or protein | Gene/protein embeddings | `bacbench/tasks/essential_genes/run_train_cls.py` |
-| Operon identification | Active | DNA or protein | Per-gene embeddings grouped by contig | `bacbench/tasks/operon/run_evaluation_operondb.py` |
-| Protein-protein interaction | Active | Protein | Per-protein embeddings with STRING-derived PPI labels | `bacbench/tasks/ppi/run_train_mlp.py`, `bacbench/tasks/ppi/run_unsupervised_eval.py` |
-| Antibiotic resistance prediction | Active | DNA or protein | Whole-genome embeddings | `bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py` |
-| Phenotypic traits prediction | Active | DNA or protein | Whole-genome embeddings | `bacbench/tasks/phenotypic_traits/train_and_predict_linear.py` |
-| Strain clustering | Deprecated | DNA or protein | Whole-genome embeddings | `bacbench/tasks/strain_clustering/run_evaluation.py` |
 
 ### Datasets
 All of the datasets are available on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
@@ -418,6 +407,20 @@ We currently support the following models:
 `**` Evo2 requires specific requirements, to install them please refer to the [Evo2 github](https://github.com/ArcInstitute/evo2). We recommend running Evo2 in a container.
 
 `†` Historical strain clustering runs used the MAG version of the Bacformer model ([bacformer-masked-MAG](https://huggingface.co/macwiatrak/bacformer-masked-MAG) and [bacformer-large-masked-MAG](https://huggingface.co/macwiatrak/bacformer-large-masked-MAG)) because the inputs are metagenome-assembled genomes (MAGs), rather than complete genomes.
+
+Note: for mixed modality models (gLM2 and BacLM) we use both DNA and protein sequences as input. The current implementation in `bacbench/modeling/embed_prot_seqs.py` and `bacbench/modeling/embed_dna.py` supports using either DNA or protein sequences as input, but not both at the same time. We are planning to add support for using both DNA and protein sequences as input for the mixed modality models in the future and the WIP scripts to do it are available in `bacbench/modeling/utils/scripts`.
+
+
+## Task overview
+
+| Task | Status | Input modality | Embedding granularity | Main evaluation script |
+|------|--------|----------------|-----------------------|------------------------|
+| Essential genes prediction | Active | DNA or protein | Gene/protein embeddings | `bacbench/tasks/essential_genes/run_train_cls.py` |
+| Operon identification | Active | DNA or protein | Per-gene embeddings grouped by contig | `bacbench/tasks/operon/run_evaluation_operondb.py` |
+| Protein-protein interaction | Active | Protein | Per-protein embeddings with STRING-derived PPI labels | `bacbench/tasks/ppi/run_train_mlp.py`, `bacbench/tasks/ppi/run_unsupervised_eval.py` |
+| Antibiotic resistance prediction | Active | DNA or protein | Whole-genome embeddings | `bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py` |
+| Phenotypic traits prediction | Active | DNA or protein | Whole-genome embeddings | `bacbench/tasks/phenotypic_traits/train_and_predict_linear.py` |
+| Strain clustering | Deprecated | DNA or protein | Whole-genome embeddings | `bacbench/tasks/strain_clustering/run_evaluation.py` |
 
 
 ## Contributing
