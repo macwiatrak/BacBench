@@ -562,7 +562,7 @@ def _make_loaders(
 
 def train_and_predict(
     df: pd.DataFrame,
-    model_name: str,
+    embeddings_col: str,
     regression: bool,
     lr: float,
     drug: str,
@@ -572,6 +572,7 @@ def train_and_predict(
     train_size: float = 0.7,
     val_size: float = 0.1,
     test_size: float = 0.2,
+    dropout: float = 0.1,
     test_after_train: bool = False,
     seed: int = 1,
 ):
@@ -581,7 +582,7 @@ def train_and_predict(
     ----------
     df : pd.DataFrame
         Input dataframe.
-    model_name : str
+    embeddings_col : str
         Name of the model (column name for features).
     regression : bool
         Whether to perform regression (True) or classification (False).
@@ -615,16 +616,16 @@ def train_and_predict(
 
     # Select columns and drop NaNs
     if split is None or split == "random":
-        cols = [model_name, drug]
+        cols = [embeddings_col, drug]
     else:
-        cols = [model_name, split, drug]
+        cols = [embeddings_col, split, drug]
 
     sub = df[cols].dropna().reset_index(drop=True)
     if len(sub) == 0:
-        return {"drug": drug, "seed": seed, "model_name": model_name, "skipped": "no_data"}
+        return {"drug": drug, "seed": seed, "embeddings_col": embeddings_col, "skipped": "no_data"}
 
     # Features and labels
-    X = _to_numpy_matrix(sub[model_name])
+    X = _to_numpy_matrix(sub[embeddings_col])
     if regression:
         # ensure a plain numpy ndarray of floats
         y = sub[drug].astype(float).to_numpy(dtype=np.float32).reshape(-1, 1)
@@ -656,7 +657,7 @@ def train_and_predict(
         return {
             "drug": drug,
             "seed": seed,
-            "model_name": model_name,
+            "embeddings_col": embeddings_col,
             "split": split,
             "skipped": f"split_failed: {str(e)}",
         }
@@ -667,7 +668,7 @@ def train_and_predict(
     train_dl, val_dl, test_dl = _make_loaders(Xtr, ytr, Xva, yva, Xte, yte, batch_size=256, num_workers=4)
 
     # Model
-    lit_model = LinearHead(input_dim=input_dim, lr=lr, dropout=0.1, regression=regression)
+    lit_model = LinearHead(input_dim=input_dim, lr=lr, dropout=dropout, regression=regression)
 
     # Callbacks
     if regression:
@@ -729,7 +730,7 @@ def train_and_predict(
     result = {
         "drug": drug,
         "seed": seed,
-        "model_name": model_name,
+        "embeddings_col": embeddings_col,
         "split": split,
         "n_train": int(len(tr_idx)),
         "n_val": int(len(va_idx)),
@@ -822,7 +823,7 @@ def train_and_predict(
 def run(
     df: pd.DataFrame,
     drug_cols: list[str],
-    model_name: str,
+    embeddings_col: str,
     lr: float,
     regression: bool = False,
     max_epochs: int = 100,
@@ -833,6 +834,7 @@ def run(
     train_size: float = 0.7,
     val_size: float = 0.1,
     test_size: float = 0.2,
+    dropout: float = 0.1,
     test_after_train: bool = False,
     seeds: list[int] | None = None,
     limit_n_drugs: int | None = None,
@@ -845,7 +847,7 @@ def run(
         Input dataframe.
     drug_cols : list[str]
         List of drug columns to process.
-    model_name : str
+    embeddings_col : str
         Name of the model (feature column).
     regression : bool, optional
         Whether to perform regression, by default False.
@@ -890,7 +892,7 @@ def run(
         for drug in tqdm(drug_cols):
             res = train_and_predict(
                 filtered_df,
-                model_name=model_name,
+                embeddings_col=embeddings_col,
                 regression=regression,
                 lr=lr,
                 drug=drug,
@@ -900,6 +902,7 @@ def run(
                 train_size=train_size,
                 val_size=val_size,
                 test_size=test_size,
+                dropout=dropout,
                 test_after_train=test_after_train,
                 seed=seed,
             )
@@ -982,7 +985,6 @@ class ArgParser(Tap):
     labels_df_filepath: str
     output_dir: str
     lr: float
-    model_name: str  # column name for model features
     regression: bool = False  # if True, use regression loss instead of classification
     max_epochs: int = 100
     early_stopping_patience: int = 10
@@ -992,6 +994,9 @@ class ArgParser(Tap):
     train_size: float = 0.7
     val_size: float = 0.1
     test_size: float = 0.2
+    dropout: float = 0.1
+    model_name: str = "unknown"  # model name for saving
+    embeddings_col: str = "embeddings"  # column name in input df containing the features
     test_after_train: bool = False
     limit_n_drugs: int | None = None  # limit number of drugs to process, for debugging
 
@@ -999,26 +1004,27 @@ class ArgParser(Tap):
 if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
-    df = pd.read_parquet(args.input_genomes_df_filepath)
     # sort by genome_name to ensure consistent order
+    df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", args.embeddings_col])
     df = df.sort_values("genome_name").reset_index(drop=True)
     # read labels and merge; assumes labels_df has "genome_name" + drug columns; inner join to keep only genomes with labels
     labels_df = pd.read_csv(args.labels_df_filepath)
-    drug_cols = list(labels_df.columns[1:])
+    drug_cols = [i for i in labels_df.columns if i != "genome_name"]  # all columns except genome_name are drug labels
     df = pd.merge(df, labels_df, on="genome_name", how="inner")
-
+    # get day timestamp for output file naming
     today = datetime.today().strftime("%Y_%m_%d")
-    print(f"\nRunning AMR prediction for model: {args.model_name}")
+    # run the training and prediction pipeline
     metrics_df = run(
         df=df,
         drug_cols=drug_cols,
-        model_name=args.model_name,
+        embeddings_col=args.embeddings_col,
         lr=args.lr,
         regression=args.regression,
         max_epochs=args.max_epochs,
         early_stopping_patience=args.early_stopping_patience,
         total_min_samples=args.total_min_samples,
         min_class_samples=args.min_class_samples,
+        dropout=args.dropout,
         split=args.split,
         train_size=args.train_size,
         val_size=args.val_size,
@@ -1027,6 +1033,7 @@ if __name__ == "__main__":
         seeds=[1, 2, 3],
         limit_n_drugs=args.limit_n_drugs,
     )
+
     out_path = os.path.join(
         args.output_dir, f"amr_preds_regression_{args.regression}_split_{args.split}_{args.model_name}_{today}.csv"
     )

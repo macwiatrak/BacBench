@@ -1,41 +1,43 @@
-# Operon identification from whole bacterial genomes
+# Operon Identification
 
-A benchmark for identifying operons in bacterial genomes. The dataset has been collated from the [Operon DB (known operons)](https://operondb.jp/known).
+This task benchmarks zero-shot operon identification from gene embeddings. The main dataset is collated from [OperonDB known operons](https://operondb.jp/known).
 
-## Task description
+The evaluation computes pairwise cosine similarity among genes in known operons and compares those scores with randomly sampled negative gene sets.
 
-The input to the model is a whole bacterial genome which consists of `N` genes. Each gene is embedded with pre-trained models.
-We then use the gene embeddings to identify genes which form operons across diverse bacterial genomes in a completely
-unsupervised manner.
+## Data
 
-The task is formulated as a zero-shot binary classification problem, where the model predicts whether a set of `N` genes
-form an operon and compare the score to the negative operon sets, which are sampled at random.
+Input parquet files for `run_evaluation_operondb.py` should contain:
 
-## Embedding genomes
+- `contig_name`
+- `operon_protein_indices`
+- `operon_names`
+- an embedding column, defaulting to `embeddings`
 
-The first step is to embed genes in bacterial genomes using pre-trained models. Below, we show examples on how to do it using
-1) DNA LMs, 2) protein LMs, and 3) contextualized protein LM.
+The script also preserves metadata such as `taxid` in its output.
+
+## Embedding Genomes
+
+Run these commands from the repository root.
 
 ```bash
-# embed and save the genomes using the ProtBert model
+# Protein model example: ProtBert
 python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_protbert_embeddings.parquet \
-    --model-path Rostlab/prot_bert  \
+    --model-path Rostlab/prot_bert \
     --batch-size 64
 
-# embed and save the genomes using the Bacformer model
+# Contextualized whole-genome protein model example: Bacformer
 python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
     --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --batch-size 64 \
-    --max-n-proteins 9000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000
 
-
-# embed and save the genomes using the Mistral-DNA model
+# DNA model example: Mistral-DNA
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-dna \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-operon-identification-dna \
     --output-filepath <output-dir>/operon_identification_mistral_embeddings.parquet \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
     --batch-size 256 \
@@ -43,17 +45,45 @@ python bacbench/modeling/run_embed_dna.py \
     --dna-seq-overlap 16
 ```
 
-For more info on supported models see the README in the root directory.
+## Model Evaluation
 
-## Model training and evaluation
+The main evaluation script is:
 
-We provide a script evaluate the pre-trained models. The models are evaluated using the embeddings generated from the pre-trained models (see step above).
+```bash
+bacbench/tasks/operon/run_evaluation_operondb.py
+```
 
-This script should be executed in the root directory of the repository.
+Example:
 
 ```bash
 python bacbench/tasks/operon/run_evaluation_operondb.py \
-    --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \
+    --input-df-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
     --output-dir <output-dir> \
-    --model-name bacformer
+    --model-name bacformer \
+    --embedding-col embeddings \
+    --n-negatives 10
+```
+
+## Long-Read RNA-Seq Evaluation
+
+The directory also includes:
+
+```bash
+bacbench/tasks/operon/run_evaluation_long_read_rna_seq.py
+```
+
+It evaluates adjacent-gene operon boundaries from long-read RNA-seq style inputs:
+
+```bash
+python bacbench/tasks/operon/run_evaluation_long_read_rna_seq.py \
+    --input-filepath <input-dir>/operon_long_read_embeddings.parquet \
+    --output-filepath <output-dir>/long_read_operon_eval.csv
+```
+
+## Output
+
+`run_evaluation_operondb.py` writes:
+
+```text
+<output-dir>/operon_identification_results_<model-name>.parquet
 ```

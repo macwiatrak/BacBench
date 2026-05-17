@@ -17,37 +17,55 @@ from transformers import set_seed
 
 # learnigng rates for different models after tuning on the validation set
 MODEL2LR = {
-    "gLM2": 0.001,  # Unknown yet
-    "evo": 0.0005,  # Unknown yet
-    "ProkBERT": 0.01,  # DONE
-    "esm2": 0.01,  # DONE
-    "bacformer": 0.01,  # DONE
-    "dnabert": 0.001,  # DONE
-    "esmc": 0.001,  # DONE
-    "mistral_dna": 0.005,  # DONE
-    "nucleotide_transformer": 0.001,  # DONE
-    "protbert": 0.005,  # DONE
+    "gLM2": 0.01,
+    "Evo": 0.1,
+    "Evo-2": 0.05,
+    "ProkBERT": 0.01,
+    "ESM-2": 0.001,
+    "Bacformer": 0.01,
+    "Bacformer_Large": 0.1,
+    "BacLM": 0.001,
+    "DNABERT-2": 0.001,
+    "ESM-C": 0.005,
+    "Mistral-DNA": 0.01,
+    "Nucleotide_Transformer": 0.001,
+    "ProtBERT": 0.0001,
 }
+
+
+def _has_both_binary_classes(labels: torch.Tensor) -> bool:
+    """Return True when labels contain both binary classes after dropping ignored targets."""
+    valid_labels = labels[labels != -100]
+    return torch.unique(valid_labels).numel() >= 2
+
+
+def _median_or_zero(values: list[float]) -> torch.Tensor:
+    """Return the median of values or 0.0 when the list is empty."""
+    if len(values) == 0:
+        return torch.tensor(0.0, dtype=torch.float32)
+    return torch.tensor(values, dtype=torch.float32).median()
 
 
 def calculate_metrics_per_genome(df: pd.DataFrame):
     """Calculate metrics per genome."""
-    gdf = df.groupby("genome_name")[["label", "logits"]].agg(list).reset_index()
-    gdf["auroc"] = gdf.apply(
-        lambda x: auroc(
-            torch.tensor(x["logits"]), torch.tensor(x["label"], dtype=torch.long), task="binary", ignore_index=-100
-        ).item(),
-        axis=1,
-    )
-    gdf["auprc"] = gdf.apply(
-        lambda x: average_precision(
-            torch.tensor(x["logits"]), torch.tensor(x["label"], dtype=torch.long), task="binary", ignore_index=-100
-        ).item(),
-        axis=1,
-    )
+    gdf = df.groupby("genome_name")[["essential", "logits"]].agg(list).reset_index()
+
+    def _safe_ranking_metrics(row: pd.Series) -> pd.Series:
+        logits = torch.tensor(row["logits"])
+        labels = torch.tensor(row["essential"], dtype=torch.long)
+        if not _has_both_binary_classes(labels):
+            return pd.Series({"auroc": np.nan, "auprc": np.nan})
+        return pd.Series(
+            {
+                "auroc": auroc(logits, labels, task="binary", ignore_index=-100).item(),
+                "auprc": average_precision(logits, labels, task="binary", ignore_index=-100).item(),
+            }
+        )
+
+    gdf[["auroc", "auprc"]] = gdf.apply(_safe_ranking_metrics, axis=1)
     print("Mean AUROC:", gdf["auroc"].mean(), "Median AUROC:", gdf["auroc"].median())
     print("Mean AUPRC:", gdf["auprc"].mean(), "Median AUPRC:", gdf["auprc"].median())
-    return df
+    return gdf
 
 
 class LinearModel(pl.LightningModule):
@@ -76,7 +94,7 @@ class LinearModel(pl.LightningModule):
     def forward(self, x: torch.Tensor):
         """Forward pass."""
         x = self.dropout(x)
-        return self.net(x).squeeze()
+        return self.net(x).squeeze(-1)
 
     def training_step(self, batch, batch_idx):
         """Training step."""
@@ -121,16 +139,17 @@ class LinearModel(pl.LightningModule):
             idxs = all_genome_indices == genome_idx
             genome_preds = all_preds[idxs]
             genome_labels = all_labels[idxs]
-            genome_auroc = auroc(genome_preds, genome_labels, task="binary", ignore_index=-100)
-            genome_auprc = average_precision(genome_preds, genome_labels, task="binary", ignore_index=-100)
             genome_f1 = f1_score(genome_preds, genome_labels, task="binary", ignore_index=-100)
-            output["auroc"].append(genome_auroc.item())
-            output["auprc"].append(genome_auprc.item())
             output["f1"].append(genome_f1.item())
+            if _has_both_binary_classes(genome_labels):
+                genome_auroc = auroc(genome_preds, genome_labels, task="binary", ignore_index=-100)
+                genome_auprc = average_precision(genome_preds, genome_labels, task="binary", ignore_index=-100)
+                output["auroc"].append(genome_auroc.item())
+                output["auprc"].append(genome_auprc.item())
 
-        val_auroc = torch.tensor(output["auroc"]).median()
-        val_auprc = torch.tensor(output["auprc"]).median()
-        val_f1 = torch.tensor(output["f1"]).median()
+        val_auroc = _median_or_zero(output["auroc"])
+        val_auprc = _median_or_zero(output["auprc"])
+        val_f1 = _median_or_zero(output["f1"])
 
         self.log("val_loss", val_loss, prog_bar=True)
         self.log("val_auroc", val_auroc, prog_bar=True)
@@ -174,16 +193,17 @@ class LinearModel(pl.LightningModule):
             idxs = all_genome_indices == genome_idx
             genome_preds = all_preds[idxs]
             genome_labels = all_labels[idxs]
-            genome_auroc = auroc(genome_preds, genome_labels, task="binary", ignore_index=-100)
-            genome_auprc = average_precision(genome_preds, genome_labels, task="binary", ignore_index=-100)
             genome_f1 = f1_score(genome_preds, genome_labels, task="binary", ignore_index=-100)
-            output["auroc"].append(genome_auroc.item())
-            output["auprc"].append(genome_auprc.item())
             output["f1"].append(genome_f1.item())
+            if _has_both_binary_classes(genome_labels):
+                genome_auroc = auroc(genome_preds, genome_labels, task="binary", ignore_index=-100)
+                genome_auprc = average_precision(genome_preds, genome_labels, task="binary", ignore_index=-100)
+                output["auroc"].append(genome_auroc.item())
+                output["auprc"].append(genome_auprc.item())
 
-        test_auroc = torch.tensor(output["auroc"]).median()
-        test_auprc = torch.tensor(output["auprc"]).median()
-        test_f1 = torch.tensor(output["f1"]).median()
+        test_auroc = _median_or_zero(output["auroc"])
+        test_auprc = _median_or_zero(output["auprc"])
+        test_f1 = _median_or_zero(output["f1"])
 
         self.log("test_loss", test_loss, prog_bar=True)
         self.log("test_auroc", test_auroc, prog_bar=True)
@@ -200,21 +220,8 @@ class LinearModel(pl.LightningModule):
         return optimizer
 
 
-def prepare_essential_genes_df(df: pd.DataFrame, embeddings_col: str) -> pd.DataFrame:
-    """Prepare the essential genes DataFrame."""
-    # check if the embeddings column is already in the correct format
-    if isinstance(df[embeddings_col].iloc[0], np.ndarray):
-        return df
-    # if embeddings is List[List[np.ndarray]], we need to make it List[np.ndarray]
-    if isinstance(df[embeddings_col].iloc[0], list):
-        df[embeddings_col] = df[embeddings_col].apply(lambda x: x[0])
-    # explode the DF
-    df = df.explode([embeddings_col, "essential", "protein_id", "product", "start", "end"])
-    return df
-
-
 def main(
-    input_df_dile_path: str,
+    df: pd.DataFrame,
     lr: float = 1e-3,
     dropout: float = 0.2,
     max_epochs: int = 100,
@@ -232,37 +239,32 @@ def main(
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # read input file
-    df = pd.read_parquet(input_df_dile_path)
-    # explode the embeddings column as after embedding it is a list of lists
-    df = prepare_essential_genes_df(df, embeddings_col=embeddings_col)
-    # process the DF
+    # explode the pandas dataframe so that each row corresponds to one gene
+    df = df.explode([embeddings_col, "essential"]).explode([embeddings_col, "essential"])
+
     genome2idx = {g: i for i, g in enumerate(df["genome_name"].unique())}
     df["genome_idx"] = df["genome_name"].map(genome2idx)
-    df["label"] = df.essential.map({"Yes": 1, "No": 0})
     dim = df[embeddings_col].iloc[0].shape[0]
 
     # split the data
     train_df = df[df["split"] == "train"]
     val_df = df[df["split"] == "validation"]
-    if len(val_df) == 0:
-        val_df = df[df["split"] == "val"]
     test_df = df[df["split"] == "test"]
 
     # create datasets
     train_dataset = TensorDataset(
         torch.tensor(np.stack(train_df[embeddings_col].tolist()), dtype=torch.float32),
-        torch.tensor(train_df.label.tolist(), dtype=torch.long),
+        torch.tensor(train_df.essential.tolist(), dtype=torch.long),
         torch.tensor(train_df.genome_idx.tolist(), dtype=torch.long),
     )
     val_dataset = TensorDataset(
         torch.tensor(np.stack(val_df[embeddings_col].tolist()), dtype=torch.float32),
-        torch.tensor(val_df.label.tolist(), dtype=torch.long),
+        torch.tensor(val_df.essential.tolist(), dtype=torch.long),
         torch.tensor(val_df.genome_idx.tolist(), dtype=torch.long),
     )
     test_dataset = TensorDataset(
         torch.tensor(np.stack(test_df[embeddings_col].tolist()), dtype=torch.float32),
-        torch.tensor(test_df.label.tolist(), dtype=torch.long),
+        torch.tensor(test_df.essential.tolist(), dtype=torch.long),
         torch.tensor(test_df.genome_idx.tolist(), dtype=torch.long),
     )
 
@@ -272,21 +274,21 @@ def main(
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        persistent_workers=True,
+        persistent_workers=num_workers > 0,
     )
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        persistent_workers=True,
+        persistent_workers=num_workers > 0,
     )
     test_dataloader = torch.utils.data.DataLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        persistent_workers=True,
+        persistent_workers=num_workers > 0,
     )
 
     # create the model
@@ -326,9 +328,6 @@ def main(
     # train the model
     trainer.fit(model, train_dataloader, val_dataloader)
 
-    if not test:
-        return
-
     model = LinearModel.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
     print("Best model path:", trainer.checkpoint_callback.best_model_path)
     model.eval()
@@ -340,7 +339,10 @@ def main(
         for batch in val_dataloader:
             output.append(model(batch[0]))
     val_df["logits"] = torch.cat(output).cpu().numpy()
-    _ = calculate_metrics_per_genome(val_df)
+    val_df = calculate_metrics_per_genome(val_df)
+
+    if not test:
+        return val_df
 
     print("Test metrics:")
     trainer.test(model, test_dataloader)
@@ -350,7 +352,6 @@ def main(
             output.append(model(batch[0]))
     test_df["logits"] = torch.cat(output).cpu().numpy()
     test_df = calculate_metrics_per_genome(test_df)
-    test_df = test_df.drop(columns=[embeddings_col])
     return test_df
 
 
@@ -368,17 +369,19 @@ class ArgumentParser(Tap):
     max_epochs: int = 100
     batch_size: int = 256
     num_workers: int = 4
-    test: bool = True
+    test: bool = False
     embeddings_col: str = "embeddings"
     model_name: str = None
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
+    df = pd.read_parquet(args.input_df_file_path)
+    # train and test the model for different random seeds to get a distribution of results
     output = []
     for random_state in tqdm([1, 2, 3]):
         test_df = main(
-            input_df_dile_path=args.input_df_file_path,
+            df=df,
             lr=args.lr,
             dropout=args.dropout,
             max_epochs=args.max_epochs,
@@ -392,4 +395,5 @@ if __name__ == "__main__":
         test_df["random_state"] = random_state
         output.append(test_df)
     output_df = pd.concat(output)
+    output_df["model"] = args.model_name
     output_df.to_parquet(os.path.join(args.output_dir, f"finetune_results_{args.model_name}.parquet"))

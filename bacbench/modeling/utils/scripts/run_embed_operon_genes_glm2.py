@@ -2,10 +2,11 @@ import os
 
 import pandas as pd
 import torch
-from bacbench.modeling.embedder import load_seq_embedder
-from bacbench.modeling.utils.utils_glm2 import precompute_glm2_elements, preprocess_glm2_gene_seq
 from datasets import load_dataset, tqdm
 from tap import Tap
+
+from bacbench.modeling.embedder import load_seq_embedder
+from bacbench.modeling.utils.scripts.utils_glm2 import precompute_glm2_elements, preprocess_glm2_gene_seq
 
 
 def run(
@@ -70,7 +71,7 @@ def run(
                 elements=elements,
                 gene_idx_to_elem_idx=gene_idx_to_elem_idx,
                 gene_idx=gene_idx,  # Assuming start is the gene index here
-                max_seq_len=4096,
+                max_seq_len=max_seq_len,
             )
             with torch.no_grad():
                 dna_representations = embedder([seq_str], max_seq_len, pooling="mean", gene_mask=[gene_mask])

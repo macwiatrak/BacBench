@@ -1,66 +1,119 @@
 import os
 
+import numpy as np
 import pandas as pd
 import torch
+import torch.nn.functional as F
 from datasets import tqdm
 from tap import Tap
 from torchmetrics.functional import auroc, average_precision
 
-from bacbench.tasks.ppi.data_reader import process_triples
 
+def _evaluate_contig_pairs(
+    contig_labels,
+    contig_embeddings,
+    score_threshold: float,
+    max_n_proteins: int,
+    max_n_ppi_pairs: float,
+) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    """Vectorize pair scoring for one contig."""
+    contig_labels = contig_labels[: int(max_n_ppi_pairs)]
+    contig_embeddings = contig_embeddings[:max_n_proteins]
+    if len(contig_labels) == 0 or len(contig_embeddings) == 0:
+        return None, None
 
-def eval_cs_ppi(protein_embeddings: torch.Tensor, triples: torch.Tensor):
-    """Evaluate the model on the PPI dataset in an unsupervised manner."""
-    prot1 = protein_embeddings[triples[0, :]]
-    prot2 = protein_embeddings[triples[1, :]]
-    scores = torch.cosine_similarity(prot1, prot2)
-    auroc_val = auroc(scores, triples[2, :], task="binary").item()
-    auprc_val = average_precision(scores, triples[2, :], task="binary").item()
-    return auroc_val, auprc_val
+    labels_array = np.asarray(contig_labels)
+    if labels_array.dtype == np.object_:
+        labels_array = np.stack([np.asarray(row, dtype=np.int64) for row in labels_array], axis=0)
+    else:
+        labels_array = labels_array.astype(np.int64, copy=False)
+    if labels_array.size == 0:
+        return None, None
+    labels_tensor = torch.as_tensor(labels_array).reshape(-1, 3)
+
+    embeddings_array = np.asarray(contig_embeddings)
+    if embeddings_array.dtype == np.object_:
+        embeddings_array = np.stack([np.asarray(row, dtype=np.float32) for row in embeddings_array], axis=0)
+    else:
+        embeddings_array = embeddings_array.astype(np.float32, copy=False)
+    embeddings_tensor = torch.as_tensor(embeddings_array, dtype=torch.float32)
+    n_embeddings = embeddings_tensor.shape[0]
+
+    valid_mask = (labels_tensor[:, 0] < n_embeddings) & (labels_tensor[:, 1] < n_embeddings)
+    if not torch.any(valid_mask):
+        return None, None
+
+    labels_tensor = labels_tensor[valid_mask]
+    prot1_embeddings = embeddings_tensor[labels_tensor[:, 0].long()]
+    prot2_embeddings = embeddings_tensor[labels_tensor[:, 1].long()]
+    scores = F.cosine_similarity(prot1_embeddings, prot2_embeddings, dim=1)
+    binary_labels = (labels_tensor[:, 2].to(torch.float32) / 1000.0 >= score_threshold).to(torch.long)
+    return scores, binary_labels
 
 
 def run(
-    input_dir: str,
+    input_filepath: str,
     output_dir: str,
     model_name: str,
     score_threshold: float = 0.6,
     max_n_proteins: int = 6000,
     max_n_ppi_pairs: float = 2 * 1e6,
+    embeddings_col: str = "embeddings",
 ):
     """Evaluate the model on the PPI dataset in an unsupervised manner."""
-    test_files = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.endswith("parquet")]
-    print(f"Found {len(test_files)} files in {input_dir}.")
+    # read in the dataset, only load necessary columns to save memory
+    df = pd.read_parquet(input_filepath, columns=["strain_name", "split", "labels", embeddings_col])
+
+    # filter the dataset to only include test strains
+    df = df[df["split"] == "test"]
+    os.makedirs(output_dir, exist_ok=True)
 
     output = []
-    for _, f in tqdm(enumerate(test_files[1:])):
-        df = pd.read_parquet(f)
-        for idx, item in tqdm(df.iterrows()):
-            triples = process_triples(
-                triples=item["triples_combined_score"],
+    for _, item in tqdm(df.iterrows(), total=len(df)):
+        genome_scores = []
+        genome_labels = []
+        for contig_labels, contig_embeddings in zip(item["labels"], item[embeddings_col], strict=False):
+            contig_scores, contig_binary_labels = _evaluate_contig_pairs(
+                contig_labels=contig_labels,
+                contig_embeddings=contig_embeddings,
                 score_threshold=score_threshold,
-                max_n_proteins=min(len(item["protein_embeddings"]), max_n_proteins),
+                max_n_proteins=max_n_proteins,
                 max_n_ppi_pairs=max_n_ppi_pairs,
             )
-            protein_embeddings = torch.stack([torch.tensor(i) for i in item["protein_embeddings"]])
-            try:
-                auroc, auprc = eval_cs_ppi(protein_embeddings, triples)
-            except Exception as e:  # noqa
-                print(f"Error in eval_cs_ppi: {e}")
-                print(f"Skipping file {os.path.basename(f)} with index {idx} due to error.")
+            if contig_scores is None or contig_binary_labels is None:
                 continue
-            output.append(
-                {
-                    "genome_name": item["genome_name"],
-                    "auroc": auroc,
-                    "auprc": auprc,
-                    "n_proteins": protein_embeddings.shape[0],
-                    "n_ppi_pairs": triples.shape[1],
-                    "n_pos_triples": (triples[2, :] == 1).sum().item(),
-                }
-            )
-        pd.DataFrame(output).to_csv(os.path.join(output_dir, f"unsupervised_eval_{model_name}.csv"), index=False)
+            genome_scores.append(contig_scores)
+            genome_labels.append(contig_binary_labels)
+
+        # calculate genome-level AUROC and AUPRC
+        try:
+            genome_scores_tensor = torch.cat(genome_scores)
+            genome_labels_tensor = torch.cat(genome_labels)
+            genome_auroc = auroc(genome_scores_tensor, genome_labels_tensor, task="binary").item()
+            genome_auprc = average_precision(genome_scores_tensor, genome_labels_tensor, task="binary").item()
+            genome_metrics = {
+                "strain_name": item.strain_name,
+                "auroc": genome_auroc,
+                "auprc": genome_auprc,
+                "n_ppi_pairs": int(genome_scores_tensor.numel()),
+                "n_pos_ppi_pairs": int(genome_labels_tensor.sum().item()),
+            }
+            output.append(genome_metrics)
+        except Exception as e:  # noqa
+            print(f"Error in calculating genome-level metrics: {e}")
+            continue
+
+    if model_name is None:
+        model_name = "unknown_model"
 
     output = pd.DataFrame(output)
+    if output.empty:
+        print("No valid genome-level metrics were computed. No output will be saved.")
+        return
+    print(f"Mean AUROC: {output['auroc'].mean():.4f}, Mean AUPRC: {output['auprc'].mean():.4f}")
+    print(f"Median AUROC: {output['auroc'].median():.4f}, Median AUPRC: {output['auprc'].median():.4f}")
+    print(f"Std AUROC: {output['auroc'].std():.4f}, Std AUPRC: {output['auprc'].std():.4f}")
+
     output.to_csv(os.path.join(output_dir, f"unsupervised_eval_{model_name}.csv"), index=False)
 
 
@@ -71,12 +124,13 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_dir: str
+    input_filepath: str
     output_dir: str
-    model_name: str = "esmc"
+    model_name: str
     score_threshold: float = 0.6
     max_n_proteins: int = 6000
     max_n_ppi_pairs: float = 2 * 1e6
+    embeddings_col: str = "embeddings"
 
 
 if __name__ == "__main__":
@@ -84,10 +138,11 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     args = parser.parse_args()
     run(
-        input_dir=args.input_dir,
+        input_filepath=args.input_filepath,
         output_dir=args.output_dir,
         model_name=args.model_name,
         score_threshold=args.score_threshold,
         max_n_proteins=args.max_n_proteins,
         max_n_ppi_pairs=args.max_n_ppi_pairs,
+        embeddings_col=args.embeddings_col,
     )

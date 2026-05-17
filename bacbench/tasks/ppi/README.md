@@ -1,74 +1,101 @@
-# Predicting protein-protein interactions (PPIs) between bacterial proteins in whole bacterial genomes
+# Protein-Protein Interaction Prediction
 
-A benchmark for predicting protein-protein interactions between the proteins in the bacterial genome.
-The dataset has been collated from the [STRING database](https://string-db.org/). We use the bacterial organisms
-present in the STRING database to create a dataset of whole bacterial genomes with protein sequences. We leverage the
-`Combined` score
+This task benchmarks prediction of protein-protein interactions (PPIs) within bacterial genomes. Labels are derived from the [STRING database](https://string-db.org/) combined score.
 
-## Task description
+The task is evaluated as binary classification. By default, STRING combined scores are thresholded at `0.6`.
 
-The input to the model is a whole bacterial genome which is embedded with pre-trained models.
-We then use the pairs of protein embeddings to predict whether two proteins interact with each other.
+## Data
 
-The task is formulated as a binary classification problem, where the model predicts whether two proteins interact with each other.
-The threshold for the interaction is set to 0.6, which has shown to be a good balance between AUROC and AUPRC metrics.
+The PPI scripts expect one parquet file with:
 
-## Embedding genomes
+- `strain_name`
+- `split` with `train`, `validation`, and `test` values
+- `labels`: protein-pair labels per contig
+- `embeddings`: per-protein embeddings per contig
 
-The first step is to embed the whole bacterial genomes using pre-trained models. Below, we show examples on how to do it using
-1) protein LMs, and 2) contextualized protein LM. We do not run the embedding for DNA sequences, as the PPI task is based on protein sequences.
+The split is embedded in the parquet file. There is no separate train/test split JSON.
+
+## Embedding Genomes
+
+Run these commands from the repository root. The small dataset is useful for local checks; the large dataset is substantially larger.
 
 ```bash
-# embed and save the genomes using the ESM-C model
+# Protein model example: ESM-C on the small PPI dataset
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-ppi-stringdb-protein-sequences \
-    --output-dir <prot-embeds-output-dir> \
+    --dataset-name macwiatrak/bacbench-ppi-stringdb-protein-sequences-small \
+    --output-filepath <output-dir>/ppi_esmc_embeddings.parquet \
     --model-path esmc_300m \
     --batch-size 64 \
-    --save-every-n-rows 500 \
-    --streaming # use streaming to avoid memory issues
+    --streaming
 
-# embed and save the genomes using the Bacformer model
+# Contextualized whole-genome protein model example: Bacformer
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-ppi-stringdb-protein-sequences \
-    --output-dir <prot-embeds-output-dir> \
+    --dataset-name macwiatrak/bacbench-ppi-stringdb-protein-sequences-small \
+    --output-filepath <output-dir>/ppi_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --batch-size 64 \
-    --save-every-n-rows 500 \
     --streaming \
-    --max-n-proteins 9000  # max nr of proteins in a genome
+    --max-n-proteins 9000
 ```
 
-For more info on supported models see the README in the root directory.
+For the large dataset, use:
 
-## Model training and evaluation
+```bash
+--dataset-name macwiatrak/bacbench-ppi-stringdb-protein-sequences
+```
 
-We provide scripts to train and evaluate models. The models can be trained using the embeddings generated from the pre-trained models (see step above).
+The training and evaluation scripts consume a single parquet file. If you save embedding chunks, merge them into one parquet that keeps the `split` column before running the task scripts.
 
-This script should be executed in the root directory of the repository. Use the `<ouput-dir>` from the embedding step above as the `<input-dir>`.
+## Supervised MLP Training
 
-### Train the MLP model for PPI prediction
+Tune `--lr` on the validation set before reporting final test metrics.
+
+The main training script is:
+
+```bash
+bacbench/tasks/ppi/run_train_mlp.py
+```
+
+Example:
+
 ```bash
 python bacbench/tasks/ppi/run_train_mlp.py \
-    --input-dir <prot-embeds-output-dir> \
-    --output-dir <model-output-dir>
+    --input-filepath <output-dir>/ppi_esmc_embeddings.parquet \
+    --output-dir <model-output-dir> \
+    --batch-size 256 \
+    --max-epochs 10 \
+    --score-threshold 0.6
 ```
 
-### Evaluate the MLP model for PPI prediction
+By default, the script trains and validates only. Add `--test-after-train` after tuning validation settings to run test evaluation and write test prediction files.
 
-#### Supervised evaluation
+For very large parquet files, use incremental split construction:
+
 ```bash
-python bacbench/tasks/ppi/run_supervised_eval.py
-    --input-dir <prot-embeds-output-dir> \
-    --output-dir <supervised-eval-output-dir> \
-    --model-name <model-name> \
-    --ckpt-path <model-output-dir>/best_model.ckpt
+python bacbench/tasks/ppi/run_train_mlp.py \
+    --input-filepath <output-dir>/ppi_esmc_embeddings.parquet \
+    --output-dir <model-output-dir> \
+    --use-incremental-parquet-read
 ```
 
-### Unsupervised evaluation
+## Unsupervised Evaluation
+
+The unsupervised baseline scores protein pairs by cosine similarity between their embeddings and evaluates only the `test` split.
+
 ```bash
-python bacbench/tasks/ppi/run_unsupervised_eval.py
-    --input-dir <prot-embeds-output-dir> \
-    --output-dir <unsupervised-eval-output-dir> \
-    --model-name <model-name>
+python bacbench/tasks/ppi/run_unsupervised_eval.py \
+    --input-filepath <output-dir>/ppi_esmc_embeddings.parquet \
+    --output-dir <eval-output-dir> \
+    --model-name esmc \
+    --score-threshold 0.6
+```
+
+## Output
+
+`run_train_mlp.py` always writes checkpoints, logs, and `args.json` under `--output-dir`. When `--test-after-train` is set, it also writes `test_predictions.csv` and `test_predictions_by_genome.csv`.
+
+`run_unsupervised_eval.py` writes:
+
+```text
+<output-dir>/unsupervised_eval_<model-name>.csv
 ```

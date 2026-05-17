@@ -2,17 +2,21 @@ import os
 
 import pandas as pd
 import torch
-from bacbench.modeling.embedder import load_seq_embedder
-from bacbench.modeling.utils.utils_glm2 import precompute_glm2_elements, preprocess_glm2_gene_seq
-from datasets import load_dataset, tqdm
+from datasets import tqdm
 from tap import Tap
+
+from bacbench.modeling.embedder import load_seq_embedder
+
+# from bacbench.modeling.utils.utils_glm2 import precompute_glm2_elements, preprocess_glm2_gene_seq
+from bacbench.modeling.utils.scripts.utils_glm2 import precompute_glm2_elements, preprocess_glm2_gene_seq
 
 
 def run(
-    prot_dataset_name: str,
-    dna_dataset_name: str,
+    prot_parquet_path: str,
+    dna_parquet_path: str,
     model_path: str,
-    output_dir: str,
+    output_dir: str = None,
+    output_filepath: str = None,
     save_every_n_rows: int = 1000,
     max_seq_len: int = 4096,
 ):
@@ -27,28 +31,23 @@ def run(
         save_every_n_rows (int): Save the output every n rows.
         max_seq_len (int): Maximum sequence length for the model.
     """
-    os.makedirs(output_dir, exist_ok=True)
+    if output_filepath is not None and output_dir is not None:
+        raise ValueError("Cannot specify both output_filepath and output_dir. Please choose one.")
+    if output_filepath is None and output_dir is None:
+        raise ValueError("Must specify either output_filepath or output_dir.")
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
 
     embedder = load_seq_embedder(model_path)
 
-    dataset = load_dataset(prot_dataset_name)
-    out_dfs = []
-    # convert each split of the dataset to a pandas DataFrame and add a 'split' column
-    for split_name, split_ds in dataset.items():
-        df = split_ds.to_pandas()
-        df["split"] = split_name
-        out_dfs.append(df)
-    df = pd.concat(out_dfs, ignore_index=True)
-
-    # select relevant rows for processing
-    dataset = load_dataset(dna_dataset_name)
-    # concatenate all splits of the DNA dataset into a single DataFrame
-    dna_df = pd.concat([d.to_pandas() for d in dataset.values()], ignore_index=True)[
-        ["genome_name", "dna_seq", "strand"]
-    ]
-
-    # merge the protein and DNA datasets on the genome name
-    df = pd.merge(df, dna_df, on="genome_name", how="inner")
+    prot_df = pd.read_parquet(prot_parquet_path)
+    dna_df = pd.read_parquet(dna_parquet_path)
+    prot_df = prot_df[
+        ["genome_name", "contig_id", "start", "end", "strand", "essential", "protein_sequence", "split"]
+    ].explode(["contig_id", "start", "end", "strand", "essential", "protein_sequence"])
+    dna_df = dna_df[["genome_name", "contig_id", "dna_sequence"]].explode(["contig_id", "dna_sequence"])
+    # merge the two dataframes on genome_name and contig_id
+    df = pd.merge(prot_df, dna_df, on=["genome_name", "contig_id"], how="inner")
 
     output = []
     chunk_idx = 1
@@ -56,8 +55,8 @@ def run(
     for _, row in df.iterrows():
         # precompute GLM2 elements for the gene sequences
         elements, gene_idx_to_elem_idx = precompute_glm2_elements(
-            prot_seqs=row["sequence"],
-            dna_seq=row["dna_seq"],
+            prot_seqs=row["protein_sequence"],
+            dna_seq=row["dna_sequence"].lower(),
             start=row["start"],
             end=row["end"],
             strand=row["strand"],
@@ -71,7 +70,7 @@ def run(
                 elements=elements,
                 gene_idx_to_elem_idx=gene_idx_to_elem_idx,
                 gene_idx=gene_idx,  # Assuming start is the gene index here
-                max_seq_len=4096,
+                max_seq_len=max_seq_len,
             )
             # embed the gene sequence
             with torch.no_grad():
@@ -80,7 +79,7 @@ def run(
             output.append(
                 {
                     "genome_name": row["genome_name"],
-                    "contig_name": row["contig_name"],
+                    "contig_id": row["contig_id"],
                     "start": start,
                     "end": end,
                     "embeddings": dna_representations[0],
@@ -89,7 +88,7 @@ def run(
                 }
             )
             # save the output every `save_every_n_rows` rows
-            if len(output) == save_every_n_rows:
+            if output_dir is not None and save_every_n_rows > 0 and len(output) == save_every_n_rows:
                 pd.DataFrame(output).to_parquet(
                     os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
                     index=False,
@@ -99,10 +98,14 @@ def run(
 
     # save any remaining output
     if len(output) > 0:
-        pd.DataFrame(output).to_parquet(
-            os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
-            index=False,
-        )
+        if output_dir is not None:
+            # Always write remaining output to a final parquet in output_dir
+            pd.DataFrame(output).to_parquet(
+                os.path.join(output_dir, f"chunk_{chunk_idx}_embeddings.parquet"),
+                index=False,
+            )
+        elif output_filepath is not None:
+            pd.DataFrame(output).to_parquet(output_filepath, index=False)
 
 
 class ArgumentParser(Tap):
@@ -112,19 +115,21 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # ──────────────────────────────────────────────────────────
-    output_dir: str  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
-    prot_dataset_name: str = "macwiatrak/bacbench-essential-genes-protein-sequences"
-    dna_dataset_name: str = "macwiatrak/bacbench-essential-genes-dna"
+    prot_parquet_path: str
+    dna_parquet_path: str
+    output_dir: str = None  # output directory for saving the dataframe, only used for iterable datasets and if save_every_n_rows is set
+    output_filepath: str = None  # output file path for saving the dataframe, only used if save_every_n_rows is not set
     model_path: str = "tattabio/gLM2_650M"
     max_seq_len: int = 4096
-    save_every_n_rows: int = 20000  # for saving the dataframe every n rows, only works for iterable datasets
+    save_every_n_rows: int = -1  # for saving the dataframe every n rows, only works for iterable datasets
 
 
 if __name__ == "__main__":
     args = ArgumentParser().parse_args()
     run(
-        prot_dataset_name=args.prot_dataset_name,
-        dna_dataset_name=args.dna_dataset_name,
+        prot_parquet_path=args.prot_parquet_path,
+        dna_parquet_path=args.dna_parquet_path,
+        output_filepath=args.output_filepath,
         model_path=args.model_path,
         output_dir=args.output_dir,
         save_every_n_rows=args.save_every_n_rows,

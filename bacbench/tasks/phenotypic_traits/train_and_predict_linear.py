@@ -17,7 +17,6 @@ from sklearn.metrics import (
     f1_score,
     roc_auc_score,
 )
-from sklearn.model_selection import GroupShuffleSplit, StratifiedShuffleSplit
 from tap import Tap
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -26,22 +25,6 @@ from tqdm import tqdm
 # apply user-level warning filters after imports
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
-
-# learnigng rates for different models after tuning on the validation set
-MODEL2LR = {
-    "gLM2": 0.001,
-    "ProkBERT": 0.01,
-    "esm2": 0.01,
-    "bacformer": 0.01,
-    "bacformer_wo_pretraining": 0.01,
-    "dnabert": 0.001,
-    "esmc": 0.001,
-    "esmc_large": 0.001,
-    "mistral_dna": 0.005,
-    "nucleotide_transformer": 0.005,
-    "protbert": 0.005,
-    "evo": 0.0005,
-}
 
 
 # ------------------------- utilities -------------------------
@@ -145,7 +128,7 @@ def _filter_min_per_class(df: pd.DataFrame, label_col: str, min_per_class: int) 
 def _split_indices(
     y: np.ndarray,
     groups: np.ndarray | None,
-    split_mode: str,
+    split_mode: str | None,
     train_size: float,
     val_size: float,
     test_size: float,
@@ -153,13 +136,18 @@ def _split_indices(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return train/val/test indices according to split_mode.
 
+    Strategy:
+      1) If groups are provided and at least three groups exist, split by group.
+      2) Else stratify by label when each class can appear in train/val/test.
+      3) Else fall back to a sample-level random split.
+
     Parameters
     ----------
     y : np.ndarray
         Target array.
     groups : np.ndarray | None
         Group labels for group-based splitting.
-    split_mode : str
+    split_mode : str | None
         Name of the split column or mode.
     train_size : float
         Proportion of data for training.
@@ -177,38 +165,49 @@ def _split_indices(
     """
     assert abs(train_size + val_size + test_size - 1.0) < 1e-6, "Splits must sum to 1.0"
 
-    n = len(y)
-    all_idx = np.arange(n)
+    rng = np.random.default_rng(seed)
+    all_idx = np.arange(len(y))
 
-    if split_mode is not None and groups is not None:
-        # group-wise split to avoid leakage across groups
-        gss1 = GroupShuffleSplit(n_splits=1, train_size=train_size, random_state=seed)
-        tr_idx, tmp_idx = next(gss1.split(all_idx, y, groups=groups))
-
-        tmp_groups = groups[tmp_idx]
+    def _split_values(values: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        values = np.array(values, copy=True)
+        rng.shuffle(values)
+        n = len(values)
+        if n < 3:
+            raise ValueError("At least three samples or groups are required for train/val/test splitting.")
         val_prop = val_size / (val_size + test_size)
-        gss2 = GroupShuffleSplit(n_splits=1, train_size=val_prop, random_state=seed + 1)
-        va_rel, te_rel = next(gss2.split(tmp_idx, y[tmp_idx], groups=tmp_groups))
-        va_idx, te_idx = tmp_idx[va_rel], tmp_idx[te_rel]
+        n_train = min(max(1, int(round(train_size * n))), n - 2)
+        tmp = values[n_train:]
+        n_val = min(max(1, int(round(val_prop * len(tmp)))), len(tmp) - 1)
+        return values[:n_train], tmp[:n_val], tmp[n_val:]
 
-    else:
-        # stratified random split by labels
-        sss1 = StratifiedShuffleSplit(n_splits=1, train_size=train_size, random_state=seed)
-        tr_idx, tmp_idx = next(sss1.split(all_idx, y))
+    if split_mode is not None and groups is not None and len(np.unique(groups)) >= 3:
+        train_groups, val_groups, test_groups = _split_values(np.unique(groups))
+        tr_idx = all_idx[np.isin(groups, train_groups)]
+        va_idx = all_idx[np.isin(groups, val_groups)]
+        te_idx = all_idx[np.isin(groups, test_groups)]
+        if len(tr_idx) > 0 and len(va_idx) > 0 and len(te_idx) > 0:
+            return tr_idx, va_idx, te_idx
 
-        val_prop = val_size / (val_size + test_size)
-        sss2 = StratifiedShuffleSplit(n_splits=1, train_size=val_prop, random_state=seed + 1)
-        va_rel, te_rel = next(sss2.split(tmp_idx, y[tmp_idx]))
-        va_idx, te_idx = tmp_idx[va_rel], tmp_idx[te_rel]
+    classes, counts = np.unique(y, return_counts=True)
+    if len(classes) >= 2 and np.all(counts >= 3):
+        train_parts = []
+        val_parts = []
+        test_parts = []
+        for cls in classes:
+            tr_cls, va_cls, te_cls = _split_values(all_idx[y == cls])
+            train_parts.append(tr_cls)
+            val_parts.append(va_cls)
+            test_parts.append(te_cls)
 
-    return tr_idx, va_idx, te_idx
+        tr_idx = np.concatenate(train_parts)
+        va_idx = np.concatenate(val_parts)
+        te_idx = np.concatenate(test_parts)
+        rng.shuffle(tr_idx)
+        rng.shuffle(va_idx)
+        rng.shuffle(te_idx)
+        return tr_idx, va_idx, te_idx
 
-
-def _one_hot(y: np.ndarray, num_classes: int) -> np.ndarray:
-    """Create a dense one-hot matrix for the provided integer labels."""
-    out = np.zeros((y.shape[0], num_classes), dtype=np.float32)
-    out[np.arange(y.shape[0]), y] = 1.0
-    return out
+    return _split_values(all_idx)
 
 
 def _macro_metrics(y_true: np.ndarray, proba: np.ndarray) -> dict[str, float]:
@@ -229,28 +228,24 @@ def _macro_metrics(y_true: np.ndarray, proba: np.ndarray) -> dict[str, float]:
     num_classes = proba.shape[1]
     y_pred = proba.argmax(axis=1)
 
-    # Macro AUROC
-    try:
-        if num_classes == 2:
+    auroc = float("nan")
+    auprc = float("nan")
+    if num_classes == 2:
+        if np.unique(y_true).size == 2:
             auroc = float(roc_auc_score(y_true, proba[:, 1]))
-        else:
-            present = np.unique(y_true)
-            # restrict to present classes
-            auroc = float(roc_auc_score(y_true, proba[:, present], multi_class="ovr", average="macro", labels=present))
-    except Exception:  # noqa
-        auroc = float("nan")
-
-    # Macro AUPRC
-    try:
-        if num_classes == 2:
             auprc = float(average_precision_score(y_true, proba[:, 1]))
-        else:
-            present = np.unique(y_true)
-            y_oh = _one_hot(y_true, num_classes)[:, present]
-            pr_per_class = average_precision_score(y_oh, proba[:, present], average=None)
-            auprc = float(np.nanmean(pr_per_class))
-    except Exception:  # noqa
-        auprc = float("nan")
+    else:
+        auroc_per_class = []
+        auprc_per_class = []
+        for cls in np.unique(y_true):
+            y_binary = (y_true == cls).astype(np.int64)
+            if np.unique(y_binary).size == 2:
+                auroc_per_class.append(roc_auc_score(y_binary, proba[:, cls]))
+                auprc_per_class.append(average_precision_score(y_binary, proba[:, cls]))
+        if auroc_per_class:
+            auroc = float(np.mean(auroc_per_class))
+        if auprc_per_class:
+            auprc = float(np.mean(auprc_per_class))
 
     macro_f1 = float(f1_score(y_true, y_pred, average="macro"))
     macro_acc = float(balanced_accuracy_score(y_true, y_pred))
@@ -297,7 +292,7 @@ class LinearHead(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.net = nn.Sequential(
-            nn.LayerNorm(input_dim),
+            # nn.LayerNorm(input_dim),
             nn.Dropout(dropout),
             nn.Linear(input_dim, output_dim),
         )
@@ -449,7 +444,8 @@ def filter_phenotypes(
     df: pd.DataFrame,
     phenotype_cols: list[str],
     min_class_samples: int = 50,
-):
+    base_cols: list[str] | None = None,
+) -> tuple[pd.DataFrame, list[str]]:
     """Drop phenotype columns that don't have >=2 classes each with at least min_class_samples.
 
     Parameters
@@ -460,23 +456,23 @@ def filter_phenotypes(
         List of phenotype column names to check.
     min_class_samples : int, optional
         Minimum samples per class required, by default 50.
+    base_cols : list[str] | None, optional
+        Non-phenotype columns to keep in the returned dataframe, by default None.
 
     Returns
     -------
-    pd.DataFrame
-        Filtered dataframe with only valid phenotype columns.
+    tuple[pd.DataFrame, list[str]]
+        Filtered dataframe and the valid phenotype columns.
     """
+    base_cols = list(dict.fromkeys(col for col in (base_cols or []) if col in df.columns))
+    phenotype_cols = [col for col in dict.fromkeys(phenotype_cols) if col in df.columns and col not in base_cols]
     keep_cols = []
     for col in phenotype_cols:
         vc = df[col].dropna().value_counts()
         vc = {v: c for v, c in vc.items() if c >= min_class_samples}
         if len(vc) >= 2:
             keep_cols.append(col)
-    # Keep all metadata columns + filtered phenotypes
-    base_cols = df.columns[:5] if len(df.columns) >= 16 else df.columns
-    kept = list(base_cols) + keep_cols
-    kept = [c for c in kept if c in df.columns]
-    return df[kept].copy()
+    return df[base_cols + keep_cols].copy(), keep_cols
 
 
 def _make_loaders(
@@ -497,16 +493,17 @@ def _make_loaders(
 
 def train_and_predict(
     df: pd.DataFrame,
-    model_name: str,
+    embeddings_col: str,
     lr: float,
     phenotype: str,
     max_epochs: int = 100,
     early_stopping_patience: int = 10,
-    split: str = "genus",
+    split: str | None = "genus",
     train_size: float = 0.7,
     val_size: float = 0.1,
     test_size: float = 0.2,
     test_after_train: bool = False,
+    model_name: str | None = None,
     seed: int = 1,
 ):
     """Train and predict phenotypic traits using a linear model with LN+Dropout.
@@ -515,8 +512,8 @@ def train_and_predict(
     ----------
     df : pd.DataFrame
         Input dataframe.
-    model_name : str
-        Name of the model (column name for features).
+    embeddings_col : str
+        Name of the column containing the embeddings (features).
     lr : float
         Learning rate.
     phenotype : str
@@ -535,6 +532,8 @@ def train_and_predict(
         Test set proportion, by default 0.2.
     test_after_train : bool, optional
         Whether to run evaluation on test set after training, by default False.
+    model_name : str, optional
+        Name of the model for saving and logging purposes, by default None.
     seed : int, optional
         Random seed, by default 1.
 
@@ -545,25 +544,52 @@ def train_and_predict(
     """
     pl.seed_everything(seed, workers=True)
 
+    if split is not None and split != "random" and split not in df.columns:
+        warnings.warn(f"Split column {split!r} was not found; falling back to a random split.", stacklevel=2)
+        split = None
+
     # Select columns and drop NaNs
-    cols = [model_name, split, phenotype]
+    if split is None or split == "random":
+        cols = [embeddings_col, phenotype]
+    else:
+        cols = [embeddings_col, split, phenotype]
     sub = df[cols].dropna().reset_index(drop=True)
     if len(sub) == 0:
-        return {"phenotype": phenotype, "seed": seed, "model_name": model_name, "skipped": "no_data"}
+        return {
+            "phenotype": phenotype,
+            "seed": seed,
+            "embeddings_col": embeddings_col,
+            "model_name": model_name,
+            "split": split,
+            "skipped": "no_data",
+        }
+    if len(sub) < 3:
+        return {
+            "phenotype": phenotype,
+            "seed": seed,
+            "embeddings_col": embeddings_col,
+            "model_name": model_name,
+            "split": split,
+            "skipped": "not_enough_samples",
+        }
 
     # Features and labels
-    X = _to_numpy_matrix(sub[model_name])
+    X = _to_numpy_matrix(sub[embeddings_col])
     y_int, cls2id = _encode_labels(sub[phenotype])
     num_classes = len(cls2id)
     input_dim = X.shape[1]
     output_dim = num_classes
 
     # Split
-    groups = sub[split].astype(str).to_numpy() if split is not None else None
+    groups = (
+        sub[split].astype(str).to_numpy()
+        if (split is not None and split != "random" and split in sub.columns)
+        else None
+    )
     tr_idx, va_idx, te_idx = _split_indices(
         y=y_int,
         groups=groups,
-        split_mode=split,
+        split_mode=split if (split is not None and split != "random") else None,
         train_size=train_size,
         val_size=val_size,
         test_size=test_size,
@@ -588,9 +614,6 @@ def train_and_predict(
         filename=f"{phenotype}-{{epoch:02d}}-{{val_macro_auroc:.4f}}",
     )
     es_cb = EarlyStopping(monitor="val_macro_auroc", mode="max", patience=early_stopping_patience, min_delta=0.0)
-
-    # Logger (CSV)
-    # logger = CSVLogger(save_dir=os.getcwd(), name=f"logs_{model_name}_{phenotype}", flush_logs_every_n_steps=50)
 
     trainer = pl.Trainer(
         max_epochs=max_epochs,
@@ -630,6 +653,7 @@ def train_and_predict(
     result = {
         "phenotype": phenotype,
         "seed": seed,
+        "embeddings_col": embeddings_col,
         "model_name": model_name,
         "split": split,
         "n_train": int(len(tr_idx)),
@@ -674,17 +698,19 @@ def train_and_predict(
 
 def run(
     df: pd.DataFrame,
-    model_name: str,
-    lr: float | None = None,
+    lr: float,
+    embeddings_col: str = "embeddings",
     max_epochs: int = 100,
     early_stopping_patience: int = 10,
     min_class_samples: int = 50,
-    split: str = "genus",
+    split: str | None = "genus",
     train_size: float = 0.7,
     val_size: float = 0.1,
     test_size: float = 0.2,
     test_after_train: bool = False,
     seeds: list[int] | None = None,
+    model_name: str | None = None,
+    phenotype_cols: list[str] | None = None,
     limit_n_phenotypes: int | None = None,
 ):
     """Run the training and prediction for phenotypic traits.
@@ -693,10 +719,10 @@ def run(
     ----------
     df : pd.DataFrame
         Input dataframe.
-    model_name : str
-        Name of the model (feature column).
-    lr : float | None, optional
-        Learning rate. If None, uses default from MODEL2LR. By default None.
+    lr : float
+        Learning rate.
+    embeddings_col : str, optional
+        Name of the column containing the embeddings (features), by default "embeddings".
     max_epochs : int, optional
         Maximum training epochs, by default 100.
     early_stopping_patience : int, optional
@@ -715,6 +741,10 @@ def run(
         Whether to run evaluation on test set, by default False.
     seeds : list[int] | None, optional
         List of random seeds to run. If None, uses [1]. By default None.
+    model_name : str, optional
+        Name of the model for saving and logging purposes, by default None.
+    phenotype_cols : list[str] | None, optional
+        Phenotype columns to process. If None, inferred by excluding known metadata columns.
     limit_n_phenotypes : int | None, optional
         Limit number of phenotypes to process (for debugging), by default None.
 
@@ -726,30 +756,57 @@ def run(
     # Identify phenotype columns and filter them globally
     if seeds is None:
         seeds = [1]
-    all_pheno_cols = list(df.columns[5:])  # as specified
-    filtered_df = filter_phenotypes(df, all_pheno_cols, min_class_samples)
-    phenotype_cols = list(filtered_df.columns[5:])
+    split_for_training = split
+    if split_for_training is not None and split_for_training != "random" and split_for_training not in df.columns:
+        warnings.warn(
+            f"Split column {split_for_training!r} was not found; falling back to a random split.",
+            stacklevel=2,
+        )
+        split_for_training = None
+    if phenotype_cols is None:
+        excluded = {
+            "genome_name",
+            embeddings_col,
+            "species",
+            "genus",
+            "family",
+            "order",
+            "class",
+            "phylum",
+            "taxid",
+            "ncbi_taxid",
+        }
+        if split_for_training is not None and split_for_training != "random":
+            excluded.add(split_for_training)
+        phenotype_cols = [col for col in df.columns if col not in excluded]
+    base_cols = ["genome_name", embeddings_col]
+    if split_for_training is not None and split_for_training != "random":
+        base_cols.append(split_for_training)
+    filtered_df, phenotype_cols = filter_phenotypes(
+        df=df,
+        phenotype_cols=phenotype_cols,
+        min_class_samples=min_class_samples,
+        base_cols=base_cols,
+    )
     if limit_n_phenotypes is not None:
         phenotype_cols = phenotype_cols[:limit_n_phenotypes]
-
-    if lr is None:
-        lr = MODEL2LR[model_name]
 
     out = []
     for seed in seeds:
         for phenotype in tqdm(phenotype_cols):
             res = train_and_predict(
                 filtered_df,
-                model_name=model_name,
                 lr=lr,
+                embeddings_col=embeddings_col,
                 phenotype=phenotype,
                 max_epochs=max_epochs,
                 early_stopping_patience=early_stopping_patience,
-                split=split,
+                split=split_for_training,
                 train_size=train_size,
                 val_size=val_size,
                 test_size=test_size,
                 test_after_train=test_after_train,
+                model_name=model_name,
                 seed=seed,
             )
             out.append(res)
@@ -791,7 +848,6 @@ class ArgParser(Tap):
     input_genomes_df_filepath: str
     labels_df_filepath: str
     output_dir: str
-    model_name: str
     lr: float
     max_epochs: int = 100
     early_stopping_patience: int = 10
@@ -801,17 +857,39 @@ class ArgParser(Tap):
     val_size: float = 0.1
     test_size: float = 0.2
     test_after_train: bool = False
+    embeddings_col: str = "embeddings"  # column name in genomes df containing the features
+    model_name: str = "unknown"  # name to use in outputs for this model
     limit_n_phenotypes: int | None = None  # limit number of phenotypes to process, for debugging
 
 
 if __name__ == "__main__":
     args = ArgParser().parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
-    df = pd.read_parquet(args.input_genomes_df_filepath)
+    df = pd.read_parquet(args.input_genomes_df_filepath, columns=["genome_name", args.embeddings_col])
     # sort by genome_name to ensure consistent order
     df = df.sort_values("genome_name").reset_index(drop=True)
     # read labels
     labels_df = pd.read_csv(args.labels_df_filepath)
+    metadata_cols = {
+        "genome_name",
+        args.embeddings_col,
+        args.split,
+        "species",
+        "genus",
+        "family",
+        "order",
+        "class",
+        "phylum",
+        "taxid",
+        "ncbi_taxid",
+    }
+    groupings_path = os.path.join(os.path.dirname(__file__), "phenotypic_traits_grouppings.csv")
+    phenotype_cols = []
+    if os.path.exists(groupings_path):
+        grouped_phenotypes = pd.read_csv(groupings_path)["phenotype"].tolist()
+        phenotype_cols = [col for col in grouped_phenotypes if col in labels_df.columns]
+    if not phenotype_cols:
+        phenotype_cols = [col for col in labels_df.columns if col not in metadata_cols]
     # merge on genome_name, inner join to keep only genomes with labels (should be all if data is correct)
     n_before_merge = len(df)
     df = df.merge(labels_df, on="genome_name", how="inner")
@@ -820,9 +898,10 @@ if __name__ == "__main__":
 
     today = datetime.today().strftime("%Y_%m_%d")
     print(f"\nRunning phenotype prediction for model: {args.model_name}")
+
     metrics_df = run(
         df=df,
-        model_name=args.model_name,
+        embeddings_col=args.embeddings_col,
         lr=args.lr,
         max_epochs=args.max_epochs,
         early_stopping_patience=args.early_stopping_patience,
@@ -832,9 +911,22 @@ if __name__ == "__main__":
         val_size=args.val_size,
         test_size=args.test_size,
         test_after_train=args.test_after_train,
+        model_name=args.model_name,
+        phenotype_cols=phenotype_cols,
         seeds=[1, 2, 3],
         limit_n_phenotypes=args.limit_n_phenotypes,
     )
+
+    # Report mean metrics across phenotypes and seeds (test metrics)
+    print(f"Metrics for lr: {args.lr}")
+    metric_cols = ["test_macro_auroc", "test_macro_auprc", "test_macro_f1", "test_macro_accuracy", "test_accuracy"]
+    available = [m for m in metric_cols if m in metrics_df.columns]
+    if available:
+        means = metrics_df[available].mean(numeric_only=True)
+        print("\n=== Mean test metrics across phenotypes/seeds ===")
+        for k, v in means.items():
+            print(f"{k}: {v:.4f}")
+
     out_path = os.path.join(args.output_dir, f"phenotypic_traits_preds_{args.model_name}_{today}.csv")
     metrics_df.to_csv(out_path, index=False)
     print(f"\nSaved metrics to: {out_path}")

@@ -191,7 +191,10 @@ class ESMPlusPlusEmbedder(SeqEmbedder):
     """Embedder for ESMPlusPlus models from Synthyra. A faithful implementation of ESM-C"""
 
     def _load(self, model_name_or_path: str):
-        self.model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+        # pin the model to a specific revision to avoid breaking changes from future updates as Bacformer Large was trained on a specific version
+        self.model = AutoModel.from_pretrained(
+            model_name_or_path, trust_remote_code=True, revision="1e40c1b8ef46c33f93a9b817eb0bd81279ab4088"
+        )
         self.tokenizer = self.model.tokenizer
         self.model_type = "esmplusplus"
 
@@ -609,7 +612,7 @@ def load_seq_embedder(model_name_or_path: str, device: str = None):
         return gLM2Embedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
     if "baclm" in model_name_or_path_lower:
-        return BacLMEmbedder(model_name_or_path, dtype=torch.float32, device=device)
+        return BacLMEmbedder(model_name_or_path, dtype=torch.bfloat16, device=device)
 
     if "evo2" in model_name_or_path_lower:
         print(

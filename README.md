@@ -1,6 +1,6 @@
 # BacBench
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](https://github.com/username/repo/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](https://github.com/macwiatrak/BacBench/blob/main/LICENSE)
 
 
 [//]: # ([![Tests][badge-tests]][tests])
@@ -14,15 +14,16 @@
 
 
 BacBench is a multi-scale and multi-task benchmark for evaluating ML models for bacterial genomics across the bacterial tree of life.
-Currently BacBench includes 6 tasks which have been collected and curated from public databases: (1) essential genes prediction, (2) operon identification, (3) protein-protein interaction (PPI), (4) strain clustering, (5) antibiotic resistance prediction and (6) phenotypic traits prediction.
+Currently BacBench includes 5 active tasks collected and curated from public databases: (1) essential genes prediction, (2) operon identification, (3) protein-protein interaction (PPI), (4) antibiotic resistance prediction and (5) phenotypic traits prediction. The strain clustering task is deprecated but remains available in the repository for reproducibility.
 
-BacBench allows for embedding and evaluating genomes using various models (see [Benchmark models](#benchmarked-models) section),
+BacBench allows for embedding and evaluating genomes using various models (see [Benchmarked models](#benchmarked-models) section),
 as well as preprocessing bacterial genomes.
 
-![BacBench](imgs/bacbench.png)
+![BacBench](imgs/bacbench_v2.png)
 
 ## News
 
+- **13.05.2026**: Updated Essential genes and PPI task with phylogeny-aware split by genus. Added BacLM, a new masked language model trained on both DNA and protein sequences. Deprecated strain clustering task.
 - **2026-02-26**: Added more embedding models, including Evo2 (recommended to run inside Evo2 container), ProkBERT, ESMPlusPlus and gLM2
 - **2025-05-15**: BacBench datasets are now available on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
 
@@ -30,15 +31,17 @@ as well as preprocessing bacterial genomes.
 
 - [Setup](#setup)
   - [Requirements](#requirements)
-  - [installation](#installation)
+  - [Installation](#installation)
+  - [Quickstart](#quickstart)
 - [Usage](#usage)
   - [Datasets](#datasets)
   - [Embedding genomes](#embedding-genomes)
   - [Model evaluation](#model-evaluation)
+  - [Large dataset tips](#large-dataset-tips)
   - [Download and preprocess genomes](#download-and-preprocess-genomes)
-- [Benchmark models](#benchmark-models)
+- [Benchmarked models](#benchmarked-models)
+- [Task overview](#task-overview)
 - [Contributing](#contributing)
-- [TO DOs](#to-dos)
 - [Citation](#citation)
 - [To-do-list](#to-do-list)
 - [Contact](#contact)
@@ -51,7 +54,7 @@ as well as preprocessing bacterial genomes.
 BacBench uses [PyTorch](https://pytorch.org/), [HuggingFace Transformers](https://huggingface.co/docs/transformers/index), [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/)
 and was developed in `python=3.10`.
 
-To compute [ESM-2](https://github.com/facebookresearch/esm), [ESM-C](https://github.com/evolutionaryscale/esm), anc [Bacformer]() embeddings in a fast and efficient way, we leverage the [faplm](https://github.com/pengzhangzhi/faplm) package which requires [flash-attention](https://github.com/Dao-AILab/flash-attention).
+To compute [ESM-2](https://github.com/facebookresearch/esm), [ESM-C](https://github.com/evolutionaryscale/esm), and [Bacformer](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes) embeddings efficiently, BacBench can use the optional [faesm/faplm](https://github.com/pengzhangzhi/faplm) extra, which requires [flash-attention](https://github.com/Dao-AILab/flash-attention).
 
 We recommend using BacBench on a machine with 1) considerable disk space (for downloading datasets), 2) GPU (for embedding genomes and running some evaluations).
 
@@ -62,31 +65,31 @@ We recommend using BacBench on a machine with 1) considerable disk space (for do
 
 ### Installation
 
-[//]: # (You can install Bacbench using `pip`)
-
-[//]: # (```bash)
-
-[//]: # (pip install bacbench)
-
-[//]: # (```)
-
 Before installing BacBench, make sure to create a new `python` environment. We recommend using [mamba](https://mamba.readthedocs.io/en/latest/index.html), [conda](https://docs.conda.io/en/latest/) or [venv](https://docs.python.org/3/library/venv.html) to create a new environment.
 
 
-You can install Bacbench by cloning the repository and installing the dependencies:
+You can install BacBench by cloning the repository and installing the dependencies:
 ```bash
 git clone https://github.com/macwiatrak/BacBench.git
 cd BacBench
 # 1) install BacBench **with its core dependencies**
 pip install .
 ```
-We also recommend to install the [faesm](https://github.com/pengzhangzhi/faplm) package which provides fast inference for ESM-2 and ESM-C models.
+We also recommend installing the [faesm](https://github.com/pengzhangzhi/faplm) package, which provides fast inference for ESM-2 and ESM-C models.
 
-**Note**: Only install `faesm` on a machine with a GPU an CUDA installed.
+**Note**: Only install `faesm` on a machine with a GPU and CUDA installed.
 ```bash
 # 2) (optional but recommended) add the fast‐attention extra (“faesm”)
 pip install ".[faesm]"
 ```
+
+For development and tests, install the test extra:
+```bash
+pip install -e ".[test]"
+pytest
+```
+
+Embedding and most full benchmark runs require GPU hardware and task-specific input files.
 
 ## Usage
 
@@ -99,8 +102,8 @@ Below we describe how to access and use BacBench to:
 ### Datasets
 All of the datasets are available on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
 
-The datasets for essential genes prediction, operon identification, strain clustering, antibiotic resistance prediction
-and phenotypic traits prediction are available in both `DNA` and `protein sequence` modalities. Due to the size of the
+The datasets for essential genes prediction, operon identification, PPI, antibiotic resistance prediction
+and phenotypic traits prediction are available in `DNA` and/or `protein sequence` modalities. Due to the size of the
 datasets, we recommend `streaming` the datasets unless you have a lot of disk space available. See examples below.
 
 ```python
@@ -120,18 +123,13 @@ operon_identification_prot_seqs_ds = load_dataset("macwiatrak/bacbench-operon-id
 # DNA sequences, size=24MB
 operon_identification_dna_ds = load_dataset("macwiatrak/bacbench-operon-identification-dna")
 
-
-# protein-protein interaction (PPI) task
-# protein sequences, size=58.1GB
-# NOTE: as the labels are based on protein-protein interactions, we only include the protein sequences
+# protein-protein interaction (PPI) task, 261 genomes
+# protein sequences, size=792MB
+ppi_prot_seqs_ds = load_dataset("macwiatrak/bacbench-ppi-stringdb-protein-sequences-small", streaming=True)
+# DNA sequences, size=985MB
+ppi_dna_ds = load_dataset("macwiatrak/bacbench-ppi-stringdb-dna-small", streaming=True)
+# for the large version of the PPI dataset (>10k genomes, available only in protein sequences modality), size=58GB, use the following dataset:
 ppi_ds = load_dataset("macwiatrak/bacbench-ppi-stringdb-protein-sequences", streaming=True)
-
-
-# strain clustering task
-# protein sequences, size=54.4GB
-strain_clustering_prot_seqs_ds = load_dataset("macwiatrak/bacbench-strain-clustering-protein-sequences", streaming=True)
-# DNA sequences, size=81GB
-strain_clustering_dna_ds = load_dataset("macwiatrak/bacbench-strain-clustering-dna", streaming=True)
 
 
 # antibiotic resistance prediction task
@@ -148,7 +146,7 @@ pheno_traits_prot_seqs_ds = load_dataset("macwiatrak/bacbench-phenotypic-traits-
 pheno_traits_dna_ds = load_dataset("macwiatrak/bacbench-phenotypic-traits-dna", streaming=True)
 ```
 
-Dataset details including nr of genomes and more are available in the datasets cards on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
+Dataset details including the number of genomes and more are available in the dataset cards on [HuggingFace](https://huggingface.co/collections/macwiatrak/bacbench-6819ea4b0a226beef8d29f81).
 
 
 ### Embedding genomes
@@ -160,7 +158,7 @@ genomes for each task in the task-specific README files in the `bacbench/tasks/`
 
 Below, we show examples on how to embed genomes using the supported models on a few tasks.
 
-**Note**: Running embedding scripts require GPU.
+**Note**: Running embedding scripts requires GPU hardware for practical performance.
 
 #### Essential genes prediction task
 ```bash
@@ -168,16 +166,16 @@ Below, we show examples on how to embed genomes using the supported models on a 
 python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_esmc_embeddings.parquet \
-    --model-path esmc_300m \
+    --model-path Synthyra/ESMplusplus_small \
     --batch-size 64
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
     --dataset-name macwiatrak/bacbench-essential-genes-protein-sequences \
     --output-filepath <output-dir>/essential_genes_bacformer_embeddings.parquet \
-    --model-path macwiatrak/bacformer-masked-complete-genomes \
+    --model-path macwiatrak/bacformer-large-masked-complete-genomes \
     --batch-size 64 \
-    --max-n-proteins 9000  # max nr of proteins in a genome
+    --max-n-proteins 9000  # max number of proteins in a genome
 
 # embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
@@ -204,12 +202,12 @@ python bacbench/modeling/run_embed_prot_seqs.py \
     --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --batch-size 64 \
-    --max-n-proteins 9000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000  # max number of proteins in a genome, default value
 
 
 # embed and save the genomes using the Mistral-DNA model
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-dna \  # name of the dataset
+    --dataset-name macwiatrak/bacbench-operon-identification-dna \
     --output-filepath <output-dir>/operon_identification_mistral_embeddings.parquet \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
     --batch-size 256 \
@@ -217,32 +215,34 @@ python bacbench/modeling/run_embed_dna.py \
     --dna-seq-overlap 16
 ```
 
-#### Strain clustering task
+#### Antibiotic resistance prediction task
 ```bash
 # embed and save the genomes using the ESM-2 model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
-    --output-filepath <output-dir>/strain_clustering_esm2_embeddings.parquet \
+    --dataset-name macwiatrak/bacbench-antibiotic-resistance-protein-sequences \
+    --output-filepath <output-dir>/amr_esm2_embeddings.parquet \
     --model-path facebook/esm2_t12_35M_UR50D \
     --batch-size 64 \
     --genome-pooling-method mean \
+    --agg-whole-genome \
     --streaming
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-protein-sequences \
-    --output-filepath <output-dir>/strain_clustering_bacformer_embeddings.parquet \
-    --model-path macwiatrak/bacformer-masked-complete-genomes \
+    --dataset-name macwiatrak/bacbench-antibiotic-resistance-protein-sequences \
+    --output-filepath <output-dir>/amr_bacformer_embeddings.parquet \
+    --model-path macwiatrak/bacformer-large-masked-complete-genomes \
     --batch-size 64 \
     --genome-pooling-method mean \
+    --agg-whole-genome \
     --streaming \
-    --max-n-proteins 9000  # max nr of proteins in a genome, default value
+    --max-n-proteins 9000  # max number of proteins in a genome, default value
 
 
 # embed and save the genomes using the Nucleotide Transformer model
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-strain-clustering-dna \
-    --output-filepath <output-dir>/strain_clustering_nucleotide_transformer_embeddings.parquet \
+    --dataset-name macwiatrak/bacbench-antibiotic-resistance-dna \
+    --output-filepath <output-dir>/amr_nucleotide_transformer_embeddings.parquet \
     --model-path InstaDeepAI/nucleotide-transformer-v2-250m-multi-species \
     --batch-size 128 \
     --max-seq-len 2048 \
@@ -252,13 +252,24 @@ python bacbench/modeling/run_embed_dna.py \
     --streaming
 ```
 
+#### Protein-protein interaction task
+```bash
+# embed and save per-protein embeddings for PPI training/evaluation
+python bacbench/modeling/run_embed_prot_seqs.py \
+    --dataset-name macwiatrak/bacbench-ppi-stringdb-protein-sequences-small \
+    --output-filepath <output-dir>/ppi_esm2_embeddings.parquet \
+    --model-path facebook/esm2_t12_35M_UR50D \
+    --batch-size 64 \
+    --streaming
+```
+
 **Note**: DNABERT-2 requires specific requirements, to install them please refer to [DNABERT-2 github](https://github.com/MAGICS-LAB/DNABERT_2).
 
 **Embedding slices of the dataset**: We also provide functionality to embed only a slice of the dataset, which is useful for testing and debugging.
 To use it just use the `--start-idx` and `--end-idx` arguments to specify the slice of the dataset you want to embed.
 Both `run_embed_dna.py` and `run_embed_prot_seqs.py` scripts support this functionality.
 
-See [Benchmark models](#benchmarked-models) section for the list of currently supported models.
+See [Benchmarked models](#benchmarked-models) section for the list of currently supported models.
 
 ### Model evaluation
 We provide scripts to evaluate the embeddings models for each task in the `bacbench/tasks/` directory.
@@ -271,7 +282,7 @@ Below, we show examples on how to evaluate the models using embedded data.
 #### Essential genes prediction task
 ```bash
 python bacbench/tasks/essential_genes/run_train_cls.py \
-    --input-df-filepath <input-dir>/essential_genes_esmc_embeddings.parquet \
+    --input-df-file-path <input-dir>/essential_genes_esmc_embeddings.parquet \
     --output-dir <output-dir> \
     --lr 0.005 \
     --max-epochs 100 \
@@ -284,17 +295,53 @@ python bacbench/tasks/operon/run_evaluation_operondb.py \
     --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \
     --output-dir <output-dir> \
     --model-name bacformer
-````
+```
 
-#### Strain clustering task
+#### Protein-protein interaction task
 ```bash
-python bacbench/tasks/strain_clustering/run_evaluation_operondb.py \
-    --input-df-filepath <input-dir>/strain_clustering_esm2_embeddings.parquet \
+# Train an MLP on PPI pairs
+python bacbench/tasks/ppi/run_train_mlp.py \
+    --input-filepath <input-dir>/ppi_esm2_embeddings.parquet \
     --output-dir <output-dir> \
-    --model-name bacformer
-````
+    --max-epochs 10
+
+# Run unsupervised evaluation directly from pair scores
+python bacbench/tasks/ppi/run_unsupervised_eval.py \
+    --input-filepath <input-dir>/ppi_esm2_embeddings.parquet \
+    --output-dir <output-dir> \
+    --model-name esm2
+```
+
+#### Antibiotic resistance prediction task
+```bash
+python bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py \
+    --input-genomes-df-filepath <input-dir>/amr_esm2_embeddings.parquet \
+    --labels-df-filepath <input-dir>/binary_labels.csv \
+    --output-dir <output-dir> \
+    --model-name esm2 \
+    --lr 0.005
+```
+
+#### Phenotypic traits prediction task
+```bash
+python bacbench/tasks/phenotypic_traits/train_and_predict_linear.py \
+    --input-genomes-df-filepath <input-dir>/pheno_bacformer_embeddings.parquet \
+    --labels-df-filepath <input-dir>/labels.csv \
+    --output-dir <output-dir> \
+    --model-name bacformer \
+    --lr 0.01
+```
 
 For more details on how to run the evaluation scripts, please refer to the scripts in the `bacbench/tasks/` directory.
+
+### Large dataset tips
+
+- Use `--streaming` when loading large Hugging Face datasets.
+- Use `--start-idx` and `--end-idx` for quick debugging runs on a small slice.
+- Use `--save-every-n-rows` with `--output-dir` for streaming embedding jobs that should checkpoint partial parquet chunks.
+- Use task-specific README files in `bacbench/tasks/` for full dataset and label-file locations.
+- For PPI training, use `--use-incremental-parquet-read` if the embedding parquet is too large to read into memory while building train/validation/test splits.
+- Keep GPU-specific extras such as `faesm`, DNABERT-2 requirements, and Evo2 requirements in separate environments when possible.
 
 ### Download and preprocess genomes
 
@@ -320,7 +367,7 @@ genome_dna_seqs_df = extract_dna_info_from_fna("<input-dir>/GCF_000006765.1_ASM6
 
 # we also provide functionality to download and preprocess genomes from NCBI/GenBank
 # download and preprocess a genome by its taxid
-taxid_df = df = download_and_process_genome_by_taxid(
+taxid_df = download_and_process_genome_by_taxid(
     taxid=208964,  # taxid for Pseudomonas aeruginosa PAO1
     file_type="gbff",
 )
@@ -350,6 +397,7 @@ We currently support the following models:
 | ESMPlusPlus (reimplementation of ESMC)                  | Single protein seq.   | [Synthyra/ESMplusplus_small](https://huggingface.co/Synthyra/ESMplusplus_small)                                                         | Masked         | 300 M | 960  | 2 048       |
 | ProtBert               | Single protein seq.   | [prot_bert](https://huggingface.co/Rostlab/prot_bert)                                                                           | Masked         | 420 M | 1 024| 1 024       |
 | gLM2 | Mixed modality (DNA & protein)                   | [tattabio/gLM2_650M](https://huggingface.co/tattabio/gLM2_650M) | Masked         | 650 M | 1 280  | 4 096       |
+| BacLM | Mixed modality (DNA or protein)                   | [macwiatrak/baclm-350m-masked](https://huggingface.co/macwiatrak/baclm-350m-masked) | Masked         | 350 M | 960  | 2 048       |
 | Bacformer              | Multiple protein seq. | [bacformer-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-masked-complete-genomes)<sup>†</sup>                     | Masked         | 27 M  | 480  | 6 000       |
 | Bacformer Large             | Multiple protein seq. | [bacformer-large-masked-complete-genomes](https://huggingface.co/macwiatrak/bacformer-large-masked-complete-genomes)<sup>†</sup>                     | Masked         | 27 M  | 960  | 6 000       |
 
@@ -358,8 +406,21 @@ We currently support the following models:
 
 `**` Evo2 requires specific requirements, to install them please refer to the [Evo2 github](https://github.com/ArcInstitute/evo2). We recommend running Evo2 in a container.
 
-`†` For strain clustering we used the MAG version of the Bacformer model ([bacformer-masked-MAG](https://huggingface.co/macwiatrak/bacformer-masked-MAG) and [bacformer-large-masked-MAG](https://huggingface.co/macwiatrak/bacformer-large-masked-MAG)) as the input are
-metagenome-assembled genomes (MAGs), rather than complete genomes.
+`†` Historical strain clustering runs used the MAG version of the Bacformer model ([bacformer-masked-MAG](https://huggingface.co/macwiatrak/bacformer-masked-MAG) and [bacformer-large-masked-MAG](https://huggingface.co/macwiatrak/bacformer-large-masked-MAG)) because the inputs are metagenome-assembled genomes (MAGs), rather than complete genomes.
+
+Note: for mixed modality models (gLM2 and BacLM) we use both DNA and protein sequences as input. The current implementation in `bacbench/modeling/embed_prot_seqs.py` and `bacbench/modeling/embed_dna.py` supports using either DNA or protein sequences as input, but not both at the same time. We are planning to add support for using both DNA and protein sequences as input for the mixed modality models in the future and the WIP scripts to do it are available in `bacbench/modeling/utils/scripts`.
+
+
+## Task overview
+
+| Task | Status | Input modality | Embedding granularity | Main evaluation script |
+|------|--------|----------------|-----------------------|------------------------|
+| Essential genes prediction | Active | DNA or protein | Gene/protein embeddings | `bacbench/tasks/essential_genes/run_train_cls.py` |
+| Operon identification | Active | DNA or protein | Per-gene embeddings grouped by contig | `bacbench/tasks/operon/run_evaluation_operondb.py` |
+| Protein-protein interaction | Active | Protein | Per-protein embeddings with STRING-derived PPI labels | `bacbench/tasks/ppi/run_train_mlp.py`, `bacbench/tasks/ppi/run_unsupervised_eval.py` |
+| Antibiotic resistance prediction | Active | DNA or protein | Whole-genome embeddings | `bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py` |
+| Phenotypic traits prediction | Active | DNA or protein | Whole-genome embeddings | `bacbench/tasks/phenotypic_traits/train_and_predict_linear.py` |
+| Strain clustering | Deprecated | DNA or protein | Whole-genome embeddings | `bacbench/tasks/strain_clustering/run_evaluation.py` |
 
 
 ## Contributing
@@ -371,15 +432,15 @@ We welcome contributions to BacBench! If you would like to contribute, please fo
 pip install pre-commit
 pre-commit install
 ```
-2. Create a new branch for your feature or bug fix.
-3. Make your changes and commit them.
-4. Push your changes to your forked repository.
-5. Create a pull request to the main repository.
-6. Make sure to add tests for your changes and run the tests to ensure everything is working correctly.
+3. Create a new branch for your feature or bug fix.
+4. Make your changes and commit them.
+5. Push your changes to your forked repository.
+6. Create a pull request to the main repository.
+7. Make sure to add tests for your changes and run the tests to ensure everything is working correctly.
 
 ## Citation
 
-> t.b.a
+Citation details will be added when the manuscript/preprint is available.
 
 ## To-do-list
 
