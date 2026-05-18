@@ -195,27 +195,12 @@ def compute_bacformer_embeddings(
             # only keep the protein embeddings and not special tokens
             bacformer_embeddings = bacformer_embeddings[inputs["special_tokens_mask"] == prot_emb_idx]
         else:
-            # bacformer_embeddings = model(
-            #     protein_embeddings=inputs["protein_embeddings"].type(model.dtype),
-            #     attention_mask=inputs["attention_mask"],
-            #     contig_ids=inputs["contig_ids"],
-            #     return_dict=True,
-            # ).last_hidden_state[0]
-            random_indices = torch.randperm(inputs["protein_embeddings"].size(1), device=device)
-
-            protein_embeddings = inputs["protein_embeddings"][:, random_indices, :]
-            contig_ids = inputs["contig_ids"][:, random_indices]
-            attention_mask = inputs["attention_mask"][:, random_indices]
-
             bacformer_embeddings = model(
-                protein_embeddings=protein_embeddings.type(model.dtype),
-                attention_mask=attention_mask,
-                contig_ids=contig_ids,
+                protein_embeddings=inputs["protein_embeddings"].type(model.dtype),
+                attention_mask=inputs["attention_mask"],
+                contig_ids=inputs["contig_ids"],
                 return_dict=True,
             ).last_hidden_state[0]
-
-            inverse_indices = torch.argsort(random_indices)
-            bacformer_embeddings = bacformer_embeddings[inverse_indices, :]
 
     # perform genome pooling
     if genome_pooling_method == "mean":
