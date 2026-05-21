@@ -122,7 +122,7 @@ def run(
     model_name: str = "Unknown_model",
     leiden_resolutions: list[float] | None = None,
     k_neighbors: list[int] | None = None,
-    input_col: str = "embeddings",
+    embeddings_col: str = "embeddings",
     n_bootstraps: int = 10,
     proportion: float = 0.8,
     random_seed: int = 42,
@@ -141,7 +141,7 @@ def run(
         Resolutions for Leiden clustering.
     k_neighbors : list[int] | None
         Numbers of neighbors for graph construction.
-    input_col : str
+    embeddings_col : str
         Column name containing embeddings.
     n_bootstraps : int
         Number of bootstrap samples.
@@ -162,8 +162,8 @@ def run(
     np.random.seed(random_seed)
 
     df = pd.read_parquet(input_df_file_path)
-    input_col = "embeddings" if "embeddings" in df.columns else "genome_embedding"
-    embeds = np.stack(df[input_col].tolist())
+    embeddings_col = "embeddings" if "embeddings" in df.columns else "genome_embedding"
+    embeds = np.stack(df[embeddings_col].tolist())
     n_samples = len(embeds)
     sample_size = int(n_samples * proportion)
 
@@ -251,12 +251,12 @@ class ArgumentParser(Tap):
         super().__init__(underscores_to_dashes=True)
 
     # file paths for loading data
-    input_df_filepath: str
-    output_dir: str | None
-    model_name: str
+    input_df_filepath: str = "/Users/maciejwiatrak/Downloads/zs_genome_embeds_bac_large.parquet"
+    output_dir: str | None = "/tmp/"
+    model_name: str = "bac_large_zs"
     leiden_resolutions: list[float] = [0.1, 0.25, 0.5]
     k_neighbors: list[int] = [5, 10, 15]
-    input_col: str = "embeddings"
+    embeddings_col: str = "embeddings"
     n_bootstraps: int = 10  # Number of bootstrap samples
     proportion: float = 0.8  # Proportion of data to sample in each bootstrap
     random_seed: int = 42  # Random seed for reproducibility
@@ -270,7 +270,7 @@ if __name__ == "__main__":
         model_name=args.model_name,
         leiden_resolutions=args.leiden_resolutions,
         k_neighbors=args.k_neighbors,
-        input_col=args.input_col,
+        embeddings_col=args.embeddings_col,
         n_bootstraps=args.n_bootstraps,
         proportion=args.proportion,
         random_seed=args.random_seed,

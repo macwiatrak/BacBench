@@ -67,10 +67,45 @@ python bacbench/tasks/strain_clustering/run_evaluation.py \
     --proportion 0.8
 ```
 
+## AAI-Based Species Clustering
+
+You can also cluster genomes directly from their protein sequences using average amino acid identity (AAI). This path expects one row per genome with a `genome_name` identifier, a `protein_sequence` column containing either a flat list of proteins or a contig-grouped list of lists/arrays, plus a `species` label used for evaluation. It reads parquet input incrementally with `pyarrow.parquet.ParquetFile.iter_batches`, uses MMseqs2 for the all-vs-all protein search, computes reciprocal-best-hit AAI, runs Leiden clustering on the precomputed AAI distance matrix, and reports ARI, NMI, homogeneity, completeness, V-measure, and silhouette.
+
+```bash
+python bacbench/tasks/strain_clustering/run_aai_clustering.py \
+    --input-df-filepath <input-dir>/genome_proteins.parquet \
+    --output-dir <output-dir>/aai_species_clustering \
+    --genome-col genome_name \
+    --proteins-col protein_sequence \
+    --species-col species \
+    --label-col species \
+    --leiden-resolutions 0.1 0.25 1.0 \
+    --k-neighbors 5 10 15 \
+    --input-batch-size 100 \
+    --threads 8
+```
+
+The default hit filters are `evalue <= 1e-5`, query and target coverage `>= 0.5`, and minimum alignment fraction `>= 0.2`. The script reports progress for streamed input passes, MMseqs processing, AAI construction, and Leiden evaluation; pass `--disable-progress` for quieter batch logs. If `mmseqs_hits.tsv` already exists in the output directory, the script reuses it unless `--force` is set.
+
 ## Output
 
-The script writes:
+The embedding-based script writes:
 
 ```text
 <output-dir>/results_<model-name>.parquet
+```
+
+The AAI-based script writes:
+
+```text
+<output-dir>/pairwise_aai.parquet
+<output-dir>/aai_matrix.csv
+<output-dir>/distance_matrix.npy
+<output-dir>/genome_index.csv
+<output-dir>/protein_index.csv
+<output-dir>/clusters.csv
+<output-dir>/metrics.csv
+<output-dir>/aai_heatmap.png
+<output-dir>/aai_dendrogram.png
+<output-dir>/aai_mds.png
 ```
