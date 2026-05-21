@@ -46,7 +46,7 @@ def flatten_protein_sequences(protein_sequences: object) -> list[str]:
                 for item in value.tolist():
                     collect(item)
             return
-        if isinstance(value, (list, tuple)):  # noqa
+        if isinstance(value, list | tuple):
             for item in value:
                 collect(item)
             return
@@ -323,6 +323,7 @@ def run_mmseqs_all_vs_all(
     tmp_dir: str | os.PathLike[str],
     mmseqs_binary: str = "mmseqs",
     threads: int | None = None,
+    split_memory_limit: str | None = "110G",
     force: bool = False,
 ) -> Path:
     """Run an MMseqs2 all-vs-all protein search and return the tabular output path."""
@@ -349,6 +350,8 @@ def run_mmseqs_all_vs_all(
     ]
     if threads is not None:
         command.extend(["--threads", str(threads)])
+    if split_memory_limit is not None:
+        command.extend(["--split-memory-limit", split_memory_limit])
 
     subprocess.run(command, check=True)
     return output_tsv_path
@@ -753,6 +756,7 @@ def run_aai_clustering(
     min_target_coverage: float = 0.5,
     min_alignment_fraction: float = 0.2,
     mmseqs_binary: str = "mmseqs",
+    mmseqs_split_memory_limit: str | None = "110G",
     threads: int | None = None,
     force: bool = False,
     make_plots: bool = True,
@@ -782,6 +786,7 @@ def run_aai_clustering(
         "min_target_coverage": min_target_coverage,
         "min_alignment_fraction": min_alignment_fraction,
         "mmseqs_binary": mmseqs_binary,
+        "mmseqs_split_memory_limit": mmseqs_split_memory_limit,
         "threads": threads,
         "input_batch_size": input_batch_size,
         "leiden_resolutions": leiden_resolutions,
@@ -821,6 +826,7 @@ def run_aai_clustering(
         tmp_dir=output_dir / "mmseqs_tmp",
         mmseqs_binary=mmseqs_binary,
         threads=threads,
+        split_memory_limit=mmseqs_split_memory_limit,
         force=force,
     )
     if show_progress:

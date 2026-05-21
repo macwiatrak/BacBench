@@ -22,6 +22,7 @@ class ArgumentParser(Tap):
     min_target_coverage: float = 0.5
     min_alignment_fraction: float = 0.2
     mmseqs_binary: str = "mmseqs"
+    mmseqs_split_memory_limit: str | None = "110G"
     threads: int | None = None
     force: bool = False
     make_plots: bool = True
@@ -47,6 +48,7 @@ if __name__ == "__main__":
         min_target_coverage=args.min_target_coverage,
         min_alignment_fraction=args.min_alignment_fraction,
         mmseqs_binary=args.mmseqs_binary,
+        mmseqs_split_memory_limit=args.mmseqs_split_memory_limit,
         threads=args.threads,
         force=args.force,
         make_plots=args.make_plots,

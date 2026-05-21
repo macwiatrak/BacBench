@@ -15,6 +15,7 @@ from bacbench.tasks.strain_clustering.aai import (
     prepare_genome_dataframe,
     prepare_genomes_from_input,
     rank_leiden_metrics,
+    run_mmseqs_all_vs_all,
     select_final_clusters,
     write_protein_fasta,
 )
@@ -90,6 +91,26 @@ def test_protein_ids_round_trip_and_fasta_mapping_is_written(tmp_path):
     assert parse_protein_id(make_protein_id(3, 7)) == (3, 7)
     assert protein_index["protein_id"].tolist() == ["g0|p0", "g0|p1"]
     assert (tmp_path / "proteins.faa").read_text() == ">g0|p0\nAAA\n>g0|p1\nBBB\n"
+
+
+def test_run_mmseqs_all_vs_all_sets_split_memory_limit(tmp_path, monkeypatch):
+    captured_commands = []
+
+    def fake_run(command, check):
+        captured_commands.append(command)
+        assert check is True
+
+    monkeypatch.setattr("bacbench.tasks.strain_clustering.aai.subprocess.run", fake_run)
+
+    output_path = run_mmseqs_all_vs_all(
+        fasta_path=tmp_path / "proteins.faa",
+        output_tsv_path=tmp_path / "mmseqs_hits.tsv",
+        tmp_dir=tmp_path / "mmseqs_tmp",
+        threads=8,
+    )
+
+    assert output_path == tmp_path / "mmseqs_hits.tsv"
+    assert captured_commands[0][-4:] == ["--threads", "8", "--split-memory-limit", "110G"]
 
 
 def test_pairwise_aai_uses_reciprocal_best_hits_and_flags_missing_pairs():
