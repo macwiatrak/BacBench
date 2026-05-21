@@ -620,6 +620,30 @@ def compute_leiden_aai_metrics(
     return pd.concat(all_clusters, ignore_index=True), pd.DataFrame(all_metrics)
 
 
+def rank_leiden_metrics(metrics_df: pd.DataFrame) -> pd.DataFrame:
+    """Rank Leiden parameter settings by whole-dataset species clustering quality."""
+    sort_columns = ["ari", "nmi", "v_measure", "silhouette", "resolution", "k_neighbors"]
+    missing_columns = [column for column in sort_columns if column not in metrics_df.columns]
+    if missing_columns:
+        raise ValueError(f"Metrics dataframe is missing required ranking columns: {missing_columns}.")
+
+    ranked = metrics_df.sort_values(
+        by=sort_columns,
+        ascending=[False, False, False, False, True, True],
+        na_position="last",
+    ).reset_index(drop=True)
+    ranked.insert(0, "rank", np.arange(1, len(ranked) + 1, dtype=int))
+    return ranked
+
+
+def select_final_clusters(clusters: pd.DataFrame, final_metrics: pd.Series) -> pd.DataFrame:
+    """Select cluster assignments for the best-ranked Leiden setting."""
+    return clusters[
+        (clusters["resolution"] == final_metrics["resolution"])
+        & (clusters["k_neighbors"] == final_metrics["k_neighbors"])
+    ].reset_index(drop=True)
+
+
 def plot_aai_heatmap(
     aai_matrix: pd.DataFrame,
     genome_index: pd.DataFrame,
@@ -848,7 +872,20 @@ def run_aai_clustering(
     metrics_df["min_query_coverage"] = min_query_coverage
     metrics_df["min_target_coverage"] = min_target_coverage
     metrics_df["min_alignment_fraction"] = min_alignment_fraction
-    metrics_df.to_csv(output_dir / "metrics.csv", index=False)
+    ranked_metrics = rank_leiden_metrics(metrics_df)
+    final_metrics = ranked_metrics.iloc[[0]].copy()
+    final_clusters = select_final_clusters(clusters, final_metrics.iloc[0])
+    ranked_metrics.to_csv(output_dir / "metrics.csv", index=False)
+    final_metrics.to_csv(output_dir / "final_metrics.csv", index=False)
+    final_clusters.to_csv(output_dir / "final_clusters.csv", index=False)
+    if show_progress:
+        tqdm.write(
+            "Best Leiden setting: "
+            f"resolution={final_metrics['resolution'].iloc[0]}, "
+            f"k_neighbors={final_metrics['k_neighbors'].iloc[0]}, "
+            f"ARI={final_metrics['ari'].iloc[0]:.4f}, "
+            f"NMI={final_metrics['nmi'].iloc[0]:.4f}."
+        )
 
     if make_plots:
         if show_progress:
@@ -863,5 +900,7 @@ def run_aai_clustering(
         "aai_matrix": aai_matrix,
         "distance_matrix": distance_matrix,
         "clusters": clusters,
-        "metrics": metrics_df,
+        "metrics": ranked_metrics,
+        "final_metrics": final_metrics,
+        "final_clusters": final_clusters,
     }

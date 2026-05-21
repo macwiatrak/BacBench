@@ -14,6 +14,8 @@ from bacbench.tasks.strain_clustering.aai import (
     parse_protein_id,
     prepare_genome_dataframe,
     prepare_genomes_from_input,
+    rank_leiden_metrics,
+    select_final_clusters,
     write_protein_fasta,
 )
 
@@ -204,3 +206,35 @@ def test_leiden_aai_metrics_runs_parameter_grid_on_precomputed_distances():
         "k_neighbors",
         "effective_k_neighbors",
     }
+
+
+def test_rank_leiden_metrics_and_select_final_clusters():
+    metrics = pd.DataFrame(
+        {
+            "ari": [0.2, 0.8, 0.8],
+            "nmi": [0.4, 0.7, 0.9],
+            "v_measure": [0.4, 0.7, 0.9],
+            "silhouette": [0.1, 0.2, 0.3],
+            "resolution": [0.1, 0.25, 1.0],
+            "k_neighbors": [5, 10, 15],
+        }
+    )
+    clusters = pd.DataFrame(
+        {
+            "genome_id": ["a", "b", "a", "b"],
+            "species": ["s1", "s2", "s1", "s2"],
+            "leiden_clusters": ["0", "1", "0", "0"],
+            "resolution": [0.25, 0.25, 1.0, 1.0],
+            "k_neighbors": [10, 10, 15, 15],
+            "effective_k_neighbors": [10, 10, 15, 15],
+        }
+    )
+
+    ranked = rank_leiden_metrics(metrics)
+    final_clusters = select_final_clusters(clusters, ranked.iloc[0])
+
+    assert ranked["rank"].tolist() == [1, 2, 3]
+    assert ranked.iloc[0]["resolution"] == 1.0
+    assert ranked.iloc[0]["k_neighbors"] == 15
+    assert final_clusters["genome_id"].tolist() == ["a", "b"]
+    assert final_clusters["resolution"].tolist() == [1.0, 1.0]
