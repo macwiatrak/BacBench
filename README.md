@@ -119,9 +119,9 @@ essential_genes_dna_seqs_ds = load_dataset("macwiatrak/bacbench-essential-genes-
 
 # operon identification task
 # protein sequences, size=15.3MB
-operon_identification_prot_seqs_ds = load_dataset("macwiatrak/bacbench-operon-identification-protein-sequences")
+operon_identification_prot_seqs_ds = load_dataset("macwiatrak/operon-identification-long-read-rna-sequencing-protein-sequences")
 # DNA sequences, size=24MB
-operon_identification_dna_ds = load_dataset("macwiatrak/bacbench-operon-identification-dna")
+operon_identification_dna_ds = load_dataset("macwiatrak/operon-identification-long-read-rna-sequencing-dna")
 
 # protein-protein interaction (PPI) task, 261 genomes
 # protein sequences, size=792MB
@@ -191,14 +191,14 @@ python bacbench/modeling/run_embed_dna.py \
 ```bash
 # embed and save the genomes using the ProtBert model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
+    --dataset-name macwiatrak/operon-identification-long-read-rna-sequencing-protein-sequences \
     --output-filepath <output-dir>/operon_identification_protbert_embeddings.parquet \
     --model-path Rostlab/prot_bert  \
     --batch-size 64
 
 # embed and save the genomes using the Bacformer model
 python bacbench/modeling/run_embed_prot_seqs.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-protein-sequences \
+    --dataset-name macwiatrak/operon-identification-long-read-rna-sequencing-protein-sequences \
     --output-filepath <output-dir>/operon_identification_bacformer_embeddings.parquet \
     --model-path macwiatrak/bacformer-masked-complete-genomes \
     --batch-size 64 \
@@ -207,7 +207,7 @@ python bacbench/modeling/run_embed_prot_seqs.py \
 
 # embed and save the genomes using the Mistral-DNA model
 python bacbench/modeling/run_embed_dna.py \
-    --dataset-name macwiatrak/bacbench-operon-identification-dna \
+    --dataset-name macwiatrak/operon-identification-long-read-rna-sequencing-dna \
     --output-filepath <output-dir>/operon_identification_mistral_embeddings.parquet \
     --model-path Raphaelmourad/Mistral-DNA-v1-138M-bacteria \
     --batch-size 256 \
@@ -291,10 +291,9 @@ python bacbench/tasks/essential_genes/run_train_cls.py \
 
 #### Operon identification task
 ```bash
-python bacbench/tasks/operon/run_evaluation_operondb.py \
-    --input-df-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \
-    --output-dir <output-dir> \
-    --model-name bacformer
+python bacbench/tasks/operon/run_evaluation_long_read_rna_seq.py \
+    --input-filepath <input-dir>/operon_identification_bacformer_embeddings.parquet \
+    --output-filepath <output-filepath>
 ```
 
 #### Protein-protein interaction task
@@ -416,7 +415,7 @@ Note: for mixed modality models (gLM2 and BacLM) we use both DNA and protein seq
 | Task | Status | Input modality | Embedding granularity | Main evaluation script |
 |------|--------|----------------|-----------------------|------------------------|
 | Essential genes prediction | Active | DNA or protein | Gene/protein embeddings | `bacbench/tasks/essential_genes/run_train_cls.py` |
-| Operon identification | Active | DNA or protein | Per-gene embeddings grouped by contig | `bacbench/tasks/operon/run_evaluation_operondb.py` |
+| Operon identification from long read RNA-seq | Active | DNA or protein | Per-gene embeddings grouped by contig | `bacbench/tasks/operon/run_evaluation_long_read_rna_seq.py` |
 | Protein-protein interaction | Active | Protein | Per-protein embeddings with STRING-derived PPI labels | `bacbench/tasks/ppi/run_train_mlp.py`, `bacbench/tasks/ppi/run_unsupervised_eval.py` |
 | Antibiotic resistance prediction | Active | DNA or protein | Whole-genome embeddings | `bacbench/tasks/antibiotic_resistance/train_and_predict_linear.py` |
 | Phenotypic traits prediction | Active | DNA or protein | Whole-genome embeddings | `bacbench/tasks/phenotypic_traits/train_and_predict_linear.py` |
