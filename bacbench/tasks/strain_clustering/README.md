@@ -83,11 +83,12 @@ python bacbench/tasks/strain_clustering/run_aai_clustering.py \
     --k-neighbors 5 10 15 \
     --input-batch-size 100 \
     --mmseqs-split-memory-limit 110G \
-    --mmseqs-max-seqs 50 \
+    --mmseqs-max-seqs 10 \
+    --mmseqs-min-seq-id 0.5 \
     --threads 32
 ```
 
-The default hit filters are `evalue <= 1e-5`, query and target coverage `>= 0.5`, and minimum alignment fraction `>= 0.2`. These e-value and coverage thresholds are passed into MMseqs before Python reads `mmseqs_hits.tsv`, and MMseqs also defaults to `--max-seqs 50` to avoid producing billions of hits. The MMseqs search defaults to `--split-memory-limit 110G` to reduce OOM risk on large all-vs-all runs; lower this value if your SLURM allocation is smaller. The script reports progress for streamed input passes, MMseqs processing, AAI construction, and Leiden evaluation; pass `--disable-progress` for quieter batch logs. If `mmseqs_hits.tsv` already exists in the output directory, the script reuses it unless `--force` is set.
+The default hit filters are `evalue <= 1e-5`, query and target coverage `>= 0.5`, minimum sequence identity `>= 0.5`, and minimum alignment fraction `>= 0.2`. These e-value, identity, and coverage thresholds are passed into MMseqs before Python post-processing. MMseqs defaults to `--max-seqs 10` to keep the hit table bounded, and Python streams `mmseqs_hits.tsv` into a SQLite-backed best-hit reduction instead of loading the full file into memory. The MMseqs search defaults to `--split-memory-limit 110G` to reduce OOM risk on large all-vs-all runs; lower this value if your SLURM allocation is smaller. The script reports progress for streamed input passes, MMseqs processing, AAI construction, and Leiden evaluation; pass `--disable-progress` for quieter batch logs. If `mmseqs_hits.tsv` already exists in the output directory, the script reuses it unless `--force` is set.
 
 Use `<output-dir>/final_metrics.csv` for the headline AAI result. It contains the best Leiden setting selected by ARI, with NMI, V-measure, and silhouette as tie-breakers. Use `<output-dir>/metrics.csv` to audit every Leiden resolution and neighbor setting across the full dataset.
 
@@ -107,6 +108,7 @@ The AAI-based script writes:
 <output-dir>/distance_matrix.npy
 <output-dir>/genome_index.csv
 <output-dir>/protein_index.csv
+<output-dir>/aai_hits.sqlite
 <output-dir>/clusters.csv
 <output-dir>/metrics.csv
 <output-dir>/final_metrics.csv
@@ -115,3 +117,5 @@ The AAI-based script writes:
 <output-dir>/aai_dendrogram.png
 <output-dir>/aai_mds.png
 ```
+
+For large datasets, `pairwise_aai.parquet` contains genome pairs with reciprocal-best-hit evidence. Pairs absent from that file are treated as invalid/no-hit pairs and receive distance `1.0` in `distance_matrix.npy`.

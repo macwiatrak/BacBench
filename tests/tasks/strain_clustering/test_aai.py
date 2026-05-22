@@ -7,6 +7,7 @@ from bacbench.tasks.strain_clustering.aai import (
     cluster_distance_matrix,
     compute_leiden_aai_metrics,
     compute_pairwise_aai,
+    compute_pairwise_aai_from_mmseqs_hits_sqlite,
     evaluate_species_clustering,
     filter_mmseqs_hits,
     flatten_protein_sequences,
@@ -15,6 +16,7 @@ from bacbench.tasks.strain_clustering.aai import (
     prepare_genome_dataframe,
     prepare_genomes_from_input,
     rank_leiden_metrics,
+    read_best_filtered_mmseqs_hits,
     run_mmseqs_all_vs_all,
     select_final_clusters,
     write_protein_fasta,
@@ -116,12 +118,69 @@ def test_run_mmseqs_all_vs_all_sets_split_memory_limit(tmp_path, monkeypatch):
     assert captured_commands[0][captured_commands[0].index("--split-memory-limit") + 1] == "110G"
     assert "-e" in captured_commands[0]
     assert captured_commands[0][captured_commands[0].index("-e") + 1] == "1e-05"
+    assert "--min-seq-id" in captured_commands[0]
+    assert captured_commands[0][captured_commands[0].index("--min-seq-id") + 1] == "0.5"
     assert "-c" in captured_commands[0]
     assert captured_commands[0][captured_commands[0].index("-c") + 1] == "0.5"
     assert "--cov-mode" in captured_commands[0]
     assert captured_commands[0][captured_commands[0].index("--cov-mode") + 1] == "0"
     assert "--max-seqs" in captured_commands[0]
-    assert captured_commands[0][captured_commands[0].index("--max-seqs") + 1] == "50"
+    assert captured_commands[0][captured_commands[0].index("--max-seqs") + 1] == "10"
+
+
+def test_read_best_filtered_mmseqs_hits_streams_chunks_and_keeps_best_target_genome_hit(tmp_path):
+    hits_path = tmp_path / "hits.tsv"
+    hits = pd.DataFrame(
+        [
+            ["g0|p0", "g1|p0", 80.0, 80, 100, 100, 1e-20, 50],
+            ["g0|p0", "g1|p1", 90.0, 90, 100, 100, 1e-20, 80],
+            ["g0|p0", "g2|p0", 70.0, 80, 100, 100, 1e-10, 40],
+            ["g0|p0", "g0|p1", 100.0, 100, 100, 100, 1e-30, 200],
+        ],
+        columns=["query", "target", "pident", "alnlen", "qlen", "tlen", "evalue", "bits"],
+    )
+    hits.to_csv(hits_path, sep="\t", header=False, index=False)
+
+    best_hits = read_best_filtered_mmseqs_hits(hits_path, chunksize=2, show_progress=False)
+
+    assert best_hits["target"].tolist() == ["g1|p1", "g2|p0"]
+    assert best_hits["target_genome_idx"].tolist() == [1, 2]
+
+
+def test_sqlite_aai_postprocessing_streams_hits_and_returns_valid_pairs_only(tmp_path):
+    prepared = pd.DataFrame(
+        {
+            "genome_idx": [0, 1, 2],
+            "genome_id": ["genome_a", "genome_b", "genome_c"],
+            "species": ["species_a", "species_a", "species_b"],
+            "n_proteins": [1, 1, 1],
+        }
+    )
+    hits_path = tmp_path / "hits.tsv"
+    hits = pd.DataFrame(
+        [
+            ["g0|p0", "g1|p0", 95.0, 100, 100, 100, 1e-30, 100],
+            ["g1|p0", "g0|p0", 93.0, 100, 100, 100, 1e-30, 90],
+            ["g0|p0", "g2|p0", 80.0, 100, 100, 100, 1e-30, 80],
+        ],
+        columns=["query", "target", "pident", "alnlen", "qlen", "tlen", "evalue", "bits"],
+    )
+    hits.to_csv(hits_path, sep="\t", header=False, index=False)
+
+    pairwise = compute_pairwise_aai_from_mmseqs_hits_sqlite(
+        prepared_df=prepared,
+        hits_tsv_path=hits_path,
+        sqlite_path=tmp_path / "aai_hits.sqlite",
+        chunksize=2,
+        force=True,
+        show_progress=False,
+    )
+
+    assert pairwise["genome_a"].tolist() == ["genome_a"]
+    assert pairwise["genome_b"].tolist() == ["genome_b"]
+    assert pairwise["aai"].iloc[0] == 94.0
+    assert pairwise["af"].iloc[0] == 1.0
+    assert bool(pairwise["valid"].iloc[0]) is True
 
 
 def test_pairwise_aai_uses_reciprocal_best_hits_and_flags_missing_pairs():

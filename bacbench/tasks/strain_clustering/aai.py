@@ -2,6 +2,7 @@ import csv
 import inspect
 import json
 import os
+import sqlite3
 import subprocess
 from collections import Counter
 from collections.abc import Iterator
@@ -325,9 +326,10 @@ def run_mmseqs_all_vs_all(
     threads: int | None = 32,
     split_memory_limit: str | None = "110G",
     max_evalue: float | None = 1e-5,
+    min_seq_id: float | None = 0.5,
     min_coverage: float | None = 0.5,
     coverage_mode: int = 0,
-    max_seqs: int | None = 50,
+    max_seqs: int | None = 10,
     force: bool = False,
 ) -> Path:
     """Run an MMseqs2 all-vs-all protein search and return the tabular output path."""
@@ -358,6 +360,8 @@ def run_mmseqs_all_vs_all(
         command.extend(["--split-memory-limit", split_memory_limit])
     if max_evalue is not None:
         command.extend(["-e", str(max_evalue)])
+    if min_seq_id is not None:
+        command.extend(["--min-seq-id", str(min_seq_id)])
     if min_coverage is not None:
         command.extend(["-c", str(min_coverage), "--cov-mode", str(coverage_mode)])
     if max_seqs is not None:
@@ -423,15 +427,71 @@ def filter_mmseqs_hits(
     return output[mask].reset_index(drop=True)
 
 
-def compute_pairwise_aai(
-    prepared_df: pd.DataFrame,
-    filtered_hits: pd.DataFrame,
-    min_alignment_fraction: float = 0.2,
+def _best_hits_per_query_target_genome(filtered_hits: pd.DataFrame) -> pd.DataFrame:
+    """Keep the best target-protein hit for each query protein and target genome."""
+    if filtered_hits.empty:
+        return filtered_hits.copy()
+
+    sorted_hits = filtered_hits.sort_values(
+        ["query", "target_genome_idx", "bits", "pident", "evalue"],
+        ascending=[True, True, False, False, True],
+        kind="mergesort",
+    )
+    return (
+        sorted_hits.groupby(["query", "target_genome_idx"], as_index=False, sort=False).head(1).reset_index(drop=True)
+    )
+
+
+def read_best_filtered_mmseqs_hits(
+    hits_tsv_path: str | os.PathLike[str],
+    max_evalue: float = 1e-5,
+    min_query_coverage: float = 0.5,
+    min_target_coverage: float = 0.5,
+    chunksize: int = 1_000_000,
+    show_progress: bool = True,
 ) -> pd.DataFrame:
-    """Compute pairwise AAI from filtered MMseqs hits using reciprocal best hits."""
+    """Read MMseqs hits in chunks and retain only filtered best hits.
+
+    This helper is useful for small and medium hit tables. The large AAI
+    workflow uses SQLite-backed processing below so the full retained hit table
+    does not need to live in memory.
+    """
+    hits_tsv_path = Path(hits_tsv_path)
+    if hits_tsv_path.stat().st_size == 0:
+        return add_protein_id_columns(pd.DataFrame(columns=MMSEQS_COLUMNS))
+
+    best_chunks = []
+    progress = tqdm(desc="Streaming MMseqs hits", unit="rows", disable=not show_progress)
+    try:
+        reader = pd.read_csv(hits_tsv_path, sep="\t", names=MMSEQS_COLUMNS, chunksize=chunksize)
+        for chunk in reader:
+            progress.update(len(chunk))
+            chunk = add_protein_id_columns(chunk)
+            chunk = filter_mmseqs_hits(
+                hits=chunk,
+                max_evalue=max_evalue,
+                min_query_coverage=min_query_coverage,
+                min_target_coverage=min_target_coverage,
+            )
+            chunk = _best_hits_per_query_target_genome(chunk)
+            if not chunk.empty:
+                best_chunks.append(chunk)
+
+            if len(best_chunks) >= 8:
+                best_chunks = [_best_hits_per_query_target_genome(pd.concat(best_chunks, ignore_index=True))]
+    finally:
+        progress.close()
+
+    if not best_chunks:
+        return add_protein_id_columns(pd.DataFrame(columns=MMSEQS_COLUMNS))
+    return _best_hits_per_query_target_genome(pd.concat(best_chunks, ignore_index=True))
+
+
+def _build_all_pair_rows(prepared_df: pd.DataFrame) -> dict[tuple[int, int], dict[str, object]]:
+    """Build placeholder rows for every genome pair."""
     protein_counts = prepared_df.set_index("genome_idx")["n_proteins"].to_dict()
     genome_ids = prepared_df.set_index("genome_idx")["genome_id"].to_dict()
-    pair_rows = {
+    return {
         (int(i), int(j)): {
             "genome_a_idx": int(i),
             "genome_b_idx": int(j),
@@ -449,16 +509,84 @@ def compute_pairwise_aai(
         if int(i) < int(j)
     }
 
-    if filtered_hits.empty:
+
+def _pairwise_aai_from_grouped_rbh(
+    prepared_df: pd.DataFrame,
+    grouped_rbh: pd.DataFrame,
+    min_alignment_fraction: float = 0.2,
+    include_all_pairs: bool = True,
+) -> pd.DataFrame:
+    """Build pairwise AAI rows from genome-pair RBH aggregates."""
+    protein_counts = prepared_df.set_index("genome_idx")["n_proteins"].to_dict()
+    genome_ids = prepared_df.set_index("genome_idx")["genome_id"].to_dict()
+
+    if include_all_pairs:
+        pair_rows = _build_all_pair_rows(prepared_df)
+        if grouped_rbh.empty:
+            return pd.DataFrame(pair_rows.values())
+
+        for row in grouped_rbh.itertuples(index=False):
+            genome_a_idx = int(row.genome_a_idx)
+            genome_b_idx = int(row.genome_b_idx)
+            key = (genome_a_idx, genome_b_idx)
+            alignment_fraction = row.rbh_count / min(protein_counts[genome_a_idx], protein_counts[genome_b_idx])
+            pair_rows[key]["aai"] = float(row.aai)
+            pair_rows[key]["af"] = float(alignment_fraction)
+            pair_rows[key]["rbh_count"] = int(row.rbh_count)
+            pair_rows[key]["valid"] = bool(row.rbh_count > 0 and alignment_fraction >= min_alignment_fraction)
         return pd.DataFrame(pair_rows.values())
 
-    sort_columns = ["query", "target_genome_idx", "bits", "pident", "evalue"]
-    sorted_hits = filtered_hits.sort_values(
-        sort_columns,
-        ascending=[True, True, False, False, True],
-        kind="mergesort",
+    rows = []
+    for row in grouped_rbh.itertuples(index=False):
+        genome_a_idx = int(row.genome_a_idx)
+        genome_b_idx = int(row.genome_b_idx)
+        alignment_fraction = row.rbh_count / min(protein_counts[genome_a_idx], protein_counts[genome_b_idx])
+        rows.append(
+            {
+                "genome_a_idx": genome_a_idx,
+                "genome_b_idx": genome_b_idx,
+                "genome_a": genome_ids[genome_a_idx],
+                "genome_b": genome_ids[genome_b_idx],
+                "n_proteins_a": int(protein_counts[genome_a_idx]),
+                "n_proteins_b": int(protein_counts[genome_b_idx]),
+                "aai": float(row.aai),
+                "af": float(alignment_fraction),
+                "rbh_count": int(row.rbh_count),
+                "valid": bool(row.rbh_count > 0 and alignment_fraction >= min_alignment_fraction),
+            }
+        )
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "genome_a_idx",
+            "genome_b_idx",
+            "genome_a",
+            "genome_b",
+            "n_proteins_a",
+            "n_proteins_b",
+            "aai",
+            "af",
+            "rbh_count",
+            "valid",
+        ],
     )
-    best_hits = sorted_hits.groupby(["query", "target_genome_idx"], as_index=False, sort=False).head(1)
+
+
+def compute_pairwise_aai_from_best_hits(
+    prepared_df: pd.DataFrame,
+    best_hits: pd.DataFrame,
+    min_alignment_fraction: float = 0.2,
+    include_all_pairs: bool = True,
+) -> pd.DataFrame:
+    """Compute pairwise AAI from best hits using reciprocal best hits."""
+    if best_hits.empty:
+        return _pairwise_aai_from_grouped_rbh(
+            prepared_df=prepared_df,
+            grouped_rbh=pd.DataFrame(columns=["genome_a_idx", "genome_b_idx", "aai", "rbh_count"]),
+            min_alignment_fraction=min_alignment_fraction,
+            include_all_pairs=include_all_pairs,
+        )
+
     reciprocal_hits = best_hits.merge(
         best_hits,
         left_on=["query", "target"],
@@ -469,26 +597,204 @@ def compute_pairwise_aai(
         reciprocal_hits["query_genome_idx_forward"] < reciprocal_hits["target_genome_idx_forward"]
     ].copy()
 
-    if not reciprocal_hits.empty:
+    if reciprocal_hits.empty:
+        grouped = pd.DataFrame(columns=["genome_a_idx", "genome_b_idx", "aai", "rbh_count"])
+    else:
         reciprocal_hits["rbh_pident"] = (reciprocal_hits["pident_forward"] + reciprocal_hits["pident_reverse"]) / 2
-        grouped = reciprocal_hits.groupby(
-            ["query_genome_idx_forward", "target_genome_idx_forward"], as_index=False
-        ).agg(
-            aai=("rbh_pident", "mean"),
-            rbh_count=("rbh_pident", "size"),
+        grouped = (
+            reciprocal_hits.groupby(["query_genome_idx_forward", "target_genome_idx_forward"], as_index=False)
+            .agg(
+                aai=("rbh_pident", "mean"),
+                rbh_count=("rbh_pident", "size"),
+            )
+            .rename(
+                columns={
+                    "query_genome_idx_forward": "genome_a_idx",
+                    "target_genome_idx_forward": "genome_b_idx",
+                }
+            )
         )
 
-        for row in grouped.itertuples(index=False):
-            genome_a_idx = int(row.query_genome_idx_forward)
-            genome_b_idx = int(row.target_genome_idx_forward)
-            key = (genome_a_idx, genome_b_idx)
-            alignment_fraction = row.rbh_count / min(protein_counts[genome_a_idx], protein_counts[genome_b_idx])
-            pair_rows[key]["aai"] = float(row.aai)
-            pair_rows[key]["af"] = float(alignment_fraction)
-            pair_rows[key]["rbh_count"] = int(row.rbh_count)
-            pair_rows[key]["valid"] = bool(row.rbh_count > 0 and alignment_fraction >= min_alignment_fraction)
+    return _pairwise_aai_from_grouped_rbh(
+        prepared_df=prepared_df,
+        grouped_rbh=grouped,
+        min_alignment_fraction=min_alignment_fraction,
+        include_all_pairs=include_all_pairs,
+    )
 
-    return pd.DataFrame(pair_rows.values())
+
+def compute_pairwise_aai_from_mmseqs_hits_sqlite(
+    prepared_df: pd.DataFrame,
+    hits_tsv_path: str | os.PathLike[str],
+    sqlite_path: str | os.PathLike[str],
+    max_evalue: float = 1e-5,
+    min_query_coverage: float = 0.5,
+    min_target_coverage: float = 0.5,
+    min_alignment_fraction: float = 0.2,
+    chunksize: int = 1_000_000,
+    force: bool = False,
+    show_progress: bool = True,
+) -> pd.DataFrame:
+    """Compute pairwise AAI from a large MMseqs TSV with disk-backed reduction.
+
+    The raw MMseqs all-vs-all output can contain hundreds of millions of rows.
+    This function streams the TSV, filters and reduces each chunk, stores
+    candidate best hits in SQLite, then performs the reciprocal-best-hit join in
+    SQLite. Only genome-pair RBH aggregates are loaded back into pandas.
+    """
+    hits_tsv_path = Path(hits_tsv_path)
+    sqlite_path = Path(sqlite_path)
+    if sqlite_path.exists() and force:
+        sqlite_path.unlink()
+    if sqlite_path.exists():
+        with sqlite3.connect(sqlite_path) as connection:
+            has_rbh_pairs = connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'rbh_pairs'"
+            ).fetchone()
+            if has_rbh_pairs:
+                grouped = pd.read_sql_query(
+                    "SELECT genome_a_idx, genome_b_idx, aai, rbh_count FROM rbh_pairs", connection
+                )
+                return _pairwise_aai_from_grouped_rbh(
+                    prepared_df=prepared_df,
+                    grouped_rbh=grouped,
+                    min_alignment_fraction=min_alignment_fraction,
+                    include_all_pairs=False,
+                )
+        raise FileExistsError(
+            f"{sqlite_path} already exists but has no rbh_pairs table. Pass force=True to rebuild it."
+        )
+
+    if hits_tsv_path.stat().st_size == 0:
+        return _pairwise_aai_from_grouped_rbh(
+            prepared_df=prepared_df,
+            grouped_rbh=pd.DataFrame(columns=["genome_a_idx", "genome_b_idx", "aai", "rbh_count"]),
+            min_alignment_fraction=min_alignment_fraction,
+            include_all_pairs=False,
+        )
+
+    sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(sqlite_path) as connection:
+        connection.execute("PRAGMA journal_mode=OFF")
+        connection.execute("PRAGMA synchronous=OFF")
+        connection.execute("PRAGMA temp_store=FILE")
+        connection.execute("PRAGMA cache_size=-200000")
+        connection.execute("DROP TABLE IF EXISTS candidate_best_hits")
+
+        rows_seen = 0
+        rows_after_filter = 0
+        rows_inserted = 0
+        progress = tqdm(desc="Streaming MMseqs hits", unit="rows", disable=not show_progress)
+        try:
+            reader = pd.read_csv(hits_tsv_path, sep="\t", names=MMSEQS_COLUMNS, chunksize=chunksize)
+            for chunk in reader:
+                rows_seen += len(chunk)
+                progress.update(len(chunk))
+                chunk = add_protein_id_columns(chunk)
+                chunk = filter_mmseqs_hits(
+                    hits=chunk,
+                    max_evalue=max_evalue,
+                    min_query_coverage=min_query_coverage,
+                    min_target_coverage=min_target_coverage,
+                )
+                rows_after_filter += len(chunk)
+                chunk = _best_hits_per_query_target_genome(chunk)
+                if chunk.empty:
+                    continue
+
+                chunk = chunk[["query", "target", "pident", "bits", "evalue", "query_genome_idx", "target_genome_idx"]]
+                chunk.to_sql("candidate_best_hits", connection, if_exists="append", index=False, chunksize=100_000)
+                rows_inserted += len(chunk)
+        finally:
+            progress.close()
+
+        if show_progress:
+            tqdm.write(
+                f"Streamed {rows_seen:,} MMseqs hits; {rows_after_filter:,} passed filters; "
+                f"inserted {rows_inserted:,} chunk-level best-hit candidates."
+            )
+
+        if rows_inserted == 0:
+            return _pairwise_aai_from_grouped_rbh(
+                prepared_df=prepared_df,
+                grouped_rbh=pd.DataFrame(columns=["genome_a_idx", "genome_b_idx", "aai", "rbh_count"]),
+                min_alignment_fraction=min_alignment_fraction,
+                include_all_pairs=False,
+            )
+
+        if show_progress:
+            tqdm.write("Reducing chunk-level candidates to global best hits in SQLite...")
+        connection.execute("DROP TABLE IF EXISTS best_hits")
+        connection.execute(
+            """
+            CREATE TABLE best_hits AS
+            SELECT query, target, pident, bits, evalue, query_genome_idx, target_genome_idx
+            FROM (
+                SELECT
+                    query,
+                    target,
+                    pident,
+                    bits,
+                    evalue,
+                    query_genome_idx,
+                    target_genome_idx,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY query, target_genome_idx
+                        ORDER BY bits DESC, pident DESC, evalue ASC
+                    ) AS hit_rank
+                FROM candidate_best_hits
+            )
+            WHERE hit_rank = 1
+            """
+        )
+        connection.execute("CREATE INDEX best_hits_query_target_idx ON best_hits(query, target)")
+        connection.execute("CREATE INDEX best_hits_target_query_idx ON best_hits(target, query)")
+        best_hit_count = connection.execute("SELECT COUNT(*) FROM best_hits").fetchone()[0]
+
+        if show_progress:
+            tqdm.write(f"Retained {best_hit_count:,} global best hits; computing reciprocal hits...")
+        connection.execute("DROP TABLE IF EXISTS rbh_pairs")
+        connection.execute(
+            """
+            CREATE TABLE rbh_pairs AS
+            SELECT
+                h1.query_genome_idx AS genome_a_idx,
+                h1.target_genome_idx AS genome_b_idx,
+                AVG((h1.pident + h2.pident) / 2.0) AS aai,
+                COUNT(*) AS rbh_count
+            FROM best_hits h1
+            JOIN best_hits h2
+                ON h1.query = h2.target
+                AND h1.target = h2.query
+            WHERE h1.query_genome_idx < h1.target_genome_idx
+            GROUP BY h1.query_genome_idx, h1.target_genome_idx
+            """
+        )
+        grouped = pd.read_sql_query("SELECT genome_a_idx, genome_b_idx, aai, rbh_count FROM rbh_pairs", connection)
+
+    if show_progress:
+        tqdm.write(f"Computed RBH aggregates for {len(grouped):,} genome pairs.")
+    return _pairwise_aai_from_grouped_rbh(
+        prepared_df=prepared_df,
+        grouped_rbh=grouped,
+        min_alignment_fraction=min_alignment_fraction,
+        include_all_pairs=False,
+    )
+
+
+def compute_pairwise_aai(
+    prepared_df: pd.DataFrame,
+    filtered_hits: pd.DataFrame,
+    min_alignment_fraction: float = 0.2,
+) -> pd.DataFrame:
+    """Compute pairwise AAI from filtered MMseqs hits using reciprocal best hits."""
+    best_hits = _best_hits_per_query_target_genome(filtered_hits)
+    return compute_pairwise_aai_from_best_hits(
+        prepared_df=prepared_df,
+        best_hits=best_hits,
+        min_alignment_fraction=min_alignment_fraction,
+        include_all_pairs=True,
+    )
 
 
 def build_aai_distance_matrices(pairwise_aai: pd.DataFrame, genome_ids: list[str]) -> tuple[pd.DataFrame, np.ndarray]:
@@ -767,9 +1073,11 @@ def run_aai_clustering(
     min_alignment_fraction: float = 0.2,
     mmseqs_binary: str = "mmseqs",
     mmseqs_split_memory_limit: str | None = "110G",
-    mmseqs_max_seqs: int | None = 50,
+    mmseqs_max_seqs: int | None = 10,
+    mmseqs_min_seq_id: float | None = 0.5,
     mmseqs_min_coverage: float | None = None,
     mmseqs_coverage_mode: int = 0,
+    mmseqs_hits_chunksize: int = 1_000_000,
     threads: int | None = 32,
     force: bool = False,
     make_plots: bool = True,
@@ -801,8 +1109,10 @@ def run_aai_clustering(
         "mmseqs_binary": mmseqs_binary,
         "mmseqs_split_memory_limit": mmseqs_split_memory_limit,
         "mmseqs_max_seqs": mmseqs_max_seqs,
+        "mmseqs_min_seq_id": mmseqs_min_seq_id,
         "mmseqs_min_coverage": mmseqs_min_coverage,
         "mmseqs_coverage_mode": mmseqs_coverage_mode,
+        "mmseqs_hits_chunksize": mmseqs_hits_chunksize,
         "threads": threads,
         "input_batch_size": input_batch_size,
         "leiden_resolutions": leiden_resolutions,
@@ -844,6 +1154,7 @@ def run_aai_clustering(
         threads=threads,
         split_memory_limit=mmseqs_split_memory_limit,
         max_evalue=max_evalue,
+        min_seq_id=mmseqs_min_seq_id,
         min_coverage=(
             min(min_query_coverage, min_target_coverage) if mmseqs_min_coverage is None else mmseqs_min_coverage
         ),
@@ -852,24 +1163,18 @@ def run_aai_clustering(
         force=force,
     )
     if show_progress:
-        tqdm.write("Reading and filtering MMseqs2 hits...")
-    hits = add_protein_id_columns(read_mmseqs_hits(hits_tsv_path))
-    filtered_hits = filter_mmseqs_hits(
-        hits=hits,
+        tqdm.write("Streaming MMseqs2 hits and computing reciprocal-best-hit AAI...")
+    pairwise_aai = compute_pairwise_aai_from_mmseqs_hits_sqlite(
+        prepared_df=prepared_df,
+        hits_tsv_path=hits_tsv_path,
+        sqlite_path=output_dir / "aai_hits.sqlite",
         max_evalue=max_evalue,
         min_query_coverage=min_query_coverage,
         min_target_coverage=min_target_coverage,
-    )
-    filtered_hits.to_parquet(output_dir / "filtered_mmseqs_hits.parquet", index=False)
-    if show_progress:
-        tqdm.write(f"Loaded {len(hits):,} MMseqs2 hits; retained {len(filtered_hits):,} after filtering.")
-
-    if show_progress:
-        tqdm.write("Computing reciprocal-best-hit AAI...")
-    pairwise_aai = compute_pairwise_aai(
-        prepared_df=prepared_df,
-        filtered_hits=filtered_hits,
         min_alignment_fraction=min_alignment_fraction,
+        chunksize=mmseqs_hits_chunksize,
+        force=force,
+        show_progress=show_progress,
     )
     pairwise_aai.to_parquet(output_dir / "pairwise_aai.parquet", index=False)
     if show_progress:
