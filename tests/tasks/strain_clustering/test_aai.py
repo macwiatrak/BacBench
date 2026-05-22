@@ -110,7 +110,18 @@ def test_run_mmseqs_all_vs_all_sets_split_memory_limit(tmp_path, monkeypatch):
     )
 
     assert output_path == tmp_path / "mmseqs_hits.tsv"
-    assert captured_commands[0][-4:] == ["--threads", "8", "--split-memory-limit", "110G"]
+    assert "--threads" in captured_commands[0]
+    assert captured_commands[0][captured_commands[0].index("--threads") + 1] == "8"
+    assert "--split-memory-limit" in captured_commands[0]
+    assert captured_commands[0][captured_commands[0].index("--split-memory-limit") + 1] == "110G"
+    assert "-e" in captured_commands[0]
+    assert captured_commands[0][captured_commands[0].index("-e") + 1] == "1e-05"
+    assert "-c" in captured_commands[0]
+    assert captured_commands[0][captured_commands[0].index("-c") + 1] == "0.5"
+    assert "--cov-mode" in captured_commands[0]
+    assert captured_commands[0][captured_commands[0].index("--cov-mode") + 1] == "0"
+    assert "--max-seqs" in captured_commands[0]
+    assert captured_commands[0][captured_commands[0].index("--max-seqs") + 1] == "50"
 
 
 def test_pairwise_aai_uses_reciprocal_best_hits_and_flags_missing_pairs():

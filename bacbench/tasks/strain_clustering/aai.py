@@ -322,8 +322,12 @@ def run_mmseqs_all_vs_all(
     output_tsv_path: str | os.PathLike[str],
     tmp_dir: str | os.PathLike[str],
     mmseqs_binary: str = "mmseqs",
-    threads: int | None = None,
+    threads: int | None = 32,
     split_memory_limit: str | None = "110G",
+    max_evalue: float | None = 1e-5,
+    min_coverage: float | None = 0.5,
+    coverage_mode: int = 0,
+    max_seqs: int | None = 50,
     force: bool = False,
 ) -> Path:
     """Run an MMseqs2 all-vs-all protein search and return the tabular output path."""
@@ -352,6 +356,12 @@ def run_mmseqs_all_vs_all(
         command.extend(["--threads", str(threads)])
     if split_memory_limit is not None:
         command.extend(["--split-memory-limit", split_memory_limit])
+    if max_evalue is not None:
+        command.extend(["-e", str(max_evalue)])
+    if min_coverage is not None:
+        command.extend(["-c", str(min_coverage), "--cov-mode", str(coverage_mode)])
+    if max_seqs is not None:
+        command.extend(["--max-seqs", str(max_seqs)])
 
     subprocess.run(command, check=True)
     return output_tsv_path
@@ -757,7 +767,10 @@ def run_aai_clustering(
     min_alignment_fraction: float = 0.2,
     mmseqs_binary: str = "mmseqs",
     mmseqs_split_memory_limit: str | None = "110G",
-    threads: int | None = None,
+    mmseqs_max_seqs: int | None = 50,
+    mmseqs_min_coverage: float | None = None,
+    mmseqs_coverage_mode: int = 0,
+    threads: int | None = 32,
     force: bool = False,
     make_plots: bool = True,
     random_seed: int = 42,
@@ -787,6 +800,9 @@ def run_aai_clustering(
         "min_alignment_fraction": min_alignment_fraction,
         "mmseqs_binary": mmseqs_binary,
         "mmseqs_split_memory_limit": mmseqs_split_memory_limit,
+        "mmseqs_max_seqs": mmseqs_max_seqs,
+        "mmseqs_min_coverage": mmseqs_min_coverage,
+        "mmseqs_coverage_mode": mmseqs_coverage_mode,
         "threads": threads,
         "input_batch_size": input_batch_size,
         "leiden_resolutions": leiden_resolutions,
@@ -827,6 +843,12 @@ def run_aai_clustering(
         mmseqs_binary=mmseqs_binary,
         threads=threads,
         split_memory_limit=mmseqs_split_memory_limit,
+        max_evalue=max_evalue,
+        min_coverage=(
+            min(min_query_coverage, min_target_coverage) if mmseqs_min_coverage is None else mmseqs_min_coverage
+        ),
+        coverage_mode=mmseqs_coverage_mode,
+        max_seqs=mmseqs_max_seqs,
         force=force,
     )
     if show_progress:

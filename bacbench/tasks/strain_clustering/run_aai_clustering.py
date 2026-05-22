@@ -23,7 +23,10 @@ class ArgumentParser(Tap):
     min_alignment_fraction: float = 0.2
     mmseqs_binary: str = "mmseqs"
     mmseqs_split_memory_limit: str | None = "110G"
-    threads: int | None = None
+    mmseqs_max_seqs: int | None = 50
+    mmseqs_min_coverage: float | None = None
+    mmseqs_coverage_mode: int = 0
+    threads: int | None = 32
     force: bool = False
     make_plots: bool = True
     random_seed: int = 42
@@ -49,6 +52,9 @@ if __name__ == "__main__":
         min_alignment_fraction=args.min_alignment_fraction,
         mmseqs_binary=args.mmseqs_binary,
         mmseqs_split_memory_limit=args.mmseqs_split_memory_limit,
+        mmseqs_max_seqs=args.mmseqs_max_seqs,
+        mmseqs_min_coverage=args.mmseqs_min_coverage,
+        mmseqs_coverage_mode=args.mmseqs_coverage_mode,
         threads=args.threads,
         force=args.force,
         make_plots=args.make_plots,

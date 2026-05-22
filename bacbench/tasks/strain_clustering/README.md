@@ -83,10 +83,11 @@ python bacbench/tasks/strain_clustering/run_aai_clustering.py \
     --k-neighbors 5 10 15 \
     --input-batch-size 100 \
     --mmseqs-split-memory-limit 110G \
-    --threads 8
+    --mmseqs-max-seqs 50 \
+    --threads 32
 ```
 
-The default hit filters are `evalue <= 1e-5`, query and target coverage `>= 0.5`, and minimum alignment fraction `>= 0.2`. The MMseqs search defaults to `--split-memory-limit 110G` to reduce OOM risk on large all-vs-all runs; lower this value if your SLURM allocation is smaller. The script reports progress for streamed input passes, MMseqs processing, AAI construction, and Leiden evaluation; pass `--disable-progress` for quieter batch logs. If `mmseqs_hits.tsv` already exists in the output directory, the script reuses it unless `--force` is set.
+The default hit filters are `evalue <= 1e-5`, query and target coverage `>= 0.5`, and minimum alignment fraction `>= 0.2`. These e-value and coverage thresholds are passed into MMseqs before Python reads `mmseqs_hits.tsv`, and MMseqs also defaults to `--max-seqs 50` to avoid producing billions of hits. The MMseqs search defaults to `--split-memory-limit 110G` to reduce OOM risk on large all-vs-all runs; lower this value if your SLURM allocation is smaller. The script reports progress for streamed input passes, MMseqs processing, AAI construction, and Leiden evaluation; pass `--disable-progress` for quieter batch logs. If `mmseqs_hits.tsv` already exists in the output directory, the script reuses it unless `--force` is set.
 
 Use `<output-dir>/final_metrics.csv` for the headline AAI result. It contains the best Leiden setting selected by ARI, with NMI, V-measure, and silhouette as tie-breakers. Use `<output-dir>/metrics.csv` to audit every Leiden resolution and neighbor setting across the full dataset.
 
