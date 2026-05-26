@@ -874,6 +874,7 @@ def leiden_clustering_from_distance(
     """Run Leiden clustering from a precomputed AAI distance matrix."""
     import anndata
     import scanpy as sc
+    from scipy import sparse
 
     if len(metadata) != distance_matrix.shape[0]:
         raise ValueError("Metadata length must match the distance matrix dimensions.")
@@ -881,10 +882,30 @@ def leiden_clustering_from_distance(
         raise ValueError("Leiden clustering requires at least two genomes.")
 
     effective_n_neighbors = min(n_neighbors, len(metadata) - 1)
-    adata = anndata.AnnData(X=distance_matrix.copy())
+    neighbor_distances = np.asarray(distance_matrix, dtype=float).copy()
+    neighbor_distances[~np.isfinite(neighbor_distances)] = 1.0
+    np.fill_diagonal(neighbor_distances, np.inf)
+
+    neighbor_indices = np.argpartition(neighbor_distances, kth=effective_n_neighbors - 1, axis=1)[
+        :, :effective_n_neighbors
+    ]
+    rows = np.repeat(np.arange(len(metadata)), effective_n_neighbors)
+    cols = neighbor_indices.ravel()
+    selected_distances = neighbor_distances[rows, cols]
+    finite_mask = np.isfinite(selected_distances)
+    rows = rows[finite_mask]
+    cols = cols[finite_mask]
+    selected_distances = selected_distances[finite_mask]
+
+    # Keep no-hit KNN edges as very weak links so Leiden receives a proper graph,
+    # while high-AAI neighbors dominate through much larger weights.
+    weights = np.maximum(1.0 - selected_distances, 1e-6)
+    connectivities = sparse.csr_matrix((weights, (rows, cols)), shape=distance_matrix.shape)
+    connectivities = connectivities.maximum(connectivities.T)
+
+    adata = anndata.AnnData(X=np.zeros((len(metadata), 1), dtype=np.float32))
     adata.obs = metadata.reset_index(drop=True).copy()
-    sc.pp.neighbors(adata, n_neighbors=effective_n_neighbors, metric="precomputed")
-    sc.tl.leiden(adata, resolution=resolution, key_added="leiden_clusters")
+    sc.tl.leiden(adata, resolution=resolution, adjacency=connectivities, key_added="leiden_clusters")
     clusters = adata.obs[["genome_id", "species", "leiden_clusters"]].copy()
     clusters["leiden_clusters"] = clusters["leiden_clusters"].astype(str)
     clusters["resolution"] = resolution
@@ -1122,73 +1143,91 @@ def run_aai_clustering(
     }
     (output_dir / "parameters.json").write_text(json.dumps(parameters, indent=2))
 
-    if show_progress:
-        tqdm.write("Preparing genome table and writing protein FASTA...")
     fasta_path = output_dir / "proteins.faa"
-    prepared_df = prepare_genomes_from_input(
-        input_df_filepath=input_df_filepath,
-        fasta_path=fasta_path,
-        protein_index_path=output_dir / "protein_index.csv",
-        genome_col=genome_col,
-        proteins_col=proteins_col,
-        species_col=species_col,
-        min_species_count=min_species_count,
-        input_batch_size=input_batch_size,
-        show_progress=show_progress,
-    )
-    genome_index = prepared_df[["genome_idx", "genome_id", "species", "n_proteins"]].copy()
-    genome_index.to_csv(output_dir / "genome_index.csv", index=False)
-    if show_progress:
-        tqdm.write(
-            f"Retained {len(genome_index):,} genomes across {genome_index['species'].nunique():,} species; "
-            f"wrote {int(genome_index['n_proteins'].sum()):,} proteins."
+    genome_index_path = output_dir / "genome_index.csv"
+    protein_index_path = output_dir / "protein_index.csv"
+    if not force and fasta_path.exists() and genome_index_path.exists() and protein_index_path.exists():
+        if show_progress:
+            tqdm.write("Loading existing genome index and protein FASTA...")
+        genome_index = pd.read_csv(genome_index_path)
+        prepared_df = genome_index.copy()
+    else:
+        if show_progress:
+            tqdm.write("Preparing genome table and writing protein FASTA...")
+        prepared_df = prepare_genomes_from_input(
+            input_df_filepath=input_df_filepath,
+            fasta_path=fasta_path,
+            protein_index_path=protein_index_path,
+            genome_col=genome_col,
+            proteins_col=proteins_col,
+            species_col=species_col,
+            min_species_count=min_species_count,
+            input_batch_size=input_batch_size,
+            show_progress=show_progress,
         )
+        genome_index = prepared_df[["genome_idx", "genome_id", "species", "n_proteins"]].copy()
+        genome_index.to_csv(genome_index_path, index=False)
+        if show_progress:
+            tqdm.write(
+                f"Retained {len(genome_index):,} genomes across {genome_index['species'].nunique():,} species; "
+                f"wrote {int(genome_index['n_proteins'].sum()):,} proteins."
+            )
 
-    if show_progress:
-        tqdm.write("Running MMseqs2 all-vs-all protein search...")
-    hits_tsv_path = run_mmseqs_all_vs_all(
-        fasta_path=fasta_path,
-        output_tsv_path=output_dir / "mmseqs_hits.tsv",
-        tmp_dir=output_dir / "mmseqs_tmp",
-        mmseqs_binary=mmseqs_binary,
-        threads=threads,
-        split_memory_limit=mmseqs_split_memory_limit,
-        max_evalue=max_evalue,
-        min_seq_id=mmseqs_min_seq_id,
-        min_coverage=(
-            min(min_query_coverage, min_target_coverage) if mmseqs_min_coverage is None else mmseqs_min_coverage
-        ),
-        coverage_mode=mmseqs_coverage_mode,
-        max_seqs=mmseqs_max_seqs,
-        force=force,
-    )
-    if show_progress:
-        tqdm.write("Streaming MMseqs2 hits and computing reciprocal-best-hit AAI...")
-    pairwise_aai = compute_pairwise_aai_from_mmseqs_hits_sqlite(
-        prepared_df=prepared_df,
-        hits_tsv_path=hits_tsv_path,
-        sqlite_path=output_dir / "aai_hits.sqlite",
-        max_evalue=max_evalue,
-        min_query_coverage=min_query_coverage,
-        min_target_coverage=min_target_coverage,
-        min_alignment_fraction=min_alignment_fraction,
-        chunksize=mmseqs_hits_chunksize,
-        force=force,
-        show_progress=show_progress,
-    )
-    pairwise_aai.to_parquet(output_dir / "pairwise_aai.parquet", index=False)
-    if show_progress:
-        tqdm.write(
-            f"Computed {len(pairwise_aai):,} genome pairs; "
-            f"{int(pairwise_aai['valid'].sum()):,} passed the alignment-fraction threshold."
-        )
-
-    if show_progress:
-        tqdm.write("Building AAI and distance matrices...")
+    pairwise_aai_path = output_dir / "pairwise_aai.parquet"
+    aai_matrix_path = output_dir / "aai_matrix.csv"
+    distance_matrix_path = output_dir / "distance_matrix.npy"
     genome_ids = genome_index["genome_id"].tolist()
-    aai_matrix, distance_matrix = build_aai_distance_matrices(pairwise_aai, genome_ids)
-    aai_matrix.to_csv(output_dir / "aai_matrix.csv")
-    np.save(output_dir / "distance_matrix.npy", distance_matrix)
+    if not force and pairwise_aai_path.exists() and aai_matrix_path.exists() and distance_matrix_path.exists():
+        if show_progress:
+            tqdm.write("Loading existing AAI outputs and distance matrix...")
+        pairwise_aai = pd.read_parquet(pairwise_aai_path)
+        aai_matrix = pd.read_csv(aai_matrix_path, index_col=0)
+        distance_matrix = np.load(distance_matrix_path)
+    else:
+        if show_progress:
+            tqdm.write("Running MMseqs2 all-vs-all protein search...")
+        hits_tsv_path = run_mmseqs_all_vs_all(
+            fasta_path=fasta_path,
+            output_tsv_path=output_dir / "mmseqs_hits.tsv",
+            tmp_dir=output_dir / "mmseqs_tmp",
+            mmseqs_binary=mmseqs_binary,
+            threads=threads,
+            split_memory_limit=mmseqs_split_memory_limit,
+            max_evalue=max_evalue,
+            min_seq_id=mmseqs_min_seq_id,
+            min_coverage=(
+                min(min_query_coverage, min_target_coverage) if mmseqs_min_coverage is None else mmseqs_min_coverage
+            ),
+            coverage_mode=mmseqs_coverage_mode,
+            max_seqs=mmseqs_max_seqs,
+            force=force,
+        )
+        if show_progress:
+            tqdm.write("Streaming MMseqs2 hits and computing reciprocal-best-hit AAI...")
+        pairwise_aai = compute_pairwise_aai_from_mmseqs_hits_sqlite(
+            prepared_df=prepared_df,
+            hits_tsv_path=hits_tsv_path,
+            sqlite_path=output_dir / "aai_hits.sqlite",
+            max_evalue=max_evalue,
+            min_query_coverage=min_query_coverage,
+            min_target_coverage=min_target_coverage,
+            min_alignment_fraction=min_alignment_fraction,
+            chunksize=mmseqs_hits_chunksize,
+            force=force,
+            show_progress=show_progress,
+        )
+        pairwise_aai.to_parquet(pairwise_aai_path, index=False)
+        if show_progress:
+            tqdm.write(
+                f"Computed {len(pairwise_aai):,} genome pairs; "
+                f"{int(pairwise_aai['valid'].sum()):,} passed the alignment-fraction threshold."
+            )
+
+        if show_progress:
+            tqdm.write("Building AAI and distance matrices...")
+        aai_matrix, distance_matrix = build_aai_distance_matrices(pairwise_aai, genome_ids)
+        aai_matrix.to_csv(aai_matrix_path)
+        np.save(distance_matrix_path, distance_matrix)
 
     if show_progress:
         tqdm.write("Running Leiden clustering and evaluation grid...")

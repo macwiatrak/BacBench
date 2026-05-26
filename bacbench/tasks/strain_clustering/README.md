@@ -90,6 +90,8 @@ python bacbench/tasks/strain_clustering/run_aai_clustering.py \
 
 The default hit filters are `evalue <= 1e-5`, query and target coverage `>= 0.5`, minimum sequence identity `>= 0.5`, and minimum alignment fraction `>= 0.2`. These e-value, identity, and coverage thresholds are passed into MMseqs before Python post-processing. MMseqs defaults to `--max-seqs 10` to keep the hit table bounded, and Python streams `mmseqs_hits.tsv` into a SQLite-backed best-hit reduction instead of loading the full file into memory. The MMseqs search defaults to `--split-memory-limit 110G` to reduce OOM risk on large all-vs-all runs; lower this value if your SLURM allocation is smaller. The script reports progress for streamed input passes, MMseqs processing, AAI construction, and Leiden evaluation; pass `--disable-progress` for quieter batch logs. If `mmseqs_hits.tsv` already exists in the output directory, the script reuses it unless `--force` is set.
 
+If a run fails after writing `genome_index.csv`, `pairwise_aai.parquet`, `aai_matrix.csv`, and `distance_matrix.npy`, rerun the same command without `--force`. The script will reuse those existing artifacts and resume from the Leiden evaluation step.
+
 Use `<output-dir>/final_metrics.csv` for the headline AAI result. It contains the best Leiden setting selected by ARI, with NMI, V-measure, and silhouette as tie-breakers. Use `<output-dir>/metrics.csv` to audit every Leiden resolution and neighbor setting across the full dataset.
 
 ## Output
