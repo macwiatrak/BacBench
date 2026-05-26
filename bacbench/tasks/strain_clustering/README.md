@@ -85,6 +85,8 @@ python bacbench/tasks/strain_clustering/run_aai_clustering.py \
     --mmseqs-split-memory-limit 110G \
     --mmseqs-max-seqs 10 \
     --mmseqs-min-seq-id 0.5 \
+    --n-bootstraps 10 \
+    --proportion 0.8 \
     --threads 32
 ```
 
@@ -92,7 +94,7 @@ The default hit filters are `evalue <= 1e-5`, query and target coverage `>= 0.5`
 
 If a run fails after writing `genome_index.csv`, `pairwise_aai.parquet`, `aai_matrix.csv`, and `distance_matrix.npy`, rerun the same command without `--force`. The script will reuse those existing artifacts and resume from the Leiden evaluation step.
 
-Use `<output-dir>/final_metrics.csv` for the headline AAI result. It contains the best Leiden setting selected by ARI, with NMI, V-measure, and silhouette as tie-breakers. Use `<output-dir>/metrics.csv` to audit every Leiden resolution and neighbor setting across the full dataset.
+Use `<output-dir>/final_metrics.csv` for the headline AAI result. It contains the best Leiden setting selected by mean bootstrap ARI, with mean NMI, mean V-measure, and mean silhouette as tie-breakers. Use `<output-dir>/metrics.csv` to audit the bootstrap metric summary for every Leiden resolution and neighbor setting, and `<output-dir>/bootstrap_metrics.csv` for the individual bootstrap samples.
 
 ## Output
 
@@ -113,11 +115,12 @@ The AAI-based script writes:
 <output-dir>/aai_hits.sqlite
 <output-dir>/clusters.csv
 <output-dir>/metrics.csv
+<output-dir>/bootstrap_metrics.csv
+<output-dir>/full_dataset_metrics.csv
 <output-dir>/final_metrics.csv
 <output-dir>/final_clusters.csv
-<output-dir>/aai_heatmap.png
-<output-dir>/aai_dendrogram.png
-<output-dir>/aai_mds.png
 ```
+
+AAI plots are skipped by default; pass `--make-plots` to also write `aai_heatmap.png`, `aai_dendrogram.png`, and `aai_mds.png`.
 
 For large datasets, `pairwise_aai.parquet` contains genome pairs with reciprocal-best-hit evidence. Pairs absent from that file are treated as invalid/no-hit pairs and receive distance `1.0` in `distance_matrix.npy`.

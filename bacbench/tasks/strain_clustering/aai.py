@@ -960,6 +960,99 @@ def compute_leiden_aai_metrics(
     return pd.concat(all_clusters, ignore_index=True), pd.DataFrame(all_metrics)
 
 
+def compute_bootstrap_leiden_aai_metrics(
+    distance_matrix: np.ndarray,
+    genome_index: pd.DataFrame,
+    leiden_resolutions: list[float],
+    k_neighbors: list[int],
+    label_col: str = "species",
+    n_bootstraps: int = 10,
+    proportion: float = 0.8,
+    random_seed: int = 42,
+    show_progress: bool = False,
+) -> pd.DataFrame:
+    """Evaluate AAI Leiden clustering over bootstrap samples."""
+    if label_col not in genome_index.columns:
+        raise ValueError(f"Genome index must contain a {label_col!r} label column.")
+    if not 0 < proportion <= 1:
+        raise ValueError("proportion must satisfy 0 < proportion <= 1.")
+    if n_bootstraps < 1:
+        raise ValueError("n_bootstraps must be at least 1.")
+
+    n_samples = len(genome_index)
+    sample_size = max(2, int(n_samples * proportion))
+    rng = np.random.default_rng(random_seed)
+    parameter_grid = [(resolution, n_neighbors) for resolution in leiden_resolutions for n_neighbors in k_neighbors]
+    all_metrics = []
+
+    for resolution, n_neighbors in tqdm(
+        parameter_grid,
+        desc="Running bootstrap Leiden grid",
+        unit="setting",
+        disable=not show_progress,
+    ):
+        for bootstrap_idx in tqdm(
+            range(n_bootstraps),
+            desc=f"Bootstrap samples (res={resolution}, k={n_neighbors})",
+            leave=False,
+            disable=not show_progress,
+        ):
+            indices = rng.choice(n_samples, size=sample_size, replace=True)
+            bootstrap_distance_matrix = distance_matrix[np.ix_(indices, indices)]
+            bootstrap_metadata = genome_index.iloc[indices].reset_index(drop=True)
+            clusters = leiden_clustering_from_distance(
+                distance_matrix=bootstrap_distance_matrix,
+                metadata=bootstrap_metadata,
+                n_neighbors=n_neighbors,
+                resolution=resolution,
+            )
+            metrics = evaluate_species_clustering(
+                species=bootstrap_metadata[label_col],
+                cluster_labels=clusters["leiden_clusters"].to_numpy(),
+                distance_matrix=bootstrap_distance_matrix,
+            )
+            metrics.update(
+                {
+                    "resolution": resolution,
+                    "k_neighbors": n_neighbors,
+                    "effective_k_neighbors": int(clusters["effective_k_neighbors"].iloc[0]),
+                    "label_col": label_col,
+                    "bootstrap_idx": bootstrap_idx,
+                    "random_seed": random_seed,
+                    "proportion": proportion,
+                    "sample_size": sample_size,
+                }
+            )
+            all_metrics.append(metrics)
+
+    return pd.DataFrame(all_metrics)
+
+
+def summarize_bootstrap_metrics(metrics_df: pd.DataFrame) -> pd.DataFrame:
+    """Summarize bootstrap metrics and rank Leiden settings."""
+    metric_columns = ["ari", "nmi", "homogeneity", "completeness", "v_measure", "silhouette"]
+    grouped = metrics_df.groupby(["resolution", "k_neighbors", "effective_k_neighbors", "label_col"], as_index=False)
+    summary = grouped.agg(
+        **{f"{metric}_mean": (metric, "mean") for metric in metric_columns},
+        **{f"{metric}_std": (metric, "std") for metric in metric_columns},
+        n_bootstraps=("bootstrap_idx", "nunique"),
+        proportion=("proportion", "first"),
+        sample_size=("sample_size", "first"),
+        random_seed=("random_seed", "first"),
+        n_genomes=("n_genomes", "mean"),
+        n_species=("n_species", "mean"),
+        n_clusters_mean=("n_clusters", "mean"),
+        n_clusters_std=("n_clusters", "std"),
+    )
+    ranked = summary.sort_values(
+        by=["ari_mean", "nmi_mean", "v_measure_mean", "silhouette_mean", "resolution", "k_neighbors"],
+        ascending=[False, False, False, False, True, True],
+        na_position="last",
+    ).reset_index(drop=True)
+    ranked.insert(0, "rank", np.arange(1, len(ranked) + 1, dtype=int))
+    return ranked
+
+
 def rank_leiden_metrics(metrics_df: pd.DataFrame) -> pd.DataFrame:
     """Rank Leiden parameter settings by whole-dataset species clustering quality."""
     sort_columns = ["ari", "nmi", "v_measure", "silhouette", "resolution", "k_neighbors"]
@@ -1101,12 +1194,14 @@ def run_aai_clustering(
     mmseqs_hits_chunksize: int = 1_000_000,
     threads: int | None = 32,
     force: bool = False,
-    make_plots: bool = True,
+    make_plots: bool = False,
     random_seed: int = 42,
     input_batch_size: int = 100,
     leiden_resolutions: list[float] | None = None,
     k_neighbors: list[int] | None = None,
     label_col: str = "species",
+    n_bootstraps: int = 10,
+    proportion: float = 0.8,
     show_progress: bool = True,
 ) -> dict[str, object]:
     """Run the full AAI species clustering workflow."""
@@ -1139,6 +1234,8 @@ def run_aai_clustering(
         "leiden_resolutions": leiden_resolutions,
         "k_neighbors": k_neighbors,
         "label_col": label_col,
+        "n_bootstraps": n_bootstraps,
+        "proportion": proportion,
         "show_progress": show_progress,
     }
     (output_dir / "parameters.json").write_text(json.dumps(parameters, indent=2))
@@ -1230,7 +1327,7 @@ def run_aai_clustering(
         np.save(distance_matrix_path, distance_matrix)
 
     if show_progress:
-        tqdm.write("Running Leiden clustering and evaluation grid...")
+        tqdm.write("Running full-dataset Leiden clustering grid...")
     clusters, metrics_df = compute_leiden_aai_metrics(
         distance_matrix=distance_matrix,
         genome_index=genome_index,
@@ -1239,24 +1336,43 @@ def run_aai_clustering(
         label_col=label_col,
         show_progress=show_progress,
     )
+    if show_progress:
+        tqdm.write("Running bootstrap Leiden evaluation grid...")
+    bootstrap_metrics = compute_bootstrap_leiden_aai_metrics(
+        distance_matrix=distance_matrix,
+        genome_index=genome_index,
+        leiden_resolutions=leiden_resolutions,
+        k_neighbors=k_neighbors,
+        label_col=label_col,
+        n_bootstraps=n_bootstraps,
+        proportion=proportion,
+        random_seed=random_seed,
+        show_progress=show_progress,
+    )
     clusters.to_csv(output_dir / "clusters.csv", index=False)
     metrics_df["max_evalue"] = max_evalue
     metrics_df["min_query_coverage"] = min_query_coverage
     metrics_df["min_target_coverage"] = min_target_coverage
     metrics_df["min_alignment_fraction"] = min_alignment_fraction
-    ranked_metrics = rank_leiden_metrics(metrics_df)
+    metrics_df.to_csv(output_dir / "full_dataset_metrics.csv", index=False)
+    bootstrap_metrics["max_evalue"] = max_evalue
+    bootstrap_metrics["min_query_coverage"] = min_query_coverage
+    bootstrap_metrics["min_target_coverage"] = min_target_coverage
+    bootstrap_metrics["min_alignment_fraction"] = min_alignment_fraction
+    ranked_metrics = summarize_bootstrap_metrics(bootstrap_metrics)
     final_metrics = ranked_metrics.iloc[[0]].copy()
     final_clusters = select_final_clusters(clusters, final_metrics.iloc[0])
     ranked_metrics.to_csv(output_dir / "metrics.csv", index=False)
+    bootstrap_metrics.to_csv(output_dir / "bootstrap_metrics.csv", index=False)
     final_metrics.to_csv(output_dir / "final_metrics.csv", index=False)
     final_clusters.to_csv(output_dir / "final_clusters.csv", index=False)
     if show_progress:
         tqdm.write(
-            "Best Leiden setting: "
+            "Best bootstrap-mean Leiden setting: "
             f"resolution={final_metrics['resolution'].iloc[0]}, "
             f"k_neighbors={final_metrics['k_neighbors'].iloc[0]}, "
-            f"ARI={final_metrics['ari'].iloc[0]:.4f}, "
-            f"NMI={final_metrics['nmi'].iloc[0]:.4f}."
+            f"ARI={final_metrics['ari_mean'].iloc[0]:.4f}, "
+            f"NMI={final_metrics['nmi_mean'].iloc[0]:.4f}."
         )
 
     if make_plots:
@@ -1272,6 +1388,8 @@ def run_aai_clustering(
         "aai_matrix": aai_matrix,
         "distance_matrix": distance_matrix,
         "clusters": clusters,
+        "full_dataset_metrics": metrics_df,
+        "bootstrap_metrics": bootstrap_metrics,
         "metrics": ranked_metrics,
         "final_metrics": final_metrics,
         "final_clusters": final_clusters,

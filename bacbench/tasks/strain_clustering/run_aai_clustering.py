@@ -30,12 +30,14 @@ class ArgumentParser(Tap):
     mmseqs_hits_chunksize: int = 1_000_000
     threads: int | None = 32
     force: bool = False
-    make_plots: bool = True
+    make_plots: bool = False
     random_seed: int = 42
     input_batch_size: int = 100
     leiden_resolutions: list[float] = [0.1, 0.25, 1.0]
     k_neighbors: list[int] = [5, 10, 15]
     label_col: str = "species"
+    n_bootstraps: int = 10
+    proportion: float = 0.8
     disable_progress: bool = False
 
 
@@ -67,5 +69,7 @@ if __name__ == "__main__":
         leiden_resolutions=args.leiden_resolutions,
         k_neighbors=args.k_neighbors,
         label_col=args.label_col,
+        n_bootstraps=args.n_bootstraps,
+        proportion=args.proportion,
         show_progress=not args.disable_progress,
     )

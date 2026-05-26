@@ -5,6 +5,7 @@ from bacbench.tasks.strain_clustering.aai import (
     add_protein_id_columns,
     build_aai_distance_matrices,
     cluster_distance_matrix,
+    compute_bootstrap_leiden_aai_metrics,
     compute_leiden_aai_metrics,
     compute_pairwise_aai,
     compute_pairwise_aai_from_mmseqs_hits_sqlite,
@@ -19,6 +20,7 @@ from bacbench.tasks.strain_clustering.aai import (
     read_best_filtered_mmseqs_hits,
     run_mmseqs_all_vs_all,
     select_final_clusters,
+    summarize_bootstrap_metrics,
     write_protein_fasta,
 )
 
@@ -297,6 +299,41 @@ def test_leiden_aai_metrics_runs_parameter_grid_on_precomputed_distances():
         "k_neighbors",
         "effective_k_neighbors",
     }
+
+
+def test_bootstrap_leiden_aai_metrics_and_summary_rank_settings():
+    distance_matrix = np.array(
+        [
+            [0.0, 0.05, 0.95, 0.95],
+            [0.05, 0.0, 0.95, 0.95],
+            [0.95, 0.95, 0.0, 0.04],
+            [0.95, 0.95, 0.04, 0.0],
+        ]
+    )
+    genome_index = pd.DataFrame(
+        {
+            "genome_id": ["a1", "a2", "b1", "b2"],
+            "species": ["species_a", "species_a", "species_b", "species_b"],
+        }
+    )
+
+    metrics = compute_bootstrap_leiden_aai_metrics(
+        distance_matrix=distance_matrix,
+        genome_index=genome_index,
+        leiden_resolutions=[0.1, 1.0],
+        k_neighbors=[2],
+        n_bootstraps=3,
+        proportion=0.75,
+        random_seed=7,
+        show_progress=False,
+    )
+    summary = summarize_bootstrap_metrics(metrics)
+
+    assert len(metrics) == 6
+    assert set(metrics["bootstrap_idx"]) == {0, 1, 2}
+    assert set(metrics["sample_size"]) == {3}
+    assert summary["rank"].tolist() == [1, 2]
+    assert {"ari_mean", "ari_std", "nmi_mean", "n_bootstraps"}.issubset(summary.columns)
 
 
 def test_rank_leiden_metrics_and_select_final_clusters():
