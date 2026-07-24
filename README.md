@@ -1,14 +1,12 @@
 # BacBench
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](https://github.com/macwiatrak/BacBench/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)]
 
 
 [//]: # ([![Tests][badge-tests]][tests])
 
 [//]: # ([![Documentation][badge-docs]][documentation])
 
-[//]: # ()
-[//]: # ([badge-tests]: https://img.shields.io/github/actions/workflow/status/macwiatrak/Bacformer/test.yaml?branch=main)
 
 [//]: # ([badge-docs]: https://img.shields.io/readthedocs/Bacformer)
 
@@ -70,7 +68,7 @@ Before installing BacBench, make sure to create a new `python` environment. We r
 
 You can install BacBench by cloning the repository and installing the dependencies:
 ```bash
-git clone https://github.com/macwiatrak/BacBench.git
+# git clone <ANONYMISED-URL>
 cd BacBench
 # 1) install BacBench **with its core dependencies**
 pip install .
