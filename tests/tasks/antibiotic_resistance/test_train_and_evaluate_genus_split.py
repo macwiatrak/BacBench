@@ -51,6 +51,15 @@ def test_prepare_drugs_applies_existing_support_thresholds():
     assert set(drugs["eligible"].y) == {0, 1}
 
 
+def test_select_tuning_drugs_limits_only_the_tuning_subset():
+    drugs = {f"drug_{index}": object() for index in range(25)}
+
+    tuning_drugs = genus_eval.select_tuning_drugs(drugs, tuning_n_drugs=20)
+
+    assert list(tuning_drugs) == [f"drug_{index}" for index in range(20)]
+    assert len(drugs) == 25
+
+
 def test_select_best_learning_rate_uses_mean_across_drugs():
     tuning_results = pd.DataFrame(
         {

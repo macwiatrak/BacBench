@@ -107,8 +107,9 @@ Useful options:
 
 Use `train_and_evaluate_genus_split.py` to evaluate every embedding column in a single wide parquet file. The script
 keeps genera disjoint across the 70/10/20 train/validation/test partitions, tunes one learning rate per model using
-the mean validation AUPRC across eligible antibiotics on seed 1, and evaluates the selected learning rate on seeds
-1, 2, and 3. Seed values control both the genus partition and linear-probe initialization.
+the mean validation AUPRC across the first 20 eligible antibiotics on seed 1, and evaluates the selected learning
+rate across all eligible antibiotics on seeds 1, 2, and 3. Seed values control both the genus partition and
+linear-probe initialization. Override the tuning cap with `--tuning-n-drugs` if needed.
 
 ```bash
 python bacbench/tasks/antibiotic_resistance/train_and_evaluate_genus_split.py

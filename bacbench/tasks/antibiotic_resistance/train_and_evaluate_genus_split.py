@@ -195,6 +195,15 @@ def prepare_drugs(
     return prepared
 
 
+def select_tuning_drugs(drugs: dict[str, DrugData], tuning_n_drugs: int | None) -> dict[str, DrugData]:
+    """Select a deterministic prefix of eligible drugs for LR tuning."""
+    if tuning_n_drugs is None:
+        return drugs.copy()
+    if tuning_n_drugs <= 0:
+        raise ValueError("The tuning drug limit must be positive or None.")
+    return dict(list(drugs.items())[:tuning_n_drugs])
+
+
 def _split_fingerprint(groups: np.ndarray, train: np.ndarray, val: np.ndarray, test: np.ndarray) -> str:
     payload = {
         "train": sorted(set(groups[train].tolist())),
@@ -595,6 +604,7 @@ class ArgParser(Tap):
     test_size: float = 0.2
     dropout: float = 0.1
     max_split_attempts: int = 100
+    tuning_n_drugs: int | None = 20
     limit_n_models: int | None = None
     limit_n_drugs: int | None = None
     enable_progress_bar: bool = False
@@ -643,12 +653,13 @@ def main(args: ArgParser) -> None:
         )
         if not drugs:
             raise ValueError(f"Model {model_name!r} has no drugs meeting the configured support thresholds.")
-        print(f"  Matched {len(model_df)} genomes; evaluating {len(drugs)} eligible drugs")
+        tuning_drugs = select_tuning_drugs(drugs, args.tuning_n_drugs)
+        print(f"  Matched {len(model_df)} genomes; tuning on {len(tuning_drugs)} of {len(drugs)} eligible drugs")
 
         tuning_results = run_lr_sweep(
             model_name=model_name,
             embeddings=embeddings,
-            drugs=drugs,
+            drugs=tuning_drugs,
             learning_rates=args.learning_rates,
             tuning_seed=args.tuning_seed,
             train_size=args.train_size,
