@@ -28,7 +28,7 @@ DEFAULT_INPUT_FILEPATH = (
     "input-data/datasets/amr/models/all_model_embeddings_with_amr_and_evo.parquet"
 )
 DEFAULT_LABELS_FILEPATH = (
-    "/home/mw896/rds/rds-flotolab-9X9gY1OFt4M/projects/bacformer/input-data/datasets/amr/models/binary_labels.csv"
+    "/home/mw896/rds/rds-flotolab-9X9gY1OFt4M/projects/bacformer/input-data/datasets/amr/binary_labels.csv"
 )
 DEFAULT_OUTPUT_DIR = (
     "/home/mw896/rds/rds-flotolab-9X9gY1OFt4M/projects/bacformer/"
