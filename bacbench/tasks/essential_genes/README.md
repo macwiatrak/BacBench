@@ -69,6 +69,28 @@ python bacbench/tasks/essential_genes/run_train_cls.py \
 
 The CLI uses `--input-df-file-path` because the parser field is `input_df_file_path`.
 
+## No-training embedding homology baseline
+
+`run_embedding_homology_baseline.py` performs exact CPU-only nearest-neighbor label transfer with the ESM-C protein
+embeddings. It tunes `k` over `[1, 3, 5, 10]` using median per-genome validation AUPRC. For each protein, it
+calculates the mean cosine similarity to the top-k train-essential and train-nonessential proteins; their difference
+is the continuous essentiality score. The selected `k` is then used once on the test split. No classifier is fitted,
+and validation or test proteins are never added to the training reference database.
+
+The input and output paths are hardcoded for the local flat ESM-C parquet, so run it without arguments from the
+repository root:
+
+```bash
+python bacbench/tasks/essential_genes/run_embedding_homology_baseline.py
+```
+
+The script uses memory-bounded NumPy batches on CPU and displays progress bars while loading embeddings, scoring
+validation and test proteins, and calculating genome-level metrics. It writes per-genome results to
+`/Users/maciejwiatrak/Downloads/esmc_homology_baseline_per_genome.csv` and reports median ± sample standard deviation
+AUROC and AUPRC across valid test genomes in
+`/Users/maciejwiatrak/Downloads/esmc_homology_baseline_summary.csv`. Validation tuning results are saved to
+`/Users/maciejwiatrak/Downloads/esmc_homology_baseline_k_tuning.csv`.
+
 ## Optional End-To-End Finetuning Scripts
 
 The directory also contains task-specific finetuning scripts for sequence models:

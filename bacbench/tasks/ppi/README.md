@@ -90,6 +90,25 @@ python bacbench/tasks/ppi/run_unsupervised_eval.py \
     --score-threshold 0.6
 ```
 
+## Embedding homology baseline
+
+`run_embedding_homology_baseline.py` reads the flattened, one-contig-per-row ESM-C parquet hardcoded at
+`/Users/maciejwiatrak/Downloads/esmc_ppi_subset.parquet`. It removes duplicated `(i, j)`/`(j, i)` interactions,
+thresholds STRING scores at `0.6`, and represents each unordered pair by the normalized mean of its two normalized
+protein embeddings. The script tunes `k` over `[1, 3, 5, 10]` using median per-genome validation AUPRC, then evaluates
+the selected value once on the test split. Contigs are aggregated by `strain_name` before AUROC and AUPRC are
+calculated.
+
+Run the baseline without arguments from the repository root:
+
+```bash
+python bacbench/tasks/ppi/run_embedding_homology_baseline.py
+```
+
+The exact neighbor search runs on a CUDA GPU, while parquet parsing and pair construction remain on CPU. A CPU fallback
+is used when CUDA is unavailable. The script reports mean, median, and sample standard deviation across test genomes
+and writes validation tuning, per-genome test, and aggregate test CSV files under `/Users/maciejwiatrak/Downloads`.
+
 ## Output
 
 `run_train_mlp.py` always writes checkpoints, logs, and `args.json` under `--output-dir`. When `--test-after-train` is set, it also writes `test_predictions.csv` and `test_predictions_by_genome.csv`.
