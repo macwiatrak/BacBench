@@ -103,6 +103,32 @@ Useful options:
 - `--test-after-train`: also report test metrics after validation.
 - `--total-min-samples` and `--min-class-samples`: filter low-support antibiotics.
 
+### Multi-model genus-split evaluation
+
+Use `train_and_evaluate_genus_split.py` to evaluate every embedding column in a single wide parquet file. The script
+keeps genera disjoint across the 70/10/20 train/validation/test partitions, tunes one learning rate per model using
+the mean validation AUPRC across eligible antibiotics on seed 1, and evaluates the selected learning rate on seeds
+1, 2, and 3. Seed values control both the genus partition and linear-probe initialization.
+
+```bash
+python bacbench/tasks/antibiotic_resistance/train_and_evaluate_genus_split.py
+```
+
+The default input and label paths point to the Bacformer RDS AMR model directory. They can be overridden explicitly:
+
+```bash
+python bacbench/tasks/antibiotic_resistance/train_and_evaluate_genus_split.py \
+    --input-genomes-df-filepath <input-dir>/merged_all_embeddings.parquet \
+    --labels-df-filepath <input-dir>/binary_labels.csv \
+    --output-dir <output-dir>
+```
+
+The defaults retain the existing binary AMR probe settings: 100 epochs, early-stopping patience 10, batch size 256,
+dropout 0.1, AdamW, at least 500 measurements per drug, and at least 50 examples from each class. Test metrics are
+written as one row per model, drug, and seed. Separate CSV files preserve detailed LR-sweep results and model-level
+summaries. Binary label `1` is treated as the resistant/positive class. Use
+`--limit-n-models 1 --limit-n-drugs 1 --max-epochs 1` for a small end-to-end smoke run.
+
 ## Output
 
 The script writes a CSV file:
